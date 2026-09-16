@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "breadwinner"
+version = "0.1.0"
+description = "CLI tool for job application ingestion, tailoring, and tracking from portfolio sources."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Faiz Palwala", email = "faizpalwala@gmail.com" }
+]
+keywords = ["jobs", "resume", "tailor", "ats", "llm", "automation", "career"]
+dependencies = [
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "textual>=8.0.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pyyaml>=6.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "openai>=1.12.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0"
+]
+
+[project.scripts]
+breadwinner = "breadwinner.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+breadwinner = [
+    "personas/*.yaml",
+    "templates/**/*.jinja2"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+

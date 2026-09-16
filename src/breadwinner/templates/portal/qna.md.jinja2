@@ -1,0 +1,22 @@
+# Portal Application Q&A: {{ app.job.company }} - {{ app.job.title }}
+
+Use these pre-tailored responses for Greenhouse, Lever, Ashby, or Workday custom question fields:
+
+---
+
+{% for key, answer in app.portal_answers.items() %}
+### Q: {{ key | replace('_', ' ') | title }}
+```text
+{{ answer }}
+```
+
+---
+{% endfor %}
+
+### Quick Facts for Form Filling:
+- **Full Name:** {{ profile.full_name }}
+- **Location:** {{ profile.location }}
+- **Availability:** Immediate / Unrestricted
+- **GitHub:** {{ profile.github_url }}
+- **LinkedIn:** {{ profile.linkedin_url }}
+- **Portfolio:** {{ profile.portfolio_url }}

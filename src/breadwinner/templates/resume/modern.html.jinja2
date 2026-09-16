@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ profile.full_name }} - Resume</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 12mm 15mm 12mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.4;
+      color: #1f2937;
+      background: #ffffff;
+    }
+    .container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 8pt;
+      margin-bottom: 10pt;
+    }
+    .header h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.5px;
+    }
+    .header .subtitle {
+      font-size: 11pt;
+      font-weight: 500;
+      color: #2563eb;
+      margin-bottom: 4pt;
+    }
+    .header .contact-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12pt;
+      font-size: 9pt;
+      color: #4b5563;
+    }
+    .header .contact-bar a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+    .summary {
+      font-size: 9.5pt;
+      color: #374151;
+      margin-bottom: 10pt;
+      line-height: 1.45;
+    }
+    .section-title {
+      font-size: 11pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #111827;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 2pt;
+      margin-top: 10pt;
+      margin-bottom: 6pt;
+    }
+    .entry {
+      margin-bottom: 8pt;
+    }
+    .entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .entry-role {
+      font-weight: 700;
+      color: #111827;
+    }
+    .entry-company {
+      font-weight: 600;
+      color: #2563eb;
+    }
+    .entry-date {
+      font-size: 9pt;
+      color: #6b7280;
+    }
+    ul {
+      margin-left: 14pt;
+      margin-top: 3pt;
+      margin-bottom: 4pt;
+    }
+    li {
+      margin-bottom: 2pt;
+      color: #374151;
+    }
+    .skill-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4pt;
+      margin-top: 3pt;
+    }
+    .badge {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      padding: 1pt 5pt;
+      border-radius: 3pt;
+      font-size: 8.5pt;
+      color: #1f2937;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>{{ profile.full_name }}</h1>
+      <div class="subtitle">{{ profile.title }}</div>
+      <div class="contact-bar">
+        {% if profile.location %}<span>📍 {{ profile.location }}</span>{% endif %}
+        {% if profile.email %}<span>✉️ <a href="mailto:{{ profile.email }}">{{ profile.email }}</a></span>{% endif %}
+        {% if profile.phone %}<span>📞 {{ profile.phone }}</span>{% endif %}
+        {% if profile.linkedin_url %}<span>🔗 <a href="{{ profile.linkedin_url }}">LinkedIn</a></span>{% endif %}
+        {% if profile.github_url %}<span>🐙 <a href="{{ profile.github_url }}">GitHub</a></span>{% endif %}
+        {% if profile.portfolio_url %}<span>🌐 <a href="{{ profile.portfolio_url }}">Portfolio</a></span>{% endif %}
+      </div>
+    </header>
+
+    {% if app.tailored_summary %}
+    <div class="summary">
+      {{ app.tailored_summary }}
+    </div>
+    {% endif %}
+
+    <!-- Experience -->
+    {% if app.tailored_experiences %}
+    <section>
+      <div class="section-title">Professional Experience</div>
+      {% for exp in app.tailored_experiences %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="entry-role">{{ exp.role }} <span class="entry-company">@ {{ exp.company }}</span></span>
+          <span class="entry-date">{{ exp.start_date }} – {{ exp.end_date }}{% if exp.location %} | {{ exp.location }}{% endif %}</span>
+        </div>
+        {% if exp.bullets %}
+        <ul>
+          {% for bullet in exp.bullets %}
+          <li>{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Projects -->
+    {% if app.tailored_projects %}
+    <section>
+      <div class="section-title">Key Projects & Systems</div>
+      {% for proj in app.tailored_projects %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="entry-role">{{ proj.name }}</span>
+          {% if proj.github_url %}<span class="entry-date"><a href="{{ proj.github_url }}">Code</a></span>{% endif %}
+        </div>
+        {% if proj.tech_stack %}
+        <div class="skill-badges">
+          {% for t in proj.tech_stack %}
+          <span class="badge">{{ t }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if proj.highlights %}
+        <ul>
+          {% for hl in proj.highlights %}
+          <li>{{ hl }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Education -->
+    {% if profile.education %}
+    <section>
+      <div class="section-title">Education</div>
+      {% for edu in profile.education %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="entry-role">{{ edu.degree }}{% if edu.field_of_study %} in {{ edu.field_of_study }}{% endif %}</span>
+          <span class="entry-date">{{ edu.start_date }} – {{ edu.end_date }}</span>
+        </div>
+        <div style="color: #4b5563; font-size: 9.5pt;">{{ edu.institution }}{% if edu.grade %} ({{ edu.grade }}){% endif %}</div>
+        {% if edu.coursework %}
+        <div style="font-size: 9pt; color: #6b7280; margin-top: 1pt;">
+          Focus: {{ edu.coursework | join(', ') }}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Skills -->
+    {% if profile.skills %}
+    <section>
+      <div class="section-title">Technical Skills</div>
+      {% for sk in profile.skills %}
+      <div style="margin-bottom: 3pt; font-size: 9.5pt;">
+        <strong style="color: #111827;">{{ sk.category }}:</strong>
+        <span style="color: #374151;">{{ sk.skills | join(' • ') }}</span>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+  </div>
+</body>
+</html>

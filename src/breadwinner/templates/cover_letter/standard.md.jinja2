@@ -1,0 +1,17 @@
+# Cover Letter: {{ profile.full_name }} -> {{ app.job.company }}
+
+**Role:** {{ app.job.title }}  
+**Company:** {{ app.job.company }}  
+**Date:** {{ today }}  
+**Applicant:** {{ profile.full_name }} ({{ profile.email }} | {{ profile.phone }})  
+
+---
+
+{{ app.cover_letter }}
+
+---
+
+### Key Alignments & Proof Points:
+- **Targeted Strengths:** {{ app.match_analysis.matched_skills | join(', ') }}
+- **ATS Match Score:** {{ app.match_analysis.match_score }}%
+- **Strategic Angle:** {{ app.match_analysis.rationale }}
