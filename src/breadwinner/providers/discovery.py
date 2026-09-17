@@ -35,11 +35,13 @@ class ProviderDiscovery:
         """Discover all supported providers and their models."""
         results = []
         results.append(cls.check_lmstudio())
+        results.append(cls.check_deepseek())
         results.append(cls.check_gemini())
         results.append(cls.check_groq())
         results.append(cls.check_ollama())
         results.append(cls.check_mock())
         return results
+
 
     @classmethod
     def check_lmstudio(cls) -> ProviderStatus:
@@ -89,15 +91,47 @@ class ProviderDiscovery:
         )
 
     @classmethod
+    def check_deepseek(cls) -> ProviderStatus:
+        """Check DeepSeek API configuration."""
+        key_configured = bool(settings.deepseek_api_key and settings.deepseek_api_key.strip())
+        is_active_provider = settings.breadwinner_llm_provider == "deepseek"
+
+        known_models = [
+            ("deepseek-chat", "DeepSeek-V3 (High-throughput reasoning & coding)"),
+            ("deepseek-reasoner", "DeepSeek-R1 (Chain-of-thought reasoning model)")
+        ]
+
+        models = [
+            ModelInfo(
+                id=mid,
+                name=mname,
+                provider="deepseek",
+                is_active=(is_active_provider and mid == settings.deepseek_model),
+                description=mname
+            )
+            for mid, mname in known_models
+        ]
+
+        status_text = "🟢 Configured (DeepSeek Key)" if key_configured else "⚪ Missing DEEPSEEK_API_KEY in .env"
+        return ProviderStatus(
+            name="DeepSeek",
+            slug="deepseek",
+            is_available=key_configured,
+            status_text=status_text,
+            models=models,
+            active_model=settings.deepseek_model if key_configured else None
+        )
+
+    @classmethod
     def check_gemini(cls) -> ProviderStatus:
-        """Check Google Gemini Free/Student API configuration."""
+        """Check Google Gemini API configuration."""
         key_configured = bool(settings.gemini_api_key and settings.gemini_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "gemini"
 
         known_models = [
-            ("gemini-2.5-flash", "Gemini 2.5 Flash (Fastest, 1M context, Free Tier)"),
-            ("gemini-1.5-flash", "Gemini 1.5 Flash (Ultra-low latency, Free Tier)"),
-            ("gemini-1.5-pro", "Gemini 1.5 Pro (Deep reasoning, Free/Student Tier)")
+            ("gemini-2.5-flash", "Gemini 2.5 Flash (Fastest, 1M context)"),
+            ("gemini-1.5-flash", "Gemini 1.5 Flash (Ultra-low latency)"),
+            ("gemini-1.5-pro", "Gemini 1.5 Pro (Deep reasoning)")
         ]
 
         models = [
@@ -113,7 +147,7 @@ class ProviderDiscovery:
 
         status_text = "🟢 Configured (AI Studio Key)" if key_configured else "⚪ Missing GEMINI_API_KEY in .env"
         return ProviderStatus(
-            name="Google Gemini (Free/Student)",
+            name="Google Gemini",
             slug="gemini",
             is_available=key_configured,
             status_text=status_text,
@@ -123,13 +157,13 @@ class ProviderDiscovery:
 
     @classmethod
     def check_groq(cls) -> ProviderStatus:
-        """Check Groq Cloud Free tier configuration."""
+        """Check Groq Cloud configuration."""
         key_configured = bool(settings.groq_api_key and settings.groq_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "groq"
 
         known_models = [
-            ("llama-3.3-70b-versatile", "Llama 3.3 70B (High speed, Free Tier)"),
-            ("qwen-2.5-32b", "Qwen 2.5 32B (Advanced reasoning, Free Tier)"),
+            ("llama-3.3-70b-versatile", "Llama 3.3 70B (High speed)"),
+            ("qwen-2.5-32b", "Qwen 2.5 32B (Advanced reasoning)"),
             ("llama-3.1-8b-instant", "Llama 3.1 8B (Sub-second speed)")
         ]
 
@@ -145,13 +179,14 @@ class ProviderDiscovery:
 
         status_text = "🟢 Configured (Groq Key)" if key_configured else "⚪ Missing GROQ_API_KEY in .env"
         return ProviderStatus(
-            name="Groq Cloud (Free Open Weights)",
+            name="Groq Cloud",
             slug="groq",
             is_available=key_configured,
             status_text=status_text,
             models=models,
             active_model=settings.groq_model if key_configured else None
         )
+
 
     @classmethod
     def check_ollama(cls) -> ProviderStatus:
@@ -221,6 +256,7 @@ class ProviderDiscovery:
 
         model_env_keys = {
             "lmstudio": "LMSTUDIO_MODEL",
+            "deepseek": "DEEPSEEK_MODEL",
             "gemini": "GEMINI_MODEL",
             "groq": "GROQ_MODEL",
             "ollama": "OLLAMA_MODEL",
@@ -250,6 +286,8 @@ class ProviderDiscovery:
         if target_model_key and model_id:
             if provider_slug == "lmstudio":
                 settings.lmstudio_model = model_id
+            elif provider_slug == "deepseek":
+                settings.deepseek_model = model_id
             elif provider_slug == "gemini":
                 settings.gemini_model = model_id
             elif provider_slug == "groq":
@@ -258,3 +296,4 @@ class ProviderDiscovery:
                 settings.ollama_model = model_id
 
         return True
+

@@ -13,9 +13,13 @@ class Settings(BaseSettings):
     )
 
     # Provider
-    breadwinner_llm_provider: Literal["gemini", "lmstudio", "groq", "ollama", "openai"] = "gemini"
+    breadwinner_llm_provider: Literal["gemini", "lmstudio", "groq", "ollama", "openai", "deepseek"] = "gemini"
 
-    # Gemini Free/Student Plan
+    # DeepSeek (Reasoning & Chat)
+    deepseek_api_key: Optional[str] = None
+    deepseek_model: str = "deepseek-chat"
+
+    # Google Gemini
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-2.5-flash"
 
@@ -23,7 +27,7 @@ class Settings(BaseSettings):
     lmstudio_base_url: str = "http://localhost:1234/v1"
     lmstudio_model: str = "local-model"
 
-    # Groq (Free Cloud)
+    # Groq Cloud
     groq_api_key: Optional[str] = None
     groq_model: str = "llama-3.3-70b-versatile"
 
@@ -31,9 +35,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = "llama3.2"
 
-    # OpenAI (Fallback)
+    # OpenAI (Commercial fallback)
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4o-mini"
+
 
     # Portfolio & Sources
     portfolio_path: Path = Path("./portfolio")

@@ -1,6 +1,6 @@
 # Breadwinner
 
-Breadwinner is a CLI tool and terminal UI for ingesting job descriptions, matching them against a verified portfolio source of truth, and generating ATS-aligned resumes, cover letters, and portal application responses. It operates with free-tier cloud APIs (Google Gemini, Groq) or local LLMs via LM Studio and Ollama.
+Breadwinner is a local-first, privacy-respecting CLI tool and terminal UI for ingesting job descriptions, matching them against a verified portfolio source of truth, and generating ATS-aligned resumes, cover letters, and portal application responses. It operates with fully local LLMs (LM Studio, Ollama) or hosted AI providers (DeepSeek, Google Gemini, Groq, OpenAI) using Bring-Your-Own-Key (BYOK).
 
 ---
 
@@ -8,10 +8,11 @@ Breadwinner is a CLI tool and terminal UI for ingesting job descriptions, matchi
 
 1. **Portfolio as Single Source of Truth**: Parses achievements, project case studies, and work history directly from an Astro/Keystatic portfolio, JSON Resume, or Markdown directory. Eliminates hallucinated experience by grounding generation strictly in verified facts and quantified metrics.
 2. **Standard Resume Templates**: Includes single-column, ATS-parsable templates based on the `r/EngineeringResumes` standard (Jake's Resume), with strict XYZ metric structure (`Accomplished [X] as measured by [Y], by doing [Z]`).
-3. **Free & Local LLM Support**: Works out of the box with LM Studio on Apple Silicon/PC (`http://localhost:1234/v1`), Google Gemini free/student tier, Groq, and Ollama.
-4. **Narrative Personas**: Switch between technical roles (`tech_ai`), administrative/operations roles (`bridging_admin`), and service roles (`hospitality`).
+3. **Local-First & BYOK Architecture**: Run 100% locally with LM Studio or Ollama with zero data leaving your machine, or connect your own API keys for DeepSeek, Google Gemini, Groq, and OpenAI.
+4. **Narrative Personas**: Switch between technical roles (`tech_ai`), administrative/operations roles (`bridging_admin`), and service roles (`hospitality`), with private override support via `user_personas/`.
 5. **Interactive Terminal UI**: Full keyboard-navigable terminal interface (`breadwinner ui`) built with Textual for managing your application pipeline, tailoring new jobs, and switching models.
 6. **Dual-Sync Application Tracker**: Stores job records in an SQLite database (`tracker.db`) with automatic bidirectional sync to CSV (`job_tracker.csv`).
+
 
 ---
 
@@ -101,17 +102,27 @@ pip install -e .
 
 
 ### Configuration
-
+ 
 Copy `.env.example` to `.env`:
 
 ```bash
 cp .env.example .env
+chmod 600 .env  # Restrict permissions to owner only
 ```
 
-Configure your preferred LLM provider:
+Configure your preferred LLM provider in `.env`:
+- **DeepSeek**: Set `BREADWINNER_LLM_PROVIDER=deepseek` and add `DEEPSEEK_API_KEY=...`.
 - **Local LM Studio**: Run LM Studio local server on port 1234. Set `BREADWINNER_LLM_PROVIDER=lmstudio`.
 - **Google Gemini**: Set `BREADWINNER_LLM_PROVIDER=gemini` and add `GEMINI_API_KEY=...`.
+- **Groq Cloud**: Set `BREADWINNER_LLM_PROVIDER=groq` and add `GROQ_API_KEY=...`.
+- **Local Ollama**: Start Ollama (`ollama serve`). Set `BREADWINNER_LLM_PROVIDER=ollama`.
 - **Portfolio Path**: Set `PORTFOLIO_PATH=/path/to/portfolio`.
+
+#### Zero-Cost Setup Options:
+Breadwinner can be run completely free of charge:
+- **100% Offline & Free**: Run local models via [LM Studio](https://lmstudio.ai/) or [Ollama](https://ollama.com/) with zero external network calls.
+- **Free Developer Tiers**: Utilize free API developer keys from [Google AI Studio](https://aistudio.google.com/) (Gemini 2.5 Flash) or [Groq Cloud](https://console.groq.com/) (Llama 3.3, Qwen 2.5).
+
 
 ---
 
@@ -249,11 +260,22 @@ Tests cover portfolio adapters, HTML scraping, persona validation, template rend
 
 ---
 
-## Security
+## Security & Credential Handling
 
-- All API keys and environment variables are read from `.env`, which is ignored by git.
-- Supports fully local execution with LM Studio or Ollama with zero external network traffic.
-- Generated applications and candidate profiles remain in local storage.
+Breadwinner is designed for complete privacy and local execution:
+
+1. **Zero External Telemetry**: No analytics, usage metrics, or error reports are ever transmitted. The tool communicates only with the LLM endpoint you configure.
+2. **Local Credential Storage**:
+   - All API keys reside strictly in your local `.env` file or process environment variables.
+   - `.env`, `.env.local`, `*.key`, and `*.pem` are excluded in `.gitignore` to eliminate git leakage risks.
+   - Recommended POSIX file hardening: `chmod 600 .env` (restricts read/write access to your user account only).
+   - Shell environment variable precedence: You can export keys directly in your terminal session (`export DEEPSEEK_API_KEY=...`) without saving them to disk.
+3. **Air-Gapped & Offline Execution**:
+   - When configured with `lmstudio` or `ollama`, the entire profile ingestion, keyword matching, and tailoring cycle executes 100% offline on your local hardware.
+   - No resumes, portfolio data, or job descriptions leave your local machine.
+4. **Data Isolation**:
+   - Generated application packages (`./applications/`) and SQLite tracking databases (`./tracker.db`, `./job_tracker.csv`) remain strictly on local disk and are ignored by git.
+
 
 ---
 

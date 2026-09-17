@@ -91,8 +91,16 @@ def get_llm_provider(
             model=model_override or settings.openai_model
         )
 
+    elif provider == "deepseek":
+        return OpenAICompatibleProvider(
+            base_url="https://api.deepseek.com",
+            api_key=settings.deepseek_api_key or "missing-key",
+            model=model_override or settings.deepseek_model
+        )
+
     elif provider == "mock":
         return MockLLMProvider()
+
 
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")

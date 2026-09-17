@@ -402,10 +402,11 @@ def models_cmd():
 @click.argument("model", required=False, default=None)
 def switch_cmd(provider: str, model: Optional[str]):
     """Switch active LLM provider and model (e.g. breadwinner switch lmstudio qwen2.5-coder-14b)."""
-    valid_providers = ["gemini", "lmstudio", "groq", "ollama", "mock", "openai"]
+    valid_providers = ["gemini", "deepseek", "lmstudio", "groq", "ollama", "mock", "openai"]
     if provider.lower() not in valid_providers:
         console.print(f"[red]Invalid provider '{provider}'. Valid choices: {', '.join(valid_providers)}[/red]")
         return
+
 
     ProviderDiscovery.switch_model(provider, model)
     model_msg = f" with model '{model}'" if model else ""

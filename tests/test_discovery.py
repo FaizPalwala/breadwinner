@@ -18,11 +18,20 @@ def test_gemini_models_list():
     assert "gemini-1.5-flash" in model_ids
 
 
+def test_deepseek_models_list():
+    status = ProviderDiscovery.check_deepseek()
+    assert status.slug == "deepseek"
+    model_ids = [m.id for m in status.models]
+    assert "deepseek-chat" in model_ids
+    assert "deepseek-reasoner" in model_ids
+
+
 def test_groq_models_list():
     status = ProviderDiscovery.check_groq()
     assert status.slug == "groq"
     model_ids = [m.id for m in status.models]
     assert "llama-3.3-70b-versatile" in model_ids
+
 
 
 def test_switch_model(tmp_path, monkeypatch):
