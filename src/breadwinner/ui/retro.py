@@ -110,7 +110,7 @@ MASCOT_FRAMES = [
     r"""
     [#f1fa8c]   ( 🍞 )   [/]
    [bold white](｡◕‿◕｡)[/]   [#8be9fd]< "Proofing your career..."[/]
-  [#d18f52]/| ░░░ |\[/]
+  [#d18f52]/| ░░░ |) [/]
    [#d18f52]d     b [/]
     """.strip("\n"),
 
@@ -118,7 +118,7 @@ MASCOT_FRAMES = [
     r"""
     [#f1fa8c]   ( 🍞 )   [/]
    [bold white](｡◕‿<｡)[/]   [#50fa7b]< "No keyword-stuffing slop!"[/]
-  [#d18f52]/| ░░░ |\[/]
+  [#d18f52]/| ░░░ |) [/]
    [#d18f52]d     b [/]
     """.strip("\n"),
 
@@ -135,8 +135,47 @@ MASCOT_FRAMES = [
   [bold #50fa7b]\(*o*)/  ✨ DING! ✨[/]
    [#f1fa8c]  ( 🍞 )  [/]
   [bold white](｡♥‿♥｡)[/]   [#ffb86c]< "Golden ATS Masterpiece!"[/]
-  [#d18f52]/| ░░░ |\[/]
+  [#d18f52]/| ░░░ |) [/]
     """.strip("\n")
+]
+
+POKEMON_BAKERY_SPRITES = [
+    # Frame 0: Welcoming customer behind counter
+    (
+        "[#f4a261]   ( 🍞 )[/]\n"
+        "[bold #fff1e6] ( ^ ‿ ^ )[/]\n"
+        "[#e76f51]╭([#fefae0] ░░░░ [/])╮[/]\n"
+        "[#bc6c25]═╡═══════╞═[/]\n"
+        "[#bc6c25]│[#f4a261]🥖 🥐 🥨[/][#bc6c25]│[/]\n"
+        "[#bc6c25]╰────────╯[/]"
+    ),
+    # Frame 1: Winking & rolling dough
+    (
+        "[#f4a261]   ( 🍞 )[/]\n"
+        "[bold #fff1e6] ( > ‿ ◕ )[/]\n"
+        "[#e76f51]╭([#bc6c25]──◎──[/])╮[/]\n"
+        "[#bc6c25]═╡═══════╞═[/]\n"
+        "[#bc6c25]│[#fff1e6] * ｡ *  [/][#bc6c25]│[/]\n"
+        "[#bc6c25]╰────────╯[/]"
+    ),
+    # Frame 2: Sprinkling flour with joy
+    (
+        "[#fff1e6] *[#f4a261]( 🍞 )[/]* [/]\n"
+        "[bold #fff1e6] ( ˘ ▽ ˘ )[/]\n"
+        "[#e76f51](づ[#fff1e6]｡∴｡[/])づ [/]\n"
+        "[#bc6c25]═╡═══════╞═[/]\n"
+        "[#bc6c25]│[#f4a261]🍞 🥖 🥐[/][#bc6c25]│[/]\n"
+        "[#bc6c25]╰────────╯[/]"
+    ),
+    # Frame 3: Fresh batch celebration ding!
+    (
+        "[bold #f4a261] ✨DING!✨  [/]\n"
+        "[bold #fff1e6] ( ★ ‿ ★ )[/]\n"
+        "[#f4a261] \\( 🍞 )/  [/]\n"
+        "[#bc6c25]═╡═══════╞═[/]\n"
+        "[#bc6c25]│[#52b788]★ 100% ★[/][#bc6c25]│[/]\n"
+        "[#bc6c25]╰────────╯[/]"
+    )
 ]
 
 
@@ -283,6 +322,89 @@ class AnimatedMascot(Static):
     def set_message(self, message: str) -> None:
         self.active_message = message
         self.advance_frame()
+
+
+class PokemonBakeryCounter(Static):
+    """8-bit Pokémon-style bakery shop counter with animated Baker Crumb and dialogue box."""
+
+    DEFAULT_CSS = """
+    PokemonBakeryCounter {
+        height: auto;
+        margin-bottom: 1;
+    }
+    #counter-scene-row {
+        height: 7;
+    }
+    #counter-baker-sprite {
+        width: 16;
+        height: 6;
+        margin-right: 1;
+    }
+    #counter-dialogue-box {
+        width: 1fr;
+        height: 6;
+        background: #141926;
+        border: round #d4a373;
+        padding: 0 1;
+    }
+    .poke-dialogue-title {
+        color: #f4a261;
+        text-style: bold;
+    }
+    .poke-dialogue-body {
+        color: #fefae0;
+    }
+    .poke-dialogue-status {
+        color: #52b788;
+        text-style: bold;
+        text-align: right;
+    }
+    """
+
+    def __init__(
+        self,
+        initial_message: str = "Welcome, Trainer! Drop your resume or portfolio into the dough bin below, and I'll bake an anti-slop masterpiece!",
+        id: Optional[str] = "pokemon-bakery-counter",
+        classes: Optional[str] = None
+    ):
+        super().__init__("", id=id, classes=classes)
+        self.current_message = initial_message
+        self.badge_title = "💬 BAKER CRUMB [dim](Lv. 100 Master Baker)[/]"
+        self.status_line = "Verified Ingredients Only ♪ ▼"
+        self.frame_idx = 0
+        self._timer = None
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="counter-scene-row"):
+            yield Static(POKEMON_BAKERY_SPRITES[0], id="counter-baker-sprite")
+            with Vertical(id="counter-dialogue-box"):
+                yield Label(self.badge_title, id="counter-dialogue-title", classes="poke-dialogue-title")
+                yield Label(f'"{self.current_message}"', id="counter-dialogue-body", classes="poke-dialogue-body")
+                yield Label(self.status_line, id="counter-dialogue-status", classes="poke-dialogue-status")
+
+    def on_mount(self) -> None:
+        self._timer = self.set_interval(1.2, self.advance_frame)
+
+    def advance_frame(self) -> None:
+        self.frame_idx = (self.frame_idx + 1) % len(POKEMON_BAKERY_SPRITES)
+        try:
+            sprite_widget = self.query_one("#counter-baker-sprite", Static)
+            sprite_widget.update(POKEMON_BAKERY_SPRITES[self.frame_idx])
+        except Exception:
+            pass
+
+    def set_dialogue(self, message: str, status: Optional[str] = None, badge: Optional[str] = None) -> None:
+        self.current_message = message
+        try:
+            self.query_one("#counter-dialogue-body", Label).update(f'"{message}"')
+            if status is not None:
+                self.status_line = status
+                self.query_one("#counter-dialogue-status", Label).update(status)
+            if badge is not None:
+                self.badge_title = badge
+                self.query_one("#counter-dialogue-title", Label).update(badge)
+        except Exception:
+            pass
 
 
 class BakeryStepper(Static):

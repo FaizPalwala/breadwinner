@@ -1,6 +1,8 @@
 """Universal profile ingestion engine from URLs, documents, and freeform text."""
 
 import json
+import re
+import zlib
 import platform
 import subprocess
 from pathlib import Path
@@ -67,6 +69,9 @@ class UniversalIngestor:
             # Return raw json string for parsing
             return path.read_text(encoding="utf-8")
 
+        elif suffix == ".pdf":
+            return UniversalIngestor.extract_text_from_pdf(path)
+
         elif suffix in [".docx", ".rtf"] and platform.system() == "Darwin":
             # Use native macOS textutil for zero-dependency docx extraction
             try:
@@ -86,6 +91,75 @@ class UniversalIngestor:
                 return path.read_text(encoding="utf-8", errors="ignore")
             except Exception as e:
                 raise IngestionError(f"Unsupported file format '{suffix}': {e}")
+
+    @classmethod
+    def extract_text_from_pdf(cls, pdf_path: Path) -> str:
+        """Extract text from PDF using pypdf, macOS Spotlight mdimport, or pure-Python FlateDecode fallback."""
+        path = Path(pdf_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"PDF file not found: {path}")
+
+        # 1. Try pypdf if available
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(str(path))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            if text.strip():
+                return text
+        except ImportError:
+            pass
+
+        # 2. On macOS Darwin, try native mdimport Spotlight extractor
+        if platform.system() == "Darwin":
+            try:
+                res = subprocess.run(
+                    ["mdimport", "-d3", "-t", str(path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                match = re.search(r'kMDItemTextContent\s*=\s*"(.*?)"(?:\s*;|\n\s*[a-zA-Z])', res.stdout, re.DOTALL)
+                if match:
+                    clean_text = match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                    if len(clean_text.strip()) > 30:
+                        return clean_text
+            except Exception:
+                pass
+
+        # 3. Pure-Python stream decompressor for FlateDecode streams
+        try:
+            content = path.read_bytes()
+            extracted_chunks = []
+            stream_matches = re.finditer(b"stream\r?\n(.*?)\r?\nendstream", content, re.DOTALL)
+            for m in stream_matches:
+                stream_data = m.group(1)
+                try:
+                    decompressed = zlib.decompress(stream_data)
+                    text_matches = re.findall(rb"\((.*?)\)\s*Tj", decompressed)
+                    for tm in text_matches:
+                        try:
+                            extracted_chunks.append(tm.decode("latin1", errors="ignore"))
+                        except Exception:
+                            pass
+                    tj_arrays = re.findall(rb"\[(.*?)\]\s*TJ", decompressed)
+                    for arr in tj_arrays:
+                        inner_texts = re.findall(rb"\((.*?)\)", arr)
+                        for it in inner_texts:
+                            try:
+                                extracted_chunks.append(it.decode("latin1", errors="ignore"))
+                            except Exception:
+                                pass
+                except Exception:
+                    continue
+            if extracted_chunks:
+                return " ".join(extracted_chunks)
+        except Exception:
+            pass
+
+        raise IngestionError(
+            f"Could not extract readable text from PDF '{path.name}'. "
+            "Please copy-paste your bio/experience text or export as Markdown/JSON."
+        )
 
     @classmethod
     def parse_text_to_profile(
