@@ -46,6 +46,10 @@ from breadwinner.ui.retro import (
     RetroProgressBar,
     BakingModal
 )
+from breadwinner.ui.welcome import BakeryWelcomeModal
+from breadwinner.ui.editor import DualPaneFineTuneModal
+from breadwinner.core.portfolio import JsonResumeAdapter
+from breadwinner.onboarding import STARTER_JSON_RESUME
 
 
 def get_persona_select_options() -> List[tuple]:
@@ -684,6 +688,34 @@ class BreadwinnerApp(App):
     def on_mount(self) -> None:
         self.load_pipeline_table()
         self.load_models_tab()
+        if not self.pantry.is_initialized():
+            self.push_screen(BakeryWelcomeModal(self.pantry), self._on_welcome_modal_dismissed)
+
+    def _on_welcome_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
+        if not result:
+            return
+
+        action = result.get("action")
+        if action == "demo":
+            import json
+            demo_profile = JsonResumeAdapter(json.loads(STARTER_JSON_RESUME)).load_profile()
+            self.pantry.save_pantry(
+                demo_profile,
+                source_info={"type": "demo", "source": "starter_loaf"},
+                trigger="demo_loaf"
+            )
+            self.action_refresh_data()
+            try:
+                mascot = self.query_one("#studio-mascot", AnimatedMascot)
+                mascot.set_message("Fresh Demo Loaf in pantry!")
+            except Exception:
+                pass
+            self.notify("✓ Fresh Demo Loaf loaded! Explore the Studio and bake a test resume.", title="Pantry Stocked")
+        elif action == "import":
+            source = result.get("source")
+            if source:
+                self._on_ingest_submitted(source)
+
 
     def get_active_badge_text(self) -> str:
         provider = settings.breadwinner_llm_provider.upper()
@@ -923,7 +955,15 @@ class BreadwinnerApp(App):
             lines.append("")
 
         initial_text = "\n".join(lines).strip()
-        self.push_screen(FineTuneModal(initial_text), self._on_finetune_saved)
+        self.push_screen(
+            DualPaneFineTuneModal(
+                initial_text=initial_text,
+                profile=self.current_profile,
+                app_result=self.current_app_result,
+                template_name=self.current_template
+            ),
+            self._on_finetune_saved
+        )
 
     def _on_finetune_saved(self, updated_text: Optional[str]) -> None:
         if not updated_text or not self.current_app_result or not self.last_tailored_dir:

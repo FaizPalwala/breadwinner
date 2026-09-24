@@ -8,8 +8,8 @@ class WorkExperience(BaseModel):
     company: str
     role: str
     location: Optional[str] = None
-    start_date: str
-    end_date: str
+    start_date: str = ""
+    end_date: str = ""
     is_current: bool = False
     bullets: List[str] = Field(default_factory=list)
     technologies: List[str] = Field(default_factory=list)

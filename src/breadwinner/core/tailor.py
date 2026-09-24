@@ -13,6 +13,7 @@ from breadwinner.core.models import (
 )
 from breadwinner.core.persona import Persona
 from breadwinner.providers.base import BaseLLMProvider
+from breadwinner.core.curator import CareerCurator
 
 
 class TailoringEngine:
@@ -29,12 +30,15 @@ class TailoringEngine:
         job_directives: Optional[str] = None
     ) -> TailoredApplication:
         """Run match analysis and generate tailored application packet."""
+        # Curate profile against target job to avoid context bloat and protect 1-page budget
+        curated_res = CareerCurator.curate(profile, job)
+        target_profile = curated_res.curated_profile
 
         # Prepare context payload
         candidate_summary = {
-            "name": profile.full_name,
-            "title": profile.title,
-            "summary": profile.summary,
+            "name": target_profile.full_name,
+            "title": target_profile.title,
+            "summary": target_profile.summary,
             "experiences": [
                 {
                     "company": e.company,
@@ -42,7 +46,7 @@ class TailoringEngine:
                     "bullets": e.bullets,
                     "dates": f"{e.start_date} - {e.end_date}"
                 }
-                for e in profile.experiences
+                for e in target_profile.experiences
             ],
             "education": [
                 {
@@ -50,7 +54,7 @@ class TailoringEngine:
                     "institution": ed.institution,
                     "coursework": ed.coursework
                 }
-                for ed in profile.education
+                for ed in target_profile.education
             ],
             "projects": [
                 {
@@ -59,13 +63,13 @@ class TailoringEngine:
                     "tech_stack": p.tech_stack,
                     "highlights": p.highlights
                 }
-                for p in profile.projects
+                for p in target_profile.projects
             ],
             "skills": [
                 {"category": s.category, "skills": s.skills}
-                for s in profile.skills
+                for s in target_profile.skills
             ],
-            "extra_context": profile.raw_context
+            "extra_context": target_profile.raw_context
         }
 
         personal_guardrails = profile.raw_context.get("personal_context", "")

@@ -43,10 +43,15 @@ def get_repo() -> JobRepository:
     return JobRepository(settings.database_path)
 
 
-@click.group()
-def main():
-    """Breadwinner: CLI tool for tailoring and tracking job applications."""
-    pass
+@click.group(invoke_without_command=True)
+@click.pass_context
+def main(ctx: click.Context):
+    """Breadwinner: Anti-Hallucination Local Career Studio 🍞"""
+    if ctx.invoked_subcommand is None:
+        from breadwinner.ui.app import BreadwinnerApp
+        app = BreadwinnerApp()
+        app.run()
+
 
 
 @main.command()
