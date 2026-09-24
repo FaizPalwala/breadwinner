@@ -101,9 +101,20 @@ pip install -e .
 ```
 
 
-### Configuration
- 
-Copy `.env.example` to `.env`:
+### Quick Setup (60 Seconds)
+
+If this is your first time using Breadwinner, run the interactive onboarding wizard:
+
+```bash
+breadwinner setup
+```
+
+The wizard will:
+1. Detect or create your candidate portfolio (`./portfolio/resume.json`).
+2. Guide you through selecting your preferred AI engine (Gemini, DeepSeek, local LM Studio, Groq, Ollama, or Mock).
+3. Test connectivity and write `.env` with secure `0600` permissions.
+
+Alternatively, you can manually copy `.env.example` to `.env`:
 
 ```bash
 cp .env.example .env
@@ -128,7 +139,7 @@ Breadwinner can be run completely free of charge:
 
 ## Terminal UI (`breadwinner ui`)
 
-Launch the interactive interface:
+Launch the interactive studio:
 
 ```bash
 breadwinner ui
@@ -140,14 +151,17 @@ Or open directly with a target job URL preloaded:
 breadwinner ui --url https://boards.greenhouse.io/monzo/jobs/123456
 ```
 
-### Keyboard Navigation:
-- `1`: Pipeline Tracker
-- `2`: Tailor Studio
+### Keyboard Navigation & Hotkeys:
+- `1`: Pipeline Tracker (The Breadbox)
+- `2`: Tailor Studio (The Oven)
 - `3`: Model Switcher
-- `4`: Portfolio Profile
+- `4`: Portfolio Pantry
+- `e`: Fine-Tune tailored bullets interactively before baking
+- `b`: Bake print-ready ATS PDF (`resume.pdf`)
+- `v`: View baked PDF in default system viewer
 - `s`: Update job status modal (`applied`, `interviewing`, `offer`, `rejected`)
 - `f`: Set/clear job flag (`high_priority`, `followup_needed`)
-- `o`: Open application folder in file manager
+- `o`: Open application folder in Finder / file manager
 - `r`: Refresh data
 - `q`: Quit
 
@@ -172,13 +186,26 @@ breadwinner apply ./job_description.txt \
 ```
 
 This generates an application package in `applications/<date>_<company>_<role>/`:
+- `resume.pdf`: Headless-rendered print ATS PDF ready for direct upload.
 - `resume.html`: Printable single-column layout (1-page A4 print budget).
-- `resume.md`: Clean Markdown.
+- `resume.md`: Clean ATS Markdown.
 - `resume.json`: Standard JSON Resume schema.
 - `cover_letter.md`: 3-paragraph targeted cover letter.
 - `portal_answers.md`: Ready-to-copy responses for portal screening fields.
 
-### 2. Provider and Model Discovery
+### 2. Direct ATS PDF Baking
+
+Bake a print-ready PDF from an application folder, job ID, or the most recent job:
+
+```bash
+# Bake the latest tailored application and open it in preview
+breadwinner bake
+
+# Bake a specific folder without auto-opening
+breadwinner bake ./applications/2026-09-24_Monzo_SeniorAppliedAIEngineer --no-open
+```
+
+### 3. Provider and Model Discovery
 
 List online providers and discovered local/cloud models:
 ```bash
@@ -192,7 +219,7 @@ breadwinner switch gemini gemini-2.5-flash
 breadwinner switch groq llama-3.3-70b-versatile
 ```
 
-### 3. Application Pipeline Tracking
+### 4. Application Pipeline Tracking
 
 View active applications:
 ```bash

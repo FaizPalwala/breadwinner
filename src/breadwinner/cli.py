@@ -24,6 +24,7 @@ from breadwinner.providers.discovery import ProviderDiscovery
 from breadwinner.db.sync import CsvSync
 from breadwinner.automations.health import JobHealthChecker
 from breadwinner.automations.reminders import ReminderEngine
+from breadwinner.core.pdf import render_html_to_pdf, PDFGenerationError
 
 
 console = Console()
@@ -119,7 +120,17 @@ def apply(
         (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
         (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
 
-        # 8. Record in Database
+        # 8. Render Print ATS PDF
+        pdf_generated = False
+        if settings.auto_generate_pdf:
+            try:
+                progress.add_task(description="Baking print-ready ATS PDF resume...", total=None)
+                render_html_to_pdf(app_dir / "resume.html", app_dir / "resume.pdf", open_after=False)
+                pdf_generated = True
+            except Exception as e:
+                console.print(f"[yellow]Note: PDF auto-generation skipped ({e}). You can print resume.html or run 'breadwinner bake'.[/yellow]")
+
+        # 9. Record in Database
         repo = get_repo()
         job_record = JobRecord(
             id=job.id,
@@ -137,7 +148,7 @@ def apply(
         )
         repo.upsert_job(job_record)
 
-        # 9. Auto-sync to CSV if configured
+        # 10. Auto-sync to CSV if configured
         if settings.csv_tracker_path:
             CsvSync.export_to_csv(repo, settings.csv_tracker_path)
 
@@ -158,8 +169,12 @@ def apply(
     table.add_row("Application Folder", str(app_dir.resolve()))
 
     console.print(table)
+
+    pdf_entry = f"• [bold green]Resume (Print ATS PDF):[/bold green] {app_dir}/resume.pdf\n" if pdf_generated else ""
+
     console.print(Panel(
-        f"[bold]Package Generated Successfully:[/bold]\n"
+        f"[bold]Package Baked Successfully:[/bold]\n"
+        f"{pdf_entry}"
         f"• [cyan]Resume (Jake's / HTML):[/cyan] {app_dir}/resume.html\n"
         f"• [cyan]Resume (ATS Markdown):[/cyan] {app_dir}/resume.md\n"
         f"• [cyan]Cover Letter:[/cyan] {app_dir}/cover_letter.md\n"
@@ -411,6 +426,62 @@ def switch_cmd(provider: str, model: Optional[str]):
     ProviderDiscovery.switch_model(provider, model)
     model_msg = f" with model '{model}'" if model else ""
     console.print(f"[bold green]✓ Switched active LLM provider to '{provider.upper()}'{model_msg}[/bold green]")
+
+
+@main.command(name="setup")
+def setup_cmd():
+    """Interactive onboarding wizard to configure portfolio, AI provider, and keys."""
+    from breadwinner.onboarding import run_setup_wizard
+    run_setup_wizard()
+
+
+@main.command(name="bake")
+@click.argument("target", required=False, default=None)
+@click.option("--no-open", "no_open", is_flag=True, default=False, help="Do not open PDF in viewer after baking")
+def bake_cmd(target: Optional[str], no_open: bool):
+    """Bake an ATS print-ready PDF from an application folder, job ID, or latest tailored job."""
+    app_dir = None
+    if target:
+        p = Path(target)
+        if p.is_dir() and (p / "resume.html").exists():
+            app_dir = p
+        elif (settings.applications_dir / target).is_dir() and (settings.applications_dir / target / "resume.html").exists():
+            app_dir = settings.applications_dir / target
+        else:
+            repo = get_repo()
+            job = repo.get_job(target)
+            if job and job.folder_path and Path(job.folder_path).is_dir():
+                app_dir = Path(job.folder_path)
+
+    if not app_dir:
+        # Pick the latest modified folder in settings.applications_dir
+        if settings.applications_dir.exists():
+            dirs = [d for d in settings.applications_dir.iterdir() if d.is_dir() and (d / "resume.html").exists()]
+            if dirs:
+                dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+                app_dir = dirs[0]
+
+    if not app_dir or not (app_dir / "resume.html").exists():
+        console.print("[red]Error: Could not locate an application folder with resume.html.[/red]")
+        console.print("[dim]Usage: breadwinner bake [path_or_job_id][/dim]")
+        return
+
+    html_file = app_dir / "resume.html"
+    pdf_file = app_dir / "resume.pdf"
+
+    console.print(f"[cyan]Baking ATS PDF from:[/cyan] {html_file}")
+    try:
+        render_html_to_pdf(html_file, pdf_file, open_after=not no_open)
+        console.print(Panel(
+            f"[bold green]✓ Fresh out of the oven![/bold green] 🍞\n\n"
+            f"• [bold]Output PDF:[/bold] {pdf_file.resolve()}\n"
+            f"• [bold]File size:[/bold] {pdf_file.stat().st_size} bytes\n\n"
+            f"[dim]Optimized for Applicant Tracking Systems (ATS) and 1-page standard printing.[/dim]",
+            border_style="green",
+            title="Breadwinner Bakery"
+        ))
+    except Exception as e:
+        console.print(f"[bold red]PDF Baking Error:[/bold red] {e}")
 
 
 @main.command(name="ui")

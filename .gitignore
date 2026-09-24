@@ -58,3 +58,6 @@ user_personas/
 .pytest_cache/
 .coverage
 htmlcov/
+.tmp*/
+*.pdf
+

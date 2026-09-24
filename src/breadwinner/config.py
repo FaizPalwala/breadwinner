@@ -52,5 +52,9 @@ class Settings(BaseSettings):
     database_path: Path = Path("./tracker.db")
     csv_tracker_path: Optional[Path] = Path("./job_tracker.csv")
 
+    # PDF & Browser
+    browser_path: Optional[str] = None
+    auto_generate_pdf: bool = True
+
 
 settings = Settings()
