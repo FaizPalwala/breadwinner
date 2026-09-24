@@ -1,0 +1,4 @@
+prune .agents
+exclude GEMINI.md
+exclude CLAUDE.md
+exclude .cursorrules

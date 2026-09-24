@@ -65,3 +65,10 @@ htmlcov/
 .tmp*/
 *.pdf
 
+# Agent Scaffolding & Prompts (Internal & Local Only - Never Commit)
+.agents/
+GEMINI.md
+CLAUDE.md
+.cursorrules
+
+
