@@ -10,13 +10,19 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 
 from breadwinner.config import settings
 from breadwinner.db.repository import JobRecord, JobRepository
 from breadwinner.core.portfolio import get_profile_source
 from breadwinner.core.scraper import JobScraper
-from breadwinner.core.persona import PersonaManager
+from breadwinner.core.persona import (
+    Persona,
+    PersonaManager,
+    generate_job_strategy_questions,
+    synthesize_job_directives,
+    synthesize_job_persona,
+)
 from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
 from breadwinner.providers.factory import get_llm_provider
@@ -47,7 +53,9 @@ def main():
 @click.argument("source", required=False)
 @click.option("--company", "-c", help="Company name (if pasting text)")
 @click.option("--title", "-t", help="Job title (if pasting text)")
-@click.option("--persona", "-p", default=None, help="Narrative persona (tech_ai, bridging_admin, hospitality)")
+@click.option("--persona", "-p", default=None, help="Narrative persona (tech_ai, bridging_admin, hospitality, or custom)")
+@click.option("--strategy", "-s", is_flag=True, default=False, help="Run interactive role-specific strategy loop before tailoring")
+@click.option("--no-strategy", is_flag=True, default=False, help="Skip strategy loop prompt and use persona directly")
 @click.option("--template", default=None, help="Resume template (jakes, modern, ats)")
 @click.option("--provider", default=None, help="LLM provider (gemini, lmstudio, groq, ollama, mock)")
 @click.option("--portfolio", default=None, help="Path to portfolio source of truth")
@@ -56,6 +64,8 @@ def apply(
     company: Optional[str],
     title: Optional[str],
     persona: Optional[str],
+    strategy: bool,
+    no_strategy: bool,
     template: Optional[str],
     provider: Optional[str],
     portfolio: Optional[str]
@@ -83,21 +93,111 @@ def apply(
         else:
             job = JobScraper.ingest_from_text(source, company or "Company", title or "Role")
 
-        # 3. Ingest Portfolio
-        progress.add_task(description="Loading verified profile from portfolio...", total=None)
-        portfolio_path = Path(portfolio or settings.portfolio_path)
-        source_adapter = get_profile_source(portfolio_path)
-        profile = source_adapter.load_profile()
+        # 3. Ingest Portfolio / Pantry
+        progress.add_task(description="Loading verified profile...", total=None)
+        pantry = PantryManager()
+        if pantry.is_initialized():
+            profile = pantry.load_profile()
+        else:
+            portfolio_path = Path(portfolio or settings.portfolio_path)
+            source_adapter = get_profile_source(portfolio_path)
+            profile = source_adapter.load_profile()
 
-        # 4. Resolve Persona & Provider
+    console.print(
+        f"\n[bold green]🎯 Target Role Ingested:[/bold green] [bold white]{job.title}[/bold white] at [bold cyan]{job.company}[/bold cyan]"
+        + (f" [dim]({job.location})[/dim]" if job.location else "")
+    )
+
+    active_provider = get_llm_provider(provider)
+    job_directives: Optional[str] = None
+
+    # Decide whether to run the Target Strategy Loop
+    run_strategy = False
+    if strategy:
+        run_strategy = True
+    elif persona or no_strategy:
+        run_strategy = False
+    else:
+        try:
+            console.print("\n[bold]Select Narrative Strategy for this role:[/bold]")
+            console.print("  [bold cyan][1][/bold cyan] [bold]Run Target Strategy Loop[/bold] [dim](Probe role hook, key proof points & tactical framing)[/dim]")
+            console.print("  [bold cyan][2][/bold cyan] [bold]Select an existing Persona[/bold] [dim](tech_ai, bridging_admin, hospitality, or custom)[/dim]")
+            choice = Prompt.ask("Strategy mode", choices=["1", "2"], default="1")
+            run_strategy = (choice == "1")
+        except (EOFError, KeyboardInterrupt):
+            run_strategy = False
+
+    if run_strategy:
+        console.print("\n[bold cyan]─── Target Strategy Discovery Loop ───[/bold cyan]")
+        console.print("[dim]Answer 3 quick questions to synthesize role-specific directives for this application.[/dim]\n")
+        questions = generate_job_strategy_questions(job, active_provider)
+        answers = {}
+        for idx, q in enumerate(questions, 1):
+            console.print(f"[bold yellow]{idx}. {q.get('title', 'Target Question')}[/bold yellow]")
+            console.print(f"[white]{q.get('question', '')}[/white]")
+            placeholder = q.get("placeholder", "")
+            if placeholder:
+                console.print(f"[dim]{placeholder}[/dim]")
+            try:
+                ans = Prompt.ask("[cyan]Your strategic angle[/cyan] (press Enter to skip)", default="")
+            except (EOFError, KeyboardInterrupt):
+                ans = ""
+            if ans.strip():
+                answers[q.get("id", f"q{idx}")] = ans.strip()
+
+        job_directives = synthesize_job_directives(job, answers, active_provider)
+        console.print()
+        console.print(Panel(job_directives, title="[bold green]Synthesized Job Directives[/bold green]", border_style="green"))
+
+        # Base persona
+        base_slug = persona or settings.default_persona
+        base_persona = PersonaManager.load_persona(base_slug)
+
+        # Offer to synthesize and persist a new reusable persona
+        save_confirmed = False
+        try:
+            save_confirmed = Confirm.ask("\nSave this strategy as a new reusable persona for future applications?", default=False)
+        except (EOFError, KeyboardInterrupt):
+            save_confirmed = False
+
+        if save_confirmed:
+            default_p_name = f"{job.company} {job.title} Strategist"
+            try:
+                p_name = Prompt.ask("Persona Name", default=default_p_name)
+            except (EOFError, KeyboardInterrupt):
+                p_name = default_p_name
+            auto_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in f"{job.company}_{job.title}".lower()).strip("_")
+            try:
+                p_slug = Prompt.ask("Persona Slug", default=auto_slug)
+            except (EOFError, KeyboardInterrupt):
+                p_slug = auto_slug
+
+            new_persona = synthesize_job_persona(
+                name=p_name,
+                slug=p_slug,
+                job=job,
+                answers=answers,
+                base_persona=base_persona,
+                provider=active_provider
+            )
+            saved_path = PersonaManager.save_persona(new_persona)
+            console.print(f"[bold green]✓ Saved persona '{new_persona.slug}' to {saved_path}![/bold green]")
+            active_persona = new_persona
+        else:
+            active_persona = base_persona
+    else:
         active_persona_slug = persona or settings.default_persona
         active_persona = PersonaManager.load_persona(active_persona_slug)
-        active_provider = get_llm_provider(provider)
 
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True
+    ) as progress:
         # 5. Tailor Application
         progress.add_task(description=f"Running Match & Tailoring Engine ({active_persona.name})...", total=None)
         tailoring_engine = TailoringEngine(active_provider)
-        application = tailoring_engine.analyze_and_tailor(profile, job, active_persona)
+        application = tailoring_engine.analyze_and_tailor(profile, job, active_persona, job_directives=job_directives)
 
         # 6. Render Artifacts
         progress.add_task(description="Rendering application package...", total=None)
@@ -147,7 +247,7 @@ def apply(
             persona=active_persona.slug,
             date_added=date_slug,
             folder_path=str(app_dir.resolve()),
-            notes=f"Auto-generated via {active_persona.name}"
+            notes=f"Auto-generated via {active_persona.name}" + (" (with custom job strategy)" if job_directives else "")
         )
         repo.upsert_job(job_record)
 
@@ -334,8 +434,25 @@ def sync_cmd(import_path: Optional[str], export_path: Optional[str]):
         console.print(f"[green]✓ Exported {count} jobs to {out}[/green]")
 
 
-@main.command(name="personas")
-def personas_cmd():
+@main.group(name="personas", invoke_without_command=True)
+@click.pass_context
+def personas_cmd(ctx):
+    """Manage, inspect, and create narrative personas."""
+    if ctx.invoked_subcommand is None:
+        personas = PersonaManager.list_personas()
+        table = Table(title="Available Narrative Personas", border_style="cyan")
+        table.add_column("Slug", style="bold cyan")
+        table.add_column("Description")
+
+        for slug, desc in personas.items():
+            table.add_row(slug, desc)
+
+        console.print(table)
+        console.print("\n[dim]Run 'breadwinner personas create' to build a new persona, or 'breadwinner personas view <slug>' to inspect directives.[/dim]")
+
+
+@personas_cmd.command(name="list")
+def personas_list_cmd():
     """List all available narrative personas."""
     personas = PersonaManager.list_personas()
     table = Table(title="Available Narrative Personas", border_style="cyan")
@@ -346,6 +463,61 @@ def personas_cmd():
         table.add_row(slug, desc)
 
     console.print(table)
+
+
+@personas_cmd.command(name="create")
+@click.option("--name", "-n", prompt=True, help="Display Name (e.g. 'Fintech Distributed Systems Lead')")
+@click.option("--slug", "-s", prompt=True, help="Slug identifier (e.g. 'fintech_lead')")
+@click.option("--tone", "-t", prompt=True, default="Authoritative, highly quantitative, systems-first.", help="Tone")
+@click.option("--description", "-d", prompt=True, help="Short description")
+def personas_create_cmd(name: str, slug: str, tone: str, description: str):
+    """Interactively create and save a new custom persona."""
+    console.print("[cyan]Enter System Directives (rules for resume & bullet tailoring):[/cyan]")
+    directives = Prompt.ask("System directives", default="PRESERVE HARD METRICS.\nStrict XYZ formula: Accomplished [X] as measured by [Y], by doing [Z].")
+    console.print("[cyan]Enter Cover Letter Directives (rules for 3-paragraph letter):[/cyan]")
+    cl_directives = Prompt.ask("Cover letter directives", default="Paragraph 1: Technical hook.\nParagraph 2: Two concrete scale metrics.\nParagraph 3: Clean call to action.")
+
+    clean_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in slug.lower().strip()).strip("_")
+    p = Persona(
+        name=name,
+        slug=clean_slug,
+        description=description,
+        tone=tone,
+        system_directives=directives,
+        cover_letter_directives=cl_directives
+    )
+    saved_path = PersonaManager.save_persona(p)
+    console.print(f"[bold green]✓ Created and saved persona '{clean_slug}' to {saved_path}![/bold green]")
+
+
+@personas_cmd.command(name="view")
+@click.argument("slug")
+def personas_view_cmd(slug: str):
+    """View details and directives for a specific persona."""
+    try:
+        p = PersonaManager.load_persona(slug)
+        console.print(Panel(
+            f"[bold cyan]Name:[/bold cyan] {p.name}\n"
+            f"[bold cyan]Slug:[/bold cyan] {p.slug}\n"
+            f"[bold cyan]Description:[/bold cyan] {p.description}\n"
+            f"[bold cyan]Tone:[/bold cyan] {p.tone}\n\n"
+            f"[bold yellow]System Directives:[/bold yellow]\n{p.system_directives}\n\n"
+            f"[bold green]Cover Letter Directives:[/bold green]\n{p.cover_letter_directives}",
+            title=f"Persona: {p.name}",
+            border_style="cyan"
+        ))
+    except Exception as e:
+        console.print(f"[red]Error loading persona '{slug}': {e}[/red]")
+
+
+@personas_cmd.command(name="delete")
+@click.argument("slug")
+def personas_delete_cmd(slug: str):
+    """Delete a custom persona from user_personas/."""
+    if PersonaManager.delete_persona(slug):
+        console.print(f"[green]✓ Persona '{slug}' deleted from user_personas/.[/green]")
+    else:
+        console.print(f"[red]Could not delete '{slug}'. Either it does not exist in user_personas/ or it is a protected built-in persona.[/red]")
 
 
 @main.command(name="profile")

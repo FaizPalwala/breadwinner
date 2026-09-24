@@ -25,7 +25,8 @@ class TailoringEngine:
         self,
         profile: CandidateProfile,
         job: JobPosting,
-        persona: Persona
+        persona: Persona,
+        job_directives: Optional[str] = None
     ) -> TailoredApplication:
         """Run match analysis and generate tailored application packet."""
 
@@ -69,6 +70,7 @@ class TailoringEngine:
 
         personal_guardrails = profile.raw_context.get("personal_context", "")
         guardrails_block = f"\nCANDIDATE PERSONAL DIRECTIVES & GUARDRAILS (HIGH PRIORITY):\n{personal_guardrails}\n" if personal_guardrails else ""
+        job_directives_block = f"\nJOB-SPECIFIC STRATEGY DIRECTIVES (TOP PRIORITY OVERRIDE):\n{job_directives}\n" if job_directives else ""
 
         # Prompt for JSON match & tailoring
         system_prompt = f"""You are Breadwinner, an automated job application tailoring engine.
@@ -78,6 +80,7 @@ TONE: {persona.tone}
 PERSONA DIRECTIVES:
 {persona.system_directives}
 {guardrails_block}
+{job_directives_block}
 JOB TITLE: {job.title}
 COMPANY: {job.company}
 LOCATION: {job.location or 'Unspecified'}
@@ -179,7 +182,7 @@ Respond ONLY in valid JSON with this exact schema:
             tailored_projs = profile.projects[:3]
 
         # Generate targeted cover letter
-        cover_letter = self._generate_cover_letter(profile, job, persona, match_analysis)
+        cover_letter = self._generate_cover_letter(profile, job, persona, match_analysis, job_directives=job_directives)
 
         return TailoredApplication(
             job=job,
@@ -198,13 +201,15 @@ Respond ONLY in valid JSON with this exact schema:
         profile: CandidateProfile,
         job: JobPosting,
         persona: Persona,
-        match: MatchAnalysis
+        match: MatchAnalysis,
+        job_directives: Optional[str] = None
     ) -> str:
         """Generate targeted 3-paragraph cover letter."""
+        directives_block = f"\nJOB-SPECIFIC DIRECTIVES (TOP PRIORITY):\n{job_directives}\n" if job_directives else ""
         sys_prompt = f"""You are an expert cover letter copywriter for {profile.full_name}.
 PERSONA: {persona.name}
 {persona.cover_letter_directives}
-
+{directives_block}
 COMPANY: {job.company}
 ROLE: {job.title}
 MATCHED STRENGTHS: {', '.join(match.matched_skills)}

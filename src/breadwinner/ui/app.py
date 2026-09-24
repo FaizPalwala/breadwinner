@@ -23,15 +23,114 @@ from breadwinner.db.sync import CsvSync
 from breadwinner.providers.discovery import ProviderDiscovery
 from breadwinner.core.portfolio import get_profile_source
 from breadwinner.core.scraper import JobScraper
-from breadwinner.core.persona import PersonaManager
+from breadwinner.core.persona import (
+    Persona,
+    PersonaManager,
+    generate_job_strategy_questions,
+    synthesize_job_directives,
+    synthesize_job_persona,
+)
 from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
-from breadwinner.core.models import TailoredApplication, CandidateProfile, WorkExperience
+from breadwinner.core.models import TailoredApplication, CandidateProfile, WorkExperience, JobPosting
 from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer, PDFGenerationError
 from breadwinner.core.pantry import PantryManager
 from breadwinner.core.ingestor import UniversalIngestor, IngestionError
 from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
 from breadwinner.providers.factory import get_llm_provider
+
+
+def get_persona_select_options() -> List[tuple]:
+    """Dynamically compile persona options for the dropdown."""
+    personas = PersonaManager.list_personas()
+    opts = []
+    for slug, desc in personas.items():
+        clean = desc.replace("[bold green]", "").replace("[/bold green]", "")
+        opts.append((f"{slug.upper()}: {clean[:40]}", slug))
+    return opts or [("Tech & AI (SDE / MLE / Distributed)", "tech_ai")]
+
+
+class JobStrategyModal(ModalScreen):
+    """Modal screen for the target job strategy interview loop."""
+
+    DEFAULT_CSS = """
+    JobStrategyModal {
+        align: center middle;
+    }
+    #strategy-dialog {
+        padding: 1 2;
+        background: $surface;
+        border: thick $primary;
+        width: 82;
+        height: auto;
+        max-height: 90%;
+    }
+    .strategy-q-label {
+        font-weight: bold;
+        color: $accent;
+        margin-top: 1;
+    }
+    .strategy-q-sub {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    """
+
+    def __init__(self, job: JobPosting, questions: List[Dict[str, str]], base_persona: Persona):
+        super().__init__()
+        self.job = job
+        self.questions = questions
+        self.base_persona = base_persona
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="strategy-dialog"):
+            yield Label(f"[bold cyan]Target Strategy Loop:[/bold cyan] [bold white]{self.job.company} — {self.job.title}[/bold white]")
+            yield Label(
+                "[dim]Answer these targeted questions to synthesize customized role directives and/or save a new persona.[/dim]"
+            )
+
+            for idx, q in enumerate(self.questions, 1):
+                yield Label(f"{idx}. {q.get('title', 'Question')}", classes="strategy-q-label")
+                yield Label(q.get("question", ""), classes="strategy-q-sub")
+                yield Input(
+                    placeholder=q.get("placeholder", "Your strategic answer..."),
+                    id=f"input-strat-q-{idx}"
+                )
+
+            yield Label("[bold]Save as Reusable Persona (Optional):[/bold]", classes="strategy-q-label")
+            yield Input(
+                placeholder=f"Persona Name (e.g. {self.job.company} {self.job.title} Strategist)",
+                id="input-persona-name"
+            )
+            yield Input(
+                placeholder=f"Persona Slug (e.g. {self.job.company.lower()}_{self.job.title.lower()})",
+                id="input-persona-slug"
+            )
+
+            with Horizontal():
+                yield Button("Bake with Strategy", variant="success", id="btn-submit-strategy")
+                yield Button("Cancel", variant="error", id="btn-cancel-strategy")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-submit-strategy":
+            answers = {}
+            for idx, q in enumerate(self.questions, 1):
+                inp = self.query_one(f"#input-strat-q-{idx}", Input)
+                if inp.value.strip():
+                    answers[q.get("id", f"q{idx}")] = inp.value.strip()
+
+            p_name = self.query_one("#input-persona-name", Input).value.strip()
+            p_slug = self.query_one("#input-persona-slug", Input).value.strip()
+            save = bool(p_name or p_slug)
+
+            self.dismiss({
+                "answers": answers,
+                "save_persona": save,
+                "persona_name": p_name,
+                "persona_slug": p_slug
+            })
+        else:
+            self.dismiss(None)
 
 
 class StatusModal(ModalScreen):
@@ -483,16 +582,15 @@ class BreadwinnerApp(App):
                         id="input-job-url"
                     )
                     
+                    persona_opts = get_persona_select_options()
+                    default_persona_val = settings.default_persona if any(v == settings.default_persona for _, v in persona_opts) else persona_opts[0][1]
+
                     yield Horizontal(
                         Vertical(
                             Label("Target Narrative Persona:", classes="input-label"),
                             Select(
-                                [
-                                    ("Tech & AI (SDE / MLE / Distributed)", "tech_ai"),
-                                    ("Bridging Admin (De-tuned / Exact)", "bridging_admin"),
-                                    ("Hospitality (Fast-paced / Service)", "hospitality")
-                                ],
-                                value="tech_ai",
+                                persona_opts,
+                                value=default_persona_val,
                                 id="select-persona"
                             )
                         ),
@@ -510,7 +608,9 @@ class BreadwinnerApp(App):
                         )
                     )
 
-                    yield Button("Run Tailoring Engine (1st Draft)", variant="success", id="btn-run-tailor")
+                    with Horizontal():
+                        yield Button("Run Tailoring Engine (1st Draft)", variant="success", id="btn-run-tailor")
+                        yield Button("Target Strategy Loop (Loop Qs)", variant="primary", id="btn-strategy-loop")
                     yield Static("", id="tailor-status-box")
 
                     with TabbedContent(id="preview-tabs"):
@@ -932,6 +1032,8 @@ class BreadwinnerApp(App):
             self.action_refresh_data()
         elif bid == "btn-run-tailor":
             self.run_tailoring_flow()
+        elif bid == "btn-strategy-loop":
+            self.run_strategy_loop_flow()
         elif bid == "btn-studio-finetune":
             self.action_finetune_bullets()
         elif bid == "btn-studio-bake" or bid == "btn-pipeline-bake":
@@ -961,7 +1063,82 @@ class BreadwinnerApp(App):
         elif bid == "btn-pantry-history":
             self.action_pantry_history()
 
-    def run_tailoring_flow(self) -> None:
+    def run_strategy_loop_flow(self) -> None:
+        url_input = self.query_one("#input-job-url", Input).value.strip()
+        if not url_input:
+            self.notify("Please enter a job URL or paste a JD file path first.", severity="error")
+            return
+
+        status_box = self.query_one("#tailor-status-box", Static)
+        status_box.update("[bold yellow]⏳ Ingesting job for Strategy Loop...[/bold yellow]")
+
+        try:
+            p_source = Path(url_input)
+            if url_input.startswith("http://") or url_input.startswith("https://"):
+                job = JobScraper.ingest_from_url(url_input)
+            elif p_source.is_file():
+                job = JobScraper.ingest_from_text(p_source.read_text(encoding="utf-8"), "Company", "Role")
+            else:
+                job = JobScraper.ingest_from_text(url_input, "Company", "Role")
+
+            provider = get_llm_provider()
+            questions = generate_job_strategy_questions(job, provider)
+            persona_slug = self.query_one("#select-persona", Select).value
+            base_persona = PersonaManager.load_persona(persona_slug)
+
+            def handle_strategy(result: Optional[Dict[str, Any]]) -> None:
+                if not result:
+                    status_box.update("[dim]Strategy loop canceled.[/dim]")
+                    return
+
+                answers = result.get("answers", {})
+                save_persona = result.get("save_persona", False)
+                p_name = result.get("persona_name", "")
+                p_slug = result.get("persona_slug", "")
+
+                directives = synthesize_job_directives(job, answers, provider)
+                chosen_persona = base_persona
+
+                if save_persona:
+                    target_name = p_name or f"{job.company} {job.title} Strategist"
+                    target_slug = p_slug or f"{job.company}_{job.title}"
+                    new_p = synthesize_job_persona(
+                        name=target_name,
+                        slug=target_slug,
+                        job=job,
+                        answers=answers,
+                        base_persona=base_persona,
+                        provider=provider
+                    )
+                    PersonaManager.save_persona(new_p)
+                    self._refresh_persona_select(selected=new_p.slug)
+                    chosen_persona = new_p
+                    self.notify(f"Created and saved persona '{new_p.slug}'!", title="Persona Saved")
+
+                status_box.update("[bold green]Directives synthesized! Baking application...[/bold green]")
+                self.run_tailoring_flow(job_directives=directives, persona_override=chosen_persona)
+
+            self.push_screen(JobStrategyModal(job, questions, base_persona), handle_strategy)
+
+        except Exception as e:
+            status_box.update(f"[bold red]Failed to launch Strategy Loop: {e}[/bold red]")
+            self.notify(f"Error: {e}", severity="error")
+
+    def _refresh_persona_select(self, selected: Optional[str] = None) -> None:
+        try:
+            sel = self.query_one("#select-persona", Select)
+            opts = get_persona_select_options()
+            sel.set_options(opts)
+            if selected:
+                sel.value = selected
+        except Exception:
+            pass
+
+    def run_tailoring_flow(
+        self,
+        job_directives: Optional[str] = None,
+        persona_override: Optional[Persona] = None
+    ) -> None:
         url_input = self.query_one("#input-job-url", Input).value.strip()
         if not url_input:
             self.notify("Please enter a job URL or paste a JD file path.", severity="error")
@@ -989,15 +1166,19 @@ class BreadwinnerApp(App):
             self.current_profile = profile
 
             # 3. Persona & Provider
-            persona_slug = self.query_one("#select-persona", Select).value
+            if persona_override:
+                persona = persona_override
+            else:
+                persona_slug = self.query_one("#select-persona", Select).value
+                persona = PersonaManager.load_persona(persona_slug)
+
             template_name = self.query_one("#select-template", Select).value
             self.current_template = template_name
-            persona = PersonaManager.load_persona(persona_slug)
             provider = get_llm_provider()
 
             # 4. Tailor
             engine = TailoringEngine(provider)
-            app_result = engine.analyze_and_tailor(profile, job, persona)
+            app_result = engine.analyze_and_tailor(profile, job, persona, job_directives=job_directives)
             self.current_app_result = app_result
 
             # 5. Render
@@ -1044,7 +1225,7 @@ class BreadwinnerApp(App):
                 persona=persona.slug,
                 date_added=date_slug,
                 folder_path=str(app_dir.resolve()),
-                notes=f"Tailored via {persona.name}"
+                notes=f"Tailored via {persona.name}" + (" (with custom strategy loop)" if job_directives else "")
             )
             self.repo.upsert_job(job_rec)
             self.selected_job = job_rec

@@ -12,6 +12,12 @@ class MockLLMProvider(BaseLLMProvider):
     """Offline mock provider for testing and environments without an active API key."""
 
     def generate_text(self, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
+        if "directive" in system_prompt.lower() or "narrative strategist" in system_prompt.lower():
+            return (
+                "- STRATEGIC HOOK: Lead with candidate's proven experience with scalable systems.\n"
+                "- CORE PROOF POINT: Emphasize 1M QPS distributed cache and zero-downtime migrations.\n"
+                "- TACTICAL FRAMING: Position candidate as a senior systems engineer."
+            )
         return (
             "Dear Hiring Team,\n\n"
             "I am writing to express my strong interest in this role. With extensive engineering experience "
@@ -22,6 +28,40 @@ class MockLLMProvider(BaseLLMProvider):
 
 
     def generate_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
+        if "strategy question" in system_prompt.lower() or "discovery question" in system_prompt.lower():
+            return {
+                "questions": [
+                    {
+                        "id": "hook",
+                        "title": "Strategic Hook & Alignment",
+                        "question": "What specific aspect of the company's product resonates with you?",
+                        "placeholder": "e.g., Excited by real-time infrastructure..."
+                    },
+                    {
+                        "id": "proof",
+                        "title": "Primary Superpower & Proof Point",
+                        "question": "Which past project best proves you are the ideal candidate?",
+                        "placeholder": "e.g., Scaling high-throughput queue to 1M QPS..."
+                    },
+                    {
+                        "id": "tactics",
+                        "title": "Tactical Framing & Tone Nuances",
+                        "question": "Are there specific skills or constraints to emphasize or downplay?",
+                        "placeholder": "e.g., Emphasize systems architecture over frontend..."
+                    }
+                ]
+            }
+
+        if "reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()):
+            return {
+                "name": "Target Role Strategist",
+                "slug": "target_role_strategist",
+                "description": "Synthesized strategy for high-impact technical roles.",
+                "tone": "Authoritative, systems-first, quantitative.",
+                "system_directives": "Focus on high throughput and reliable systems architecture.\nPRESERVE HARD METRICS.",
+                "cover_letter_directives": "Lead with the engineering hook, provide two hard metrics, and close cleanly."
+            }
+
         if "data extractor" in system_prompt.lower() or "candidate portfolio" in system_prompt.lower() or "full_name" in user_prompt:
             return {
                 "full_name": "Jane Doe",
