@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     # Provider
-    breadwinner_llm_provider: Literal["gemini", "lmstudio", "groq", "ollama", "openai", "deepseek"] = "gemini"
+    breadwinner_llm_provider: Literal["gemini", "lmstudio", "groq", "ollama", "openai", "deepseek", "mock"] = "gemini"
 
     # DeepSeek (Reasoning & Chat)
     deepseek_api_key: Optional[str] = None

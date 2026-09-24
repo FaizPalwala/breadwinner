@@ -100,3 +100,20 @@ def test_markdown_directory_adapter(tmp_path: Path):
     assert len(profile.experiences) == 1
     assert profile.experiences[0].company == "Tech Co"
     assert len(profile.experiences[0].bullets) == 2
+
+
+def test_pantry_profile_adapter(tmp_path: Path, monkeypatch):
+    from breadwinner.core.portfolio import get_profile_source
+    pantry_dir = tmp_path / "pantry"
+    pantry_dir.mkdir()
+    (pantry_dir / "profile.json").write_text(json.dumps({
+        "basics": {"name": "Jordan Lee", "label": "DevOps Engineer"}
+    }), encoding="utf-8")
+    (pantry_dir / "context.md").write_text("## Boundaries\n- Remote only", encoding="utf-8")
+
+    monkeypatch.setattr("breadwinner.config.settings.pantry_dir", pantry_dir)
+    adapter = get_profile_source()
+    profile = adapter.load_profile()
+    assert profile.full_name == "Jordan Lee"
+    assert "Remote only" in profile.raw_context.get("personal_context", "")
+

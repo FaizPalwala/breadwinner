@@ -6,84 +6,86 @@ Breadwinner is a local-first, privacy-respecting CLI tool and terminal UI for in
 
 ## Key Features
 
-1. **Portfolio as Single Source of Truth**: Parses achievements, project case studies, and work history directly from an Astro/Keystatic portfolio, JSON Resume, or Markdown directory. Eliminates hallucinated experience by grounding generation strictly in verified facts and quantified metrics.
-2. **Standard Resume Templates**: Includes single-column, ATS-parsable templates based on the `r/EngineeringResumes` standard (Jake's Resume), with strict XYZ metric structure (`Accomplished [X] as measured by [Y], by doing [Z]`).
-3. **Local-First & BYOK Architecture**: Run 100% locally with LM Studio or Ollama with zero data leaving your machine, or connect your own API keys for DeepSeek, Google Gemini, Groq, and OpenAI.
-4. **Narrative Personas**: Switch between technical roles (`tech_ai`), administrative/operations roles (`bridging_admin`), and service roles (`hospitality`), with private override support via `user_personas/`.
-5. **Interactive Terminal UI**: Full keyboard-navigable terminal interface (`breadwinner ui`) built with Textual for managing your application pipeline, tailoring new jobs, and switching models.
-6. **Dual-Sync Application Tracker**: Stores job records in an SQLite database (`tracker.db`) with automatic bidirectional sync to CSV (`job_tracker.csv`).
-
+1. **Canonical Career Pantry**: Decouples external portfolio websites from your permanent, verified knowledge base stored in `pantry/` (`profile.json` JSON Resume standard + `context.md` qualitative career guardrails). Supports universal ingestion from live portfolios, resumes (`.docx`, `.pdf`, `.json`), or raw text bios.
+2. **Interactive Baker's Interview**: Discovers qualitative boundaries, visa statuses, target compensation, and priority narratives through a guided conversation loop, synthesizing them into permanent directives.
+3. **Two-Way Upstream Sync & Diff**: Link your Pantry to an upstream website or portfolio, detect remote updates, inspect side-by-side diffs, and merge changes with automated snapshot rollbacks.
+4. **Target Strategy Discovery Loop**: Probes role-specific strategic hooks, key superpower proof points, and tactical framing for each target role, injecting high-priority directives directly into the tailoring engine.
+5. **Dynamic Persona Synthesis & Management**: Synthesize customized, reusable narrative personas on-the-fly from the strategy loop, or manage custom presets interactively via `breadwinner personas create/view/delete`.
+6. **Native Headless ATS PDF Baking**: Zero-dependency PDF export powered by headless Chromium/Chrome/Edge/Brave. Generates print-perfect A4 resumes (`resume.pdf`) conforming to the strict `r/EngineeringResumes` (Jake's Resume) standard.
+7. **Local-First & BYOK Architecture**: Run 100% locally with LM Studio or Ollama with zero data leaving your machine, or connect your own API keys for DeepSeek, Google Gemini, Groq, and OpenAI.
+8. **Interactive Terminal UI**: Full keyboard-navigable terminal interface (`breadwinner ui`) built with Textual for managing your pipeline, tailoring applications, and managing your career pantry.
+9. **Dual-Sync Application Tracker**: Stores job records in an SQLite database (`tracker.db`) with automatic bidirectional sync to CSV (`job_tracker.csv`).
 
 ---
 
 ## Architecture
 
 ```
-                     ┌─────────────────────────────────────────────────────────┐
-                     │   Profile Source Adapters                               │
-                     │   ├── Astro/Keystatic (pages/about.astro, content/)     │
-                     │   ├── JSON Resume (schema resume.json)                  │
-                     │   └── Markdown Directory (experience.md, projects/)     │
-                     └────────────────────────────┬────────────────────────────┘
-                                                  │
-                                                  ▼
-┌─────────────────────────┐        ┌─────────────────────────────┐
-│  Job Ingestion          │        │ Profile Extraction          │
-│  - URL Scraper          │        │ - Facts & Metrics           │
-│  - Text/File Parser     │        │ - XYZ Formula Preservation  │
-└───────────┬─────────────┘        └──────────────┬──────────────┘
-            │                                     │
-            └──────────────────┬──────────────────┘
-                               │
-                               ▼
-            ┌───────────────────────────────────────┐
-            │   Match & Keyword Gap Analyzer        │
-            │   - Keyword overlap & gaps            │
-            │   - Match score                       │
-            └──────────────────┬────────────────────┘
-                               │
-                               ▼
-            ┌───────────────────────────────────────┐
-            │   Persona Controller                  │
-            │   - tech_ai (scale & metrics)         │
-            │   - bridging_admin (de-tuned)         │
-            │   - hospitality (service)             │
-            └──────────────────┬────────────────────┘
-                               │
-                               ▼
-            ┌───────────────────────────────────────┐
-            │   LLM Provider Layer                  │
-            │   - LM Studio (local localhost:1234)  │
-            │   - Google Gemini (free/student tier) │
-            │   - Groq Cloud / Ollama               │
-            └──────────────────┬────────────────────┘
-                               │
-                               ▼
-            ┌───────────────────────────────────────┐
-            │   Template Rendering (Jinja2)         │
-            │   - jakes (single-column HTML/CSS)    │
-            │   - modern (clean sans-serif)         │
-            │   - ats (plain Markdown)              │
-            │   - JSON Resume schema export         │
-            └──────────────────┬────────────────────┘
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        ▼                      ▼                      ▼
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│ Tailored CV   │      │ Cover Letter  │      │ Portal Q&A    │
-│ (MD, HTML,    │      │ (3 paragraphs,│      │ (Greenhouse,  │
-│  JSON Resume) │      │  proof points)│      │  Lever Q&A)   │
-└───────┬───────┘      └───────┬───────┘      └───────┬───────┘
-        │                      │                      │
-        └──────────────────────┼──────────────────────┘
-                               │
-                               ▼
-            ┌───────────────────────────────────────┐
-            │   Dual-Sync Application Tracker       │
-            │   - SQLite (tracker.db)               │
-            │   - CSV (job_tracker.csv)             │
-            │   - Link health checks & follow-ups   │
-            └───────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                      Career Pantry (pantry/)                           │
+│  - profile.json (JSON Resume Standard Facts & Verified Metrics)        │
+│  - context.md (Qualitative Directives, Guardrails & Preferences)       │
+│  - .history/ (Automated Timestamped Snapshot DAG for Rollbacks)        │
+│  - Universal Ingestor (.docx, .pdf, .json, URLs, Raw Bios)             │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────┐        ┌─────────────────────────────────────┐
+│  Job Ingestion          │        │ Target Strategy Discovery Loop      │
+│  - URL Scraper          │───────▶│ - Role-Specific Hook & Alignment    │
+│  - Text/File Parser     │        │ - Superpower Proof Point Discovery  │
+│  - Portal Type Detect   │        │ - Tactical Framing & Gap Directives │
+└───────────┬─────────────┘        └──────────────────┬──────────────────┘
+            │                                         │
+            └───────────────────┬─────────────────────┘
+                                │
+                                ▼
+            ┌─────────────────────────────────────────┐
+            │   Persona Controller & Synthesizer      │
+            │   - Built-in (tech_ai, admin, service)  │
+            │   - Custom Local (user_personas/*.yaml) │
+            │   - Dynamic Persona Synthesis on-the-fly│
+            └───────────────────┬─────────────────────┘
+                                │
+                                ▼
+            ┌─────────────────────────────────────────┐
+            │   Match & Keyword Gap Analyzer          │
+            │   - Semantic & ATS overlap (0-100%)     │
+            │   - Strict XYZ Metric Preservation      │
+            └───────────────────┬─────────────────────┘
+                                │
+                                ▼
+            ┌─────────────────────────────────────────┐
+            │   LLM Provider Layer (Local & BYOK)     │
+            │   - LM Studio / Ollama (100% Offline)   │
+            │   - Google Gemini / Groq Cloud / DeepSeek│
+            └───────────────────┬─────────────────────┘
+                                │
+                                ▼
+            ┌─────────────────────────────────────────┐
+            │   Template Rendering & Headless Baking  │
+            │   - Jake's Resume (r/EngineeringResumes)│
+            │   - Modern Clean HTML / Plain ATS MD    │
+            │   - Native Chromium Headless PDF Export │
+            └───────────────────┬─────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌───────────────┐       ┌───────────────┐       ┌───────────────┐
+│ resume.pdf    │       │ cover_letter  │       │ portal_answers│
+│ (ATS PDF +    │       │ (Targeted 3-  │       │ (Screening    │
+│  HTML & JSON) │       │  paragraph)   │       │  Questions)   │
+└───────┬───────┘       └───────┬───────┘       └───────┬───────┘
+        │                       │                       │
+        └───────────────────────┼───────────────────────┘
+                                │
+                                ▼
+            ┌─────────────────────────────────────────┐
+            │   Dual-Sync Application Tracker         │
+            │   - SQLite (tracker.db)                 │
+            │   - CSV (job_tracker.csv)               │
+            │   - Follow-up & Link Health Reminders   │
+            └─────────────────────────────────────────┘
 ```
 
 ---
@@ -175,9 +177,19 @@ breadwinner ui --url https://boards.greenhouse.io/monzo/jobs/123456
 
 ### 1. Ingest and Tailor an Application
 
-From a URL:
+From a URL (interactive mode asks whether to run the Target Strategy Loop or pick an existing persona):
 ```bash
-breadwinner apply https://boards.greenhouse.io/monzo/jobs/123456 --persona tech_ai
+breadwinner apply https://boards.greenhouse.io/monzo/jobs/123456
+```
+
+Force role-specific discovery interview loop:
+```bash
+breadwinner apply https://boards.greenhouse.io/monzo/jobs/123456 --strategy
+```
+
+Fast path without prompts:
+```bash
+breadwinner apply https://boards.greenhouse.io/monzo/jobs/123456 --persona tech_ai --no-strategy
 ```
 
 From raw text or markdown:
@@ -257,27 +269,38 @@ breadwinner sync --import-csv ./targets.csv
 breadwinner sync --export-csv ./job_tracker.csv
 ```
 
-### 4. Personas & Custom Overrides
+### 5. Personas & Dynamic Strategy Synthesis
 
-List available narrative personas:
+List all available built-in and user-custom personas:
 ```bash
 breadwinner personas
+breadwinner personas list
 ```
 
 - `tech_ai`: Technical roles. Preserves systems metrics, backend architecture, and ML research background.
 - `bridging_admin`: De-tunes technical jargon. Emphasizes operational organization, punctuality, and immediate availability.
 - `hospitality`: Focuses on food hygiene, communication, and composure in fast-paced environments.
 
-#### Custom Private Personas:
-To customize directives with your private metrics without committing them to git, create a `user_personas/` folder (gitignored):
+#### Manage & Create Custom Personas:
+Create a new custom persona interactively:
 ```bash
-mkdir -p user_personas
-cp src/breadwinner/personas/tech_ai.yaml user_personas/tech_ai.yaml
+breadwinner personas create
 ```
-`breadwinner` automatically loads `user_personas/<slug>.yaml` with priority over built-in templates.
+
+Inspect persona directives and tone:
+```bash
+breadwinner personas view fintech_quant
+```
+
+Delete a custom persona:
+```bash
+breadwinner personas delete fintech_quant
+```
+
+Custom personas are persisted to `user_personas/<slug>.yaml` (gitignored), ensuring your private metrics and prompt engineering stay local.
 
 
-### 5. Career Pantry Management & Upstream Sync
+### 6. Career Pantry Management & Upstream Sync
 
 Breadwinner maintains a canonical, versioned knowledge base of your verified career in `pantry/`:
 

@@ -353,6 +353,17 @@ class MarkdownDirectoryAdapter(BaseProfileSource):
         return profile
 
 
+class PantryProfileAdapter(BaseProfileSource):
+    """Adapter that delegates to canonical PantryManager to load profile and personal directives."""
+
+    def __init__(self, pantry_dir: Path):
+        self.pantry_dir = Path(pantry_dir)
+
+    def load_profile(self) -> CandidateProfile:
+        from breadwinner.core.pantry import PantryManager
+        return PantryManager(self.pantry_dir).load_profile()
+
+
 def get_profile_source(path: Optional[Path] = None) -> BaseProfileSource:
     """Factory function that returns the appropriate adapter for the given path.
     Prioritizes the canonical Pantry if available."""
@@ -362,7 +373,7 @@ def get_profile_source(path: Optional[Path] = None) -> BaseProfileSource:
     # Check Pantry first if default path
     pantry_dir = Path(settings.pantry_dir)
     if (pantry_dir / "profile.json").exists() and (not path or p == Path(settings.portfolio_path)):
-        return JsonResumeAdapter(pantry_dir / "profile.json")
+        return PantryProfileAdapter(pantry_dir)
 
     if p.is_file() and p.suffix == ".json":
         return JsonResumeAdapter(p)
