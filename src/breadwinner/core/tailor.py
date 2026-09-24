@@ -67,6 +67,9 @@ class TailoringEngine:
             "extra_context": profile.raw_context
         }
 
+        personal_guardrails = profile.raw_context.get("personal_context", "")
+        guardrails_block = f"\nCANDIDATE PERSONAL DIRECTIVES & GUARDRAILS (HIGH PRIORITY):\n{personal_guardrails}\n" if personal_guardrails else ""
+
         # Prompt for JSON match & tailoring
         system_prompt = f"""You are Breadwinner, an automated job application tailoring engine.
 NARRATIVE PERSONA: {persona.name}
@@ -74,7 +77,7 @@ TONE: {persona.tone}
 
 PERSONA DIRECTIVES:
 {persona.system_directives}
-
+{guardrails_block}
 JOB TITLE: {job.title}
 COMPANY: {job.company}
 LOCATION: {job.location or 'Unspecified'}

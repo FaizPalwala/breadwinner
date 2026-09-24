@@ -243,13 +243,21 @@ class AstroPortfolioAdapter(BaseProfileSource):
 
 
 class JsonResumeAdapter(BaseProfileSource):
-    """Adapter for standard JSON Resume files (resume.json)."""
+    """Adapter for standard JSON Resume files (resume.json) or parsed dicts."""
 
-    def __init__(self, json_path: Path):
-        self.path = Path(json_path)
+    def __init__(self, json_source: Any):
+        if isinstance(json_source, dict):
+            self.data = json_source
+            self.path = None
+        else:
+            self.path = Path(json_source)
+            self.data = None
 
     def load_profile(self) -> CandidateProfile:
-        data = json.loads(self.path.read_text(encoding="utf-8"))
+        if self.data is not None:
+            data = self.data
+        else:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
         basics = data.get("basics", {})
         
         experiences = [
@@ -345,13 +353,22 @@ class MarkdownDirectoryAdapter(BaseProfileSource):
         return profile
 
 
-def get_profile_source(path: Path) -> BaseProfileSource:
-    """Factory function that returns the appropriate adapter for the given path."""
-    p = Path(path)
+def get_profile_source(path: Optional[Path] = None) -> BaseProfileSource:
+    """Factory function that returns the appropriate adapter for the given path.
+    Prioritizes the canonical Pantry if available."""
+    from breadwinner.config import settings
+    p = Path(path) if path else Path(settings.portfolio_path)
+
+    # Check Pantry first if default path
+    pantry_dir = Path(settings.pantry_dir)
+    if (pantry_dir / "profile.json").exists() and (not path or p == Path(settings.portfolio_path)):
+        return JsonResumeAdapter(pantry_dir / "profile.json")
+
     if p.is_file() and p.suffix == ".json":
         return JsonResumeAdapter(p)
+    elif (p / "resume.json").exists():
+        return JsonResumeAdapter(p / "resume.json")
     elif (p / "src" / "pages" / "about.astro").exists() or (p / "pages" / "about.astro").exists() or (p / "astro.config.mjs").exists():
         return AstroPortfolioAdapter(p)
     else:
-        # Check if there is an about.astro or markdown files
         return MarkdownDirectoryAdapter(p)

@@ -42,9 +42,10 @@ env/
 *.csv
 !*.example.csv
 
-# Applications output & user personas (contains tailored personal data and custom prompts)
+# Applications output, user personas & pantry (contains tailored personal data and custom prompts)
 applications/
 user_personas/
+pantry/
 
 
 # IDE & OS

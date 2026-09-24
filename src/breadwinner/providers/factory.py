@@ -22,6 +22,46 @@ class MockLLMProvider(BaseLLMProvider):
 
 
     def generate_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
+        if "data extractor" in system_prompt.lower() or "candidate portfolio" in system_prompt.lower() or "full_name" in user_prompt:
+            return {
+                "full_name": "Jane Doe",
+                "title": "Staff Engineer",
+                "email": "jane.doe@example.com",
+                "phone": "+1-555-0100",
+                "location": "London, UK",
+                "summary": "Experienced software architect specializing in distributed platforms.",
+                "experiences": [
+                    {
+                        "company": "Cloud Corp",
+                        "role": "Staff Engineer",
+                        "start_date": "2021",
+                        "end_date": "Present",
+                        "bullets": [
+                            "Architected distributed cache handling 1M QPS with sub-10ms latency."
+                        ]
+                    }
+                ],
+                "education": [
+                    {
+                        "degree": "B.Sc. Computer Science",
+                        "institution": "University of London"
+                    }
+                ],
+                "projects": [
+                    {
+                        "name": "High-Throughput Queue",
+                        "description": "Distributed task queue in Go",
+                        "tech_stack": ["Go", "Redis"]
+                    }
+                ],
+                "skills": [
+                    {
+                        "category": "Languages",
+                        "skills": ["Go", "Python", "SQL"]
+                    }
+                ]
+            }
+
         return {
             "match_score": 88,
             "matched_skills": ["Python", "Java", "Distributed Systems", "Cloud", "Agile"],

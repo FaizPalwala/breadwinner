@@ -5,7 +5,7 @@ import subprocess
 import webbrowser
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
@@ -28,6 +28,9 @@ from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
 from breadwinner.core.models import TailoredApplication, CandidateProfile, WorkExperience
 from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer, PDFGenerationError
+from breadwinner.core.pantry import PantryManager
+from breadwinner.core.ingestor import UniversalIngestor, IngestionError
+from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
 from breadwinner.providers.factory import get_llm_provider
 
 
@@ -193,6 +196,155 @@ class FineTuneModal(ModalScreen):
             self.dismiss(None)
 
 
+class PantryIngestModal(ModalScreen):
+    """Modal to ingest background from a live URL, document file, or paste text."""
+
+    DEFAULT_CSS = """
+    PantryIngestModal {
+        align: center middle;
+    }
+    #pantry-ingest-dialog {
+        padding: 1 2;
+        background: #0f172a;
+        border: thick #38bdf8;
+        width: 75%;
+        height: auto;
+    }
+    #pantry-source-input {
+        margin: 1 0;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("[bold cyan]Import Into Career Pantry[/bold cyan]"),
+            Label("[dim]Enter a live portfolio website URL (https://...), a local file path (.json, .docx, .md), or paste raw bio text:[/dim]"),
+            Input(placeholder="https://yourname.com or /path/to/resume.json", id="pantry-source-input"),
+            Horizontal(
+                Button("Ingest & Update Pantry", variant="success", id="btn-run-ingest"),
+                Button("Cancel", variant="error", id="btn-cancel-ingest"),
+                classes="action-bar"
+            ),
+            id="pantry-ingest-dialog"
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-run-ingest":
+            val = self.query_one("#pantry-source-input", Input).value.strip()
+            self.dismiss(val if val else None)
+        else:
+            self.dismiss(None)
+
+
+class PantryInterviewModal(ModalScreen):
+    """Modal to run the Baker's Interview loop for discovering qualitative career context."""
+
+    DEFAULT_CSS = """
+    PantryInterviewModal {
+        align: center middle;
+    }
+    #interview-dialog {
+        padding: 1 2;
+        background: #0f172a;
+        border: thick #f59e0b;
+        width: 85%;
+        height: 85%;
+    }
+    .interview-input {
+        height: 5;
+        margin-bottom: 1;
+        background: #1e293b;
+        color: #fef3c7;
+        border: solid #d97706;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("[bold yellow]🥖 The Baker's Interview: Discovering Your Context[/bold yellow]"),
+            Label("[dim]Answer 3 quick questions. Breadwinner will synthesize personal directives (context.md) to guide AI tailoring.[/dim]"),
+            VerticalScroll(
+                Label("[bold cyan]1. Target Roles & Boundaries:[/bold cyan]"),
+                TextArea(id="int-q1", classes="interview-input"),
+                Label("[bold cyan]2. Hidden Wins & STAR Proof Points:[/bold cyan]"),
+                TextArea(id="int-q2", classes="interview-input"),
+                Label("[bold cyan]3. Logistics, Location, Visa & Guardrails:[/bold cyan]"),
+                TextArea(id="int-q3", classes="interview-input"),
+            ),
+            Horizontal(
+                Button("Synthesize Directives (context.md)", variant="success", id="btn-save-interview"),
+                Button("Cancel", variant="error", id="btn-cancel-interview"),
+                classes="action-bar"
+            ),
+            id="interview-dialog"
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save-interview":
+            ans = {
+                "target_roles": self.query_one("#int-q1", TextArea).text.strip(),
+                "star_stories": self.query_one("#int-q2", TextArea).text.strip(),
+                "logistics_guardrails": self.query_one("#int-q3", TextArea).text.strip(),
+            }
+            self.dismiss(ans)
+        else:
+            self.dismiss(None)
+
+
+class PantryHistoryModal(ModalScreen):
+    """Modal showing historical snapshots of the Pantry with rollback options."""
+
+    DEFAULT_CSS = """
+    PantryHistoryModal {
+        align: center middle;
+    }
+    #history-dialog {
+        padding: 1 2;
+        background: #0f172a;
+        border: thick #38bdf8;
+        width: 75%;
+        height: 70%;
+    }
+    #history-table {
+        height: 1fr;
+        margin: 1 0;
+    }
+    """
+
+    def __init__(self, snapshots: List[Dict[str, Any]]):
+        super().__init__()
+        self.snapshots = snapshots
+        self.selected_snapshot_id: Optional[str] = None
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("[bold cyan]Pantry Snapshot History & Rollback[/bold cyan]"),
+            Label("[dim]Select a historical snapshot to revert your career knowledge base to that point in time:[/dim]"),
+            DataTable(id="history-table", cursor_type="row"),
+            Horizontal(
+                Button("Revert to Selected", variant="warning", id="btn-revert-snap"),
+                Button("Close", variant="default", id="btn-close-snap"),
+                classes="action-bar"
+            ),
+            id="history-dialog"
+        )
+
+    def on_mount(self) -> None:
+        table = self.query_one("#history-table", DataTable)
+        table.add_columns("Snapshot ID", "Timestamp", "Trigger Event")
+        for s in self.snapshots:
+            table.add_row(s.get("id", ""), s.get("timestamp", ""), s.get("trigger", ""), key=s.get("id"))
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        self.selected_snapshot_id = event.row_key.value
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-revert-snap":
+            self.dismiss(self.selected_snapshot_id)
+        else:
+            self.dismiss(None)
+
+
 class BreadwinnerApp(App):
     """Breadwinner Interactive TUI Application."""
 
@@ -274,10 +426,14 @@ class BreadwinnerApp(App):
         Binding("1", "tab_pipeline", "Pipeline", show=True),
         Binding("2", "tab_studio", "Studio", show=True),
         Binding("3", "tab_models", "Models", show=True),
-        Binding("4", "tab_profile", "Profile", show=True),
+        Binding("4", "tab_profile", "Pantry", show=True),
         Binding("b", "bake_pdf", "Bake PDF", show=True),
         Binding("v", "view_pdf", "View PDF", show=True),
         Binding("e", "finetune_bullets", "Fine-Tune", show=True),
+        Binding("i", "pantry_ingest", "Ingest", show=True),
+        Binding("m", "pantry_interview", "Interview", show=True),
+        Binding("y", "pantry_sync", "Sync", show=True),
+        Binding("h", "pantry_history", "History", show=True),
         Binding("s", "change_status", "Change Status", show=True),
         Binding("f", "toggle_flag", "Toggle Flag", show=True),
         Binding("o", "open_folder", "Open Folder", show=True),
@@ -288,6 +444,7 @@ class BreadwinnerApp(App):
         super().__init__()
         self.initial_url = initial_url
         self.repo = JobRepository(settings.database_path)
+        self.pantry = PantryManager(settings.pantry_dir)
         self.selected_job: Optional[JobRecord] = None
         self.last_tailored_dir: Optional[Path] = None
         self.current_profile: Optional[CandidateProfile] = None
@@ -380,10 +537,17 @@ class BreadwinnerApp(App):
                     yield Label("[bold yellow]Discovered LLM Providers & Models:[/bold yellow]")
                     yield Static("Loading provider statuses...", id="models-list-box")
 
-            # TAB 4: CANDIDATE PROFILE
-            with TabPane("Portfolio Pantry", id="tab-profile"):
+            # TAB 4: CANDIDATE PROFILE & PANTRY
+            with TabPane("Portfolio Pantry (The Pantry)", id="tab-profile"):
                 with VerticalScroll():
                     yield Markdown(self.get_profile_markdown(), id="profile-md")
+                    yield Horizontal(
+                        Button("Import / Ingest (i)", variant="primary", id="btn-pantry-ingest"),
+                        Button("Baker's Interview (m)", variant="warning", id="btn-pantry-interview"),
+                        Button("Sync from Portfolio (y)", variant="success", id="btn-pantry-sync"),
+                        Button("History & Rollback (h)", variant="default", id="btn-pantry-history"),
+                        classes="action-bar"
+                    )
 
         yield Footer()
 
@@ -403,7 +567,8 @@ class BreadwinnerApp(App):
             model = settings.groq_model
         else:
             model = "default"
-        return f" 🥖 Breadwinner Studio | Active Engine: [{provider}: {model}] | Source: {settings.portfolio_path} "
+        src_label = "Pantry" if self.pantry.is_initialized() else settings.portfolio_path.name
+        return f" 🥖 Breadwinner Studio | Active Engine: [{provider}: {model}] | Source: {src_label} "
 
     def load_pipeline_table(self) -> None:
         table = self.query_one("#pipeline-table", DataTable)
@@ -482,14 +647,23 @@ class BreadwinnerApp(App):
 
     def get_profile_markdown(self) -> str:
         try:
-            adapter = get_profile_source(settings.portfolio_path)
-            profile = adapter.load_profile()
+            if self.pantry.is_initialized():
+                profile = self.pantry.load_profile()
+                context = self.pantry.load_context()
+                meta = self.pantry.load_source_metadata()
+                src_note = f"*(Linked Source: {meta.get('source', 'Local')})*" if meta else "*(Canonical Pantry)*"
+            else:
+                adapter = get_profile_source(settings.portfolio_path)
+                profile = adapter.load_profile()
+                context = ""
+                src_note = f"*(External Source: {settings.portfolio_path})*"
+
             lines = [
-                f"# {profile.full_name}",
-                f"**Title:** {profile.title} | **Location:** {profile.location}",
+                f"# {profile.full_name} {src_note}",
+                f"**Title:** {profile.title} | **Location:** {profile.location} | **Email:** {profile.email}",
                 f"\n**Summary:** {profile.summary}",
                 "\n---",
-                "\n## Verified Work Experiences",
+                f"\n## Verified Work Experiences ({len(profile.experiences)})",
             ]
             for exp in profile.experiences:
                 lines.append(f"\n### {exp.role} @ {exp.company} ({exp.start_date} - {exp.end_date})")
@@ -497,16 +671,21 @@ class BreadwinnerApp(App):
                     lines.append(f"- {b}")
 
             lines.append("\n---")
-            lines.append("\n## Projects & Case Studies")
+            lines.append(f"\n## Projects & Case Studies ({len(profile.projects)})")
             for proj in profile.projects:
                 tech = ", ".join(proj.tech_stack) if proj.tech_stack else "General"
                 lines.append(f"\n### {proj.name} ({tech})")
                 lines.append(proj.description)
 
             lines.append("\n---")
-            lines.append("\n## Education")
+            lines.append(f"\n## Education ({len(profile.education)})")
             for edu in profile.education:
                 lines.append(f"- **{edu.degree}** @ {edu.institution}")
+
+            if context:
+                lines.append("\n---")
+                lines.append("\n## Personal Directives & Guardrails (`context.md`)")
+                lines.append(context)
 
             return "\n".join(lines)
         except Exception as e:
@@ -528,7 +707,8 @@ class BreadwinnerApp(App):
     def action_refresh_data(self) -> None:
         self.load_pipeline_table()
         self.load_models_tab()
-        self.notify("Refreshed pipeline and models.", title="Updated")
+        self.query_one("#profile-md", Markdown).update(self.get_profile_markdown())
+        self.notify("Refreshed pipeline, models, and pantry.", title="Updated")
 
     def action_change_status(self) -> None:
         if self.selected_job:
@@ -599,7 +779,6 @@ class BreadwinnerApp(App):
             self.notify("Run the tailoring engine on a job first to fine-tune bullets.", severity="warning")
             return
 
-        # Prepare editable bullet text
         lines = []
         for exp in self.current_app_result.tailored_experiences:
             lines.append(f"### {exp.role} @ {exp.company}")
@@ -614,7 +793,6 @@ class BreadwinnerApp(App):
         if not updated_text or not self.current_app_result or not self.last_tailored_dir:
             return
 
-        # Parse updated bullets back into tailored_experiences
         current_exp_idx = -1
         new_experiences = list(self.current_app_result.tailored_experiences)
 
@@ -631,7 +809,6 @@ class BreadwinnerApp(App):
 
         self.current_app_result.tailored_experiences = new_experiences
 
-        # Re-render artifacts
         renderer = TemplateRenderer()
         resume_html = renderer.render_resume(self.current_profile, self.current_app_result, self.current_template)
         resume_md = renderer.render_resume(self.current_profile, self.current_app_result, "ats")
@@ -639,7 +816,6 @@ class BreadwinnerApp(App):
         (self.last_tailored_dir / "resume.html").write_text(resume_html, encoding="utf-8")
         (self.last_tailored_dir / "resume.md").write_text(resume_md, encoding="utf-8")
 
-        # Auto re-bake PDF
         try:
             render_html_to_pdf(self.last_tailored_dir / "resume.html", self.last_tailored_dir / "resume.pdf", open_after=False)
         except Exception:
@@ -647,6 +823,94 @@ class BreadwinnerApp(App):
 
         self.query_one("#preview-resume-md", Markdown).update(resume_md)
         self.notify("Updated tailored bullets and re-baked resume.pdf!", title="Fine-Tune Applied")
+
+    # PANTRY ACTIONS
+    def action_pantry_ingest(self) -> None:
+        self.push_screen(PantryIngestModal(), self._on_ingest_submitted)
+
+    def _on_ingest_submitted(self, source: Optional[str]) -> None:
+        if not source:
+            return
+
+        self.notify(f"Ingesting candidate context from {source[:30]}...", title="Pantry Ingest")
+        provider = get_llm_provider()
+        try:
+            new_profile = UniversalIngestor.ingest(source, provider)
+            source_meta = {"source": source, "type": "url" if source.startswith("http") else "file"}
+            self.pantry.save_pantry(new_profile, source_info=source_meta, trigger=f"tui_ingest_{source[:15]}")
+            self.query_one("#profile-md", Markdown).update(self.get_profile_markdown())
+            self.notify(f"✓ Ingested profile for {new_profile.full_name} ({len(new_profile.experiences)} roles)!", title="Pantry Updated")
+        except Exception as e:
+            self.notify(f"Ingestion failed: {e}", severity="error")
+
+    def action_pantry_interview(self) -> None:
+        if not self.pantry.is_initialized():
+            self.notify("Please ingest a base profile first.", severity="warning")
+            return
+        self.push_screen(PantryInterviewModal(), self._on_interview_submitted)
+
+    def _on_interview_submitted(self, answers: Optional[Dict[str, str]]) -> None:
+        if not answers or not any(answers.values()):
+            return
+
+        self.notify("Synthesizing qualitative personal directives...", title="Baker's Interview")
+        provider = get_llm_provider()
+        profile = self.pantry.load_profile()
+        try:
+            context_md = synthesize_context(profile, answers, provider)
+            self.pantry.save_pantry(profile, context=context_md, trigger="interview_synthesis")
+            self.query_one("#profile-md", Markdown).update(self.get_profile_markdown())
+            self.notify("✓ Synthesized directives and updated pantry/context.md!", title="Interview Complete")
+        except Exception as e:
+            self.notify(f"Interview synthesis failed: {e}", severity="error")
+
+    def action_pantry_sync(self) -> None:
+        if not self.pantry.is_initialized():
+            self.notify("Pantry not initialized yet.", severity="warning")
+            return
+
+        meta = self.pantry.load_source_metadata()
+        if not meta.get("source"):
+            self.notify("No upstream source linked. Use 'Import / Ingest (i)' first.", severity="warning")
+            return
+
+        self.notify(f"Syncing from linked source: {meta['source'][:30]}...", title="Pantry Sync")
+        provider = get_llm_provider()
+        try:
+            diff, new_profile = self.pantry.sync_from_linked_source(provider)
+            has_changes = (
+                bool(diff.get("added_experiences")) or
+                bool(diff.get("modified_experiences")) or
+                bool(diff.get("added_projects")) or
+                diff.get("summary_changed")
+            )
+            if not has_changes:
+                self.notify("Pantry is completely up to date with your portfolio!", title="Zero Changes")
+                return
+
+            curr_context = self.pantry.load_context()
+            self.pantry.save_pantry(new_profile, context=curr_context, source_info=meta, trigger="tui_sync")
+            self.query_one("#profile-md", Markdown).update(self.get_profile_markdown())
+            self.notify("✓ Successfully synced changes from portfolio into Pantry!", title="Sync Merged")
+        except Exception as e:
+            self.notify(f"Sync failed: {e}", severity="error")
+
+    def action_pantry_history(self) -> None:
+        snapshots = self.pantry.list_snapshots()
+        if not snapshots:
+            self.notify("No snapshots recorded yet.", severity="warning")
+            return
+        self.push_screen(PantryHistoryModal(snapshots), self._on_history_revert_selected)
+
+    def _on_history_revert_selected(self, snapshot_id: Optional[str]) -> None:
+        if not snapshot_id:
+            return
+        success = self.pantry.revert_snapshot(snapshot_id)
+        if success:
+            self.query_one("#profile-md", Markdown).update(self.get_profile_markdown())
+            self.notify(f"✓ Reverted Pantry to snapshot {snapshot_id}!", title="Pantry Reverted")
+        else:
+            self.notify("Failed to revert snapshot.", severity="error")
 
     def _on_modal_dismissed(self, updated: bool) -> None:
         if updated:
@@ -688,6 +952,14 @@ class BreadwinnerApp(App):
                     CsvSync.export_to_csv(self.repo, settings.csv_tracker_path)
                 self.notify("Marked application as APPLIED!", title="Updated")
                 self.load_pipeline_table()
+        elif bid == "btn-pantry-ingest":
+            self.action_pantry_ingest()
+        elif bid == "btn-pantry-interview":
+            self.action_pantry_interview()
+        elif bid == "btn-pantry-sync":
+            self.action_pantry_sync()
+        elif bid == "btn-pantry-history":
+            self.action_pantry_history()
 
     def run_tailoring_flow(self) -> None:
         url_input = self.query_one("#input-job-url", Input).value.strip()
@@ -708,9 +980,12 @@ class BreadwinnerApp(App):
             else:
                 job = JobScraper.ingest_from_text(url_input, "Company", "Role")
 
-            # 2. Ingest Profile
-            adapter = get_profile_source(settings.portfolio_path)
-            profile = adapter.load_profile()
+            # 2. Ingest Profile (Pantry prioritized)
+            if self.pantry.is_initialized():
+                profile = self.pantry.load_profile()
+            else:
+                adapter = get_profile_source(settings.portfolio_path)
+                profile = adapter.load_profile()
             self.current_profile = profile
 
             # 3. Persona & Provider

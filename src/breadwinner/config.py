@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # Portfolio & Sources
     portfolio_path: Path = Path("./portfolio")
+    pantry_dir: Path = Path("./pantry")
 
     # Personas & Templates
     default_persona: str = "tech_ai"

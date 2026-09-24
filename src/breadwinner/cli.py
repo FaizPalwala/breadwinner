@@ -25,6 +25,9 @@ from breadwinner.db.sync import CsvSync
 from breadwinner.automations.health import JobHealthChecker
 from breadwinner.automations.reminders import ReminderEngine
 from breadwinner.core.pdf import render_html_to_pdf, PDFGenerationError
+from breadwinner.core.pantry import PantryManager
+from breadwinner.core.ingestor import UniversalIngestor, IngestionError
+from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
 
 
 console = Console()
@@ -491,6 +494,224 @@ def ui_cmd(url: Optional[str]):
     from breadwinner.ui.app import BreadwinnerApp
     app = BreadwinnerApp(initial_url=url)
     app.run()
+
+
+# ==============================================================================
+# PANTRY COMMANDS (Canonical Knowledge Base & Sync)
+# ==============================================================================
+
+@main.group(name="pantry")
+def pantry_group():
+    """Manage your canonical career knowledge base, snapshots, and two-way sync."""
+    pass
+
+
+@pantry_group.command(name="show")
+def pantry_show_cmd():
+    """Inspect what Breadwinner is currently deriving from your Pantry."""
+    pantry = PantryManager(settings.pantry_dir)
+    if not pantry.is_initialized():
+        console.print("[yellow]Pantry is not initialized yet. Run 'breadwinner pantry ingest' or 'breadwinner setup'.[/yellow]")
+        return
+
+    profile = pantry.load_profile()
+    context = pantry.load_context()
+    meta = pantry.load_source_metadata()
+
+    src_label = f"Linked Source: [cyan]{meta.get('source', 'Local')}[/cyan]" if meta else "Linked Source: Local"
+
+    console.print(Panel(
+        f"[bold yellow]🥖 Breadwinner Pantry (Canonical Knowledge Base)[/bold yellow]\n\n"
+        f"• [bold]Candidate:[/bold] {profile.full_name} ({profile.title})\n"
+        f"• [bold]Location:[/bold] {profile.location} | [bold]Email:[/bold] {profile.email}\n"
+        f"• [bold]{src_label}[/bold]\n"
+        f"• [bold]Summary:[/bold] {profile.summary}",
+        border_style="yellow",
+        title="Pantry Profile"
+    ))
+
+    table = Table(title=f"Verified Experiences ({len(profile.experiences)})", border_style="green")
+    table.add_column("Company", style="bold")
+    table.add_column("Role")
+    table.add_column("Dates")
+    table.add_column("Bullets", justify="center")
+    for exp in profile.experiences:
+        table.add_row(exp.company, exp.role, f"{exp.start_date} - {exp.end_date}", str(len(exp.bullets)))
+    console.print(table)
+
+    if profile.projects:
+        console.print(f"[bold cyan]Verified Projects ({len(profile.projects)}):[/bold cyan] " + ", ".join([p.name for p in profile.projects]))
+    if profile.skills:
+        all_skills = [s for cat in profile.skills for s in cat.skills]
+        console.print(f"[bold cyan]Skills Catalog ({len(all_skills)}):[/bold cyan] " + ", ".join(all_skills[:12]) + ("..." if len(all_skills) > 12 else ""))
+
+    if context:
+        console.print(Panel(context, title="Personal Directives & Guardrails (context.md)", border_style="cyan"))
+
+
+@pantry_group.command(name="ingest")
+@click.argument("source", required=False, default=None)
+def pantry_ingest_cmd(source: Optional[str]):
+    """Ingest candidate context from a live website URL, file (.docx, .pdf, .json, .md), or text."""
+    if not source:
+        source = Prompt.ask("[bold cyan]Enter portfolio URL, document path, or text snippet[/bold cyan]")
+
+    provider = get_llm_provider()
+    console.print(f"[cyan]Analyzing and extracting verified profile from: {source}...[/cyan]")
+
+    try:
+        new_profile = UniversalIngestor.ingest(source, provider)
+    except Exception as e:
+        console.print(f"[bold red]Ingestion Error:[/bold red] {e}")
+        return
+
+    # Preview
+    console.print(Panel(
+        f"[bold green]✓ Ingestion Complete![/bold green]\n\n"
+        f"• [bold]Candidate:[/bold] {new_profile.full_name} ({new_profile.title})\n"
+        f"• [bold]Experiences:[/bold] {len(new_profile.experiences)} roles detected\n"
+        f"• [bold]Projects:[/bold] {len(new_profile.projects)} projects detected\n"
+        f"• [bold]Skills:[/bold] {len(new_profile.skills)} categories detected\n"
+        f"• [bold]Summary:[/bold] {new_profile.summary}",
+        border_style="green",
+        title="Ingestion Preview"
+    ))
+
+    confirm = Confirm.ask("Save this profile to your Pantry as your canonical source of truth?", default=True)
+    if confirm:
+        pantry = PantryManager(settings.pantry_dir)
+        source_meta = {
+            "source": source,
+            "ingestion_type": "url" if source.startswith("http") else "file"
+        }
+        pantry.save_pantry(new_profile, source_info=source_meta, trigger=f"ingest_{source[:20]}")
+        console.print(f"[bold green]✓ Saved to {settings.pantry_dir}/profile.json with snapshot history.[/bold green]")
+
+
+@pantry_group.command(name="interview")
+def pantry_interview_cmd():
+    """Run the interactive Baker's Interview loop to discover qualitative nuances and guardrails."""
+    pantry = PantryManager(settings.pantry_dir)
+    if not pantry.is_initialized():
+        console.print("[yellow]Pantry is not initialized yet. Ingest a profile first with 'breadwinner pantry ingest'.[/yellow]")
+        return
+
+    profile = pantry.load_profile()
+    console.print(Panel(
+        f"[bold yellow]🥖 The Baker's Interview: Discovering Your Context[/bold yellow]\n\n"
+        f"Candidate: [bold]{profile.full_name}[/bold]\n"
+        f"[dim]Answer 3 quick questions. Breadwinner will synthesize this into personal directives\n"
+        f"that guide AI tailoring, non-negotiables, and cover letters.[/dim]",
+        border_style="yellow"
+    ))
+
+    answers = {}
+    for q in INTERVIEW_QUESTIONS:
+        console.print(f"\n[bold cyan]{q['title']}[/bold cyan]")
+        console.print(f"[dim]{q['prompt']}[/dim]")
+        ans = Prompt.ask("Your response", default="")
+        if ans.strip():
+            answers[q["id"]] = ans.strip()
+
+    if not answers:
+        console.print("[yellow]No responses provided. Pantry context left unchanged.[/yellow]")
+        return
+
+    provider = get_llm_provider()
+    console.print("[cyan]Synthesizing personal career directives...[/cyan]")
+    synthesized_md = synthesize_context(profile, answers, provider)
+
+    console.print(Panel(synthesized_md, title="Synthesized Directives Preview", border_style="green"))
+    save_it = Confirm.ask("Save these directives to your Pantry (pantry/context.md)?", default=True)
+    if save_it:
+        pantry.save_pantry(profile, context=synthesized_md, trigger="interview_synthesis")
+        console.print("[bold green]✓ Saved to pantry/context.md and recorded snapshot.[/bold green]")
+
+
+@pantry_group.command(name="sync")
+def pantry_sync_cmd():
+    """Sync and diff against your linked upstream portfolio (live URL or folder)."""
+    pantry = PantryManager(settings.pantry_dir)
+    if not pantry.is_initialized():
+        console.print("[yellow]Pantry is not initialized. Run 'breadwinner pantry ingest' first.[/yellow]")
+        return
+
+    meta = pantry.load_source_metadata()
+    if not meta.get("source"):
+        console.print("[yellow]No linked upstream source found. Use 'breadwinner pantry ingest <url_or_path>' to link one.[/yellow]")
+        return
+
+    source = meta["source"]
+    console.print(f"[cyan]Syncing and diffing against linked source: {source}...[/cyan]")
+    provider = get_llm_provider()
+
+    try:
+        diff, new_profile = pantry.sync_from_linked_source(provider)
+    except Exception as e:
+        console.print(f"[bold red]Sync Error:[/bold red] {e}")
+        return
+
+    # Display Diff
+    has_changes = (
+        bool(diff.get("added_experiences")) or
+        bool(diff.get("modified_experiences")) or
+        bool(diff.get("added_projects")) or
+        diff.get("summary_changed")
+    )
+
+    if not has_changes:
+        console.print("[bold green]✓ Pantry is completely up to date with your portfolio. Zero changes detected![/bold green]")
+        return
+
+    console.print(Panel(
+        f"[bold yellow]Changes Detected in Upstream Portfolio:[/bold yellow]\n\n"
+        + (f"🟢 [bold]New Experiences:[/bold] {', '.join(diff['added_experiences'])}\n" if diff.get("added_experiences") else "")
+        + (f"🟢 [bold]New Projects:[/bold] {', '.join(diff['added_projects'])}\n" if diff.get("added_projects") else "")
+        + (f"🟡 [bold]Summary Updated[/bold]\n" if diff.get("summary_changed") else "")
+        + (f"🟡 [bold]Modified Experiences:[/bold] {len(diff.get('modified_experiences', []))} updated\n" if diff.get("modified_experiences") else ""),
+        title="Sync Diff Review",
+        border_style="yellow"
+    ))
+
+    merge = Confirm.ask("Merge these updates into your canonical Pantry?", default=True)
+    if merge:
+        curr_context = pantry.load_context()
+        pantry.save_pantry(new_profile, context=curr_context, source_info=meta, trigger="portfolio_sync")
+        console.print("[bold green]✓ Successfully merged changes and created rollback snapshot![/bold green]")
+
+
+@pantry_group.command(name="history")
+def pantry_history_cmd():
+    """List historical snapshots of your Pantry for auditing or rollback."""
+    pantry = PantryManager(settings.pantry_dir)
+    snapshots = pantry.list_snapshots()
+
+    if not snapshots:
+        console.print("[dim]No historical snapshots recorded yet.[/dim]")
+        return
+
+    table = Table(title="Pantry Snapshot History", border_style="cyan")
+    table.add_column("Snapshot ID", style="bold cyan")
+    table.add_column("Timestamp")
+    table.add_column("Trigger Event")
+
+    for s in snapshots:
+        table.add_row(s["id"], s.get("timestamp", "-"), s.get("trigger", "-"))
+
+    console.print(table)
+    console.print("[dim]To revert to any past snapshot, run: breadwinner pantry revert <snapshot_id>[/dim]")
+
+
+@pantry_group.command(name="revert")
+@click.argument("snapshot_id")
+def pantry_revert_cmd(snapshot_id: str):
+    """Revert your Pantry to a previous snapshot ID."""
+    pantry = PantryManager(settings.pantry_dir)
+    success = pantry.revert_snapshot(snapshot_id)
+    if success:
+        console.print(f"[bold green]✓ Successfully reverted Pantry to snapshot '{snapshot_id}'![/bold green]")
+    else:
+        console.print(f"[bold red]Error: Snapshot '{snapshot_id}' not found.[/bold red]")
 
 
 if __name__ == "__main__":

@@ -155,10 +155,14 @@ breadwinner ui --url https://boards.greenhouse.io/monzo/jobs/123456
 - `1`: Pipeline Tracker (The Breadbox)
 - `2`: Tailor Studio (The Oven)
 - `3`: Model Switcher
-- `4`: Portfolio Pantry
+- `4`: Portfolio Pantry (The Pantry)
 - `e`: Fine-Tune tailored bullets interactively before baking
 - `b`: Bake print-ready ATS PDF (`resume.pdf`)
 - `v`: View baked PDF in default system viewer
+- `i`: Ingest career background from URL, file, or text
+- `m`: Baker's Interview loop (synthesize personal directives)
+- `y`: Sync & diff against linked upstream portfolio
+- `h`: Snapshot history & rollback modal
 - `s`: Update job status modal (`applied`, `interviewing`, `offer`, `rejected`)
 - `f`: Set/clear job flag (`high_priority`, `followup_needed`)
 - `o`: Open application folder in Finder / file manager
@@ -272,6 +276,29 @@ cp src/breadwinner/personas/tech_ai.yaml user_personas/tech_ai.yaml
 ```
 `breadwinner` automatically loads `user_personas/<slug>.yaml` with priority over built-in templates.
 
+
+### 5. Career Pantry Management & Upstream Sync
+
+Breadwinner maintains a canonical, versioned knowledge base of your verified career in `pantry/`:
+
+```bash
+# Inspect current Pantry facts and personal directives
+breadwinner pantry show
+
+# Ingest from a live portfolio URL, resume document (.docx, .pdf, .json), or raw bio
+breadwinner pantry ingest https://yourname.com
+breadwinner pantry ingest ./my_resume.docx
+
+# Run the Baker's Interview to discover qualitative goals and guardrails
+breadwinner pantry interview
+
+# Sync and diff against your linked upstream portfolio (auto-detects additions/changes)
+breadwinner pantry sync
+
+# View historical snapshot timeline and rollback changes
+breadwinner pantry history
+breadwinner pantry revert <snapshot_id>
+```
 
 ---
 

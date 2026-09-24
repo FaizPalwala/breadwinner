@@ -21,20 +21,22 @@ def test_initialize_starter_portfolio(tmp_path: Path):
 
 def test_run_setup_wizard_mocked(tmp_path: Path):
     env_file = tmp_path / ".env"
+    pantry_dir = tmp_path / "pantry"
     portfolio_dir = tmp_path / "my_portfolio"
     initialize_starter_portfolio(portfolio_dir)
 
     # Prompt sequence:
-    # 1. portfolio_input -> str(portfolio_dir)
-    # 2. engine choice -> "6" (offline mock)
-    inputs = [str(portfolio_dir), "6"]
+    # 1. import choice -> "3" (existing portfolio directory)
+    # 2. portfolio path -> str(portfolio_dir)
+    # 3. engine choice -> "6" (offline mock)
+    inputs = ["3", str(portfolio_dir), "6"]
 
     with patch("rich.prompt.Confirm.ask", return_value=False):
         with patch("rich.prompt.Prompt.ask", side_effect=inputs):
-            success = run_setup_wizard(env_file_path=env_file)
+            success = run_setup_wizard(env_file_path=env_file, pantry_dir=pantry_dir)
             assert success is True
             assert env_file.exists()
 
             content = env_file.read_text(encoding="utf-8")
             assert 'BREADWINNER_LLM_PROVIDER="mock"' in content
-            assert f'PORTFOLIO_PATH="{portfolio_dir}"' in content
+            assert f'PANTRY_DIR="{pantry_dir}"' in content

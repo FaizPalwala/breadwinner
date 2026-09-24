@@ -90,9 +90,10 @@ def initialize_starter_portfolio(target_dir: Path) -> Path:
     return resume_json
 
 
-def run_setup_wizard(env_file_path: Optional[Path] = None) -> bool:
-    """Run an interactive 60-second onboarding wizard."""
+def run_setup_wizard(env_file_path: Optional[Path] = None, pantry_dir: Optional[Path] = None) -> bool:
+    """Run an interactive onboarding wizard with universal ingestion and interview loop."""
     env_path = env_file_path or Path(".env")
+    pantry_path = pantry_dir or Path("./pantry")
 
     console.print(Panel(
         "[bold yellow]🥖 Welcome to Breadwinner![/bold yellow]\n\n"
@@ -100,36 +101,40 @@ def run_setup_wizard(env_file_path: Optional[Path] = None) -> bool:
         "grounded in your verified facts. Let's get your studio set up in 60 seconds.[/white]",
         border_style="yellow",
         title="[bold]Breadwinner Setup Studio[/bold]",
-        subtitle="Step 1 of 3"
+        subtitle="Universal Setup & Ingestion"
     ))
 
     # -------------------------------------------------------------
-    # Step 1: Candidate Portfolio / Ingredients
+    # Step 1: Candidate Career Source
     # -------------------------------------------------------------
-    console.print("\n[bold cyan]Step 1: Your Career Ingredients (Portfolio Source of Truth)[/bold cyan]")
+    console.print("\n[bold cyan]Step 1: Your Career Ingredients (The Pantry)[/bold cyan]")
     console.print(
-        "[dim]Breadwinner needs a source of truth for your work history (JSON Resume or Markdown folder).\n"
-        "It will NEVER hallucinate credentials; it only selects and tailors verified facts.[/dim]\n"
+        "[dim]Breadwinner grounds all resumes in verified facts. Where should we import your background from?[/dim]\n"
     )
+    console.print("  [bold yellow]1[/bold yellow]  Live website / portfolio link (e.g. https://yourname.com or GitHub)")
+    console.print("  [bold yellow]2[/bold yellow]  Local file or resume (.json, .docx, .md, .txt)")
+    console.print("  [bold yellow]3[/bold yellow]  Existing portfolio directory (e.g. ./portfolio)")
+    console.print("  [bold yellow]4[/bold yellow]  Paste raw career bio / LinkedIn text")
+    console.print("  [bold yellow]5[/bold yellow]  Start with clean sample template")
 
-    default_portfolio = "./portfolio"
-    if Path(default_portfolio).exists():
-        portfolio_input = Prompt.ask(
-            "Portfolio directory or resume.json path",
-            default=default_portfolio
-        )
+    choice_src = Prompt.ask("\nChoose an import option", choices=["1", "2", "3", "4", "5"], default="5")
+
+    raw_source = ""
+    source_type = "template"
+    if choice_src == "1":
+        raw_source = Prompt.ask("Enter your live portfolio or personal website URL")
+        source_type = "url"
+    elif choice_src == "2":
+        raw_source = Prompt.ask("Enter path to your resume file (.json, .docx, .md, .txt)")
+        source_type = "file"
+    elif choice_src == "3":
+        raw_source = Prompt.ask("Enter path to your portfolio directory", default="./portfolio")
+        source_type = "directory"
+    elif choice_src == "4":
+        raw_source = Prompt.ask("Paste your career summary, bio, or experience snippet")
+        source_type = "paste"
     else:
-        create_starter = Confirm.ask(
-            "No portfolio found. Would you like to create a clean starter portfolio in './portfolio'?",
-            default=True
-        )
-        if create_starter:
-            p_dir = Path("./portfolio")
-            initialize_starter_portfolio(p_dir)
-            console.print("[green]✓ Created starter portfolio in ./portfolio/resume.json[/green]")
-            portfolio_input = "./portfolio"
-        else:
-            portfolio_input = Prompt.ask("Enter the path to your portfolio or resume.json")
+        source_type = "template"
 
     # -------------------------------------------------------------
     # Step 2: Choose AI Intelligence Engine
@@ -168,7 +173,8 @@ def run_setup_wizard(env_file_path: Optional[Path] = None) -> bool:
 
     env_vars: Dict[str, str] = {
         "BREADWINNER_LLM_PROVIDER": selected_provider,
-        "PORTFOLIO_PATH": portfolio_input,
+        "PORTFOLIO_PATH": str(pantry_path),
+        "PANTRY_DIR": str(pantry_path),
         "DEFAULT_PERSONA": "tech_ai",
         "DEFAULT_TEMPLATE": "jakes",
         "AUTO_GENERATE_PDF": "true",
@@ -235,16 +241,72 @@ def run_setup_wizard(env_file_path: Optional[Path] = None) -> bool:
 
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
 
-    # Set strict 0600 file permissions
     try:
         os.chmod(env_path, stat.S_IRUSR | stat.S_IWUSR)
     except Exception:
         pass
 
+    # -------------------------------------------------------------
+    # Step 5: Execute Ingestion into Pantry
+    # -------------------------------------------------------------
+    from breadwinner.core.pantry import PantryManager
+    pantry = PantryManager(pantry_path)
+
+    if source_type == "template":
+        initialize_starter_portfolio(pantry_path)
+        console.print(f"[green]✓ Initialized clean starter profile in {pantry_path}/resume.json[/green]")
+        profile = pantry.load_profile()
+    else:
+        from breadwinner.providers.factory import get_llm_provider
+        from breadwinner.core.ingestor import UniversalIngestor
+        provider = get_llm_provider(selected_provider)
+        console.print(f"\n[cyan]Ingesting background from: {raw_source}...[/cyan]")
+        try:
+            profile = UniversalIngestor.ingest(raw_source, provider)
+            source_meta = {"source": raw_source, "type": source_type}
+            pantry.save_pantry(profile, source_info=source_meta, trigger="onboarding_ingest")
+            console.print(f"[bold green]✓ Successfully derived verified profile for {profile.full_name} ({len(profile.experiences)} roles)![/bold green]")
+        except Exception as e:
+            console.print(f"[yellow]Ingestion notice: {e}. Falling back to starter template.[/yellow]")
+            initialize_starter_portfolio(pantry_path)
+            profile = pantry.load_profile()
+
+    # -------------------------------------------------------------
+    # Step 6: The Baker's Interview Loop (Optional 60s Discovery)
+    # -------------------------------------------------------------
+    console.print("\n[bold cyan]Step 4: The Baker's Interview (Career Nuances)[/bold cyan]")
+    do_interview = Confirm.ask(
+        "Would you like to do a quick 60-second interview to define your target roles, non-negotiables, and hidden achievements?",
+        default=True
+    )
+
+    if do_interview:
+        from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
+        from breadwinner.providers.factory import get_llm_provider
+        provider = get_llm_provider(selected_provider)
+
+        interview_answers = {}
+        for q in INTERVIEW_QUESTIONS:
+            console.print(f"\n[bold yellow]• {q['title']}[/bold yellow]")
+            console.print(f"[dim]{q['prompt']}[/dim]")
+            ans = Prompt.ask("Your response", default="")
+            if ans.strip():
+                interview_answers[q["id"]] = ans.strip()
+
+        if interview_answers:
+            console.print("[cyan]Synthesizing personal directives (context.md)...[/cyan]")
+            try:
+                context_md = synthesize_context(profile, interview_answers, provider)
+                pantry.save_pantry(profile, context=context_md, trigger="onboarding_interview")
+                console.print("[green]✓ Synthesized career guardrails and saved to pantry/context.md![/green]")
+            except Exception as e:
+                console.print(f"[yellow]Notice: Context synthesis skipped ({e}).[/yellow]")
+
     console.print(Panel(
         f"[bold green]✓ Setup Complete![/bold green]\n\n"
         f"• [cyan]Intelligence Engine:[/cyan] {selected_provider.upper()}\n"
-        f"• [cyan]Portfolio Source:[/cyan] {portfolio_input}\n"
+        f"• [cyan]Canonical Pantry:[/cyan] {pantry_path.resolve()}\n"
+        f"• [cyan]Candidate:[/cyan] {profile.full_name} ({profile.title})\n"
         f"• [cyan]Config Saved To:[/cyan] {env_path.resolve()} (chmod 0600)\n\n"
         f"[bold]Ready to bake your first application:[/bold]\n"
         f"  [yellow]breadwinner apply --url <job_url>[/yellow]  (CLI mode)\n"
