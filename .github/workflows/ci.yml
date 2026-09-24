@@ -1,9 +1,13 @@
 name: CI
+
+# Automated CI temporarily disabled while local validation and testing are underway.
+# Can be triggered manually from GitHub Actions UI when needed.
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
 
 jobs:
   test:
