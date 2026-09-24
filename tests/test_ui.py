@@ -13,6 +13,8 @@ async def test_breadwinner_app_mount():
         assert app.query_one("#select-persona") is not None
         assert app.query_one("#select-template") is not None
         assert app.query_one("#btn-strategy-loop") is not None
+        assert app.query_one("#studio-mascot") is not None
+        assert app.query_one("#studio-stepper") is not None
 
 
 @pytest.mark.anyio

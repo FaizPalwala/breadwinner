@@ -38,6 +38,14 @@ from breadwinner.core.pantry import PantryManager
 from breadwinner.core.ingestor import UniversalIngestor, IngestionError
 from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
 from breadwinner.providers.factory import get_llm_provider
+from breadwinner.ui.retro import (
+    RETRO_THEME_CSS,
+    AnimatedOven,
+    AnimatedMascot,
+    BakeryStepper,
+    RetroProgressBar,
+    BakingModal
+)
 
 
 def get_persona_select_options() -> List[tuple]:
@@ -448,7 +456,7 @@ class BreadwinnerApp(App):
     """Breadwinner Interactive TUI Application."""
 
     TITLE = "Breadwinner"
-    SUB_TITLE = "The Anti-Slop Local Career Studio 🍞"
+    SUB_TITLE = "Local 8-Bit Anti-Slop Career Studio 🍞👾"
     CSS = """
     Screen {
         background: #0b0f19;
@@ -518,7 +526,22 @@ class BreadwinnerApp(App):
         margin-bottom: 1;
         background: #1e293b;
     }
-    """
+    #studio-mascot-banner {
+        height: auto;
+        padding: 1;
+        margin-bottom: 1;
+        background: #101422;
+        border: round #d18f52;
+    }
+    #studio-mascot {
+        width: 34;
+        height: auto;
+    }
+    #studio-mascot-text {
+        height: auto;
+        padding-left: 1;
+    }
+    """ + RETRO_THEME_CSS
 
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
@@ -575,6 +598,13 @@ class BreadwinnerApp(App):
             # TAB 2: TAILOR STUDIO
             with TabPane("Tailor Studio (The Oven)", id="tab-studio"):
                 with VerticalScroll():
+                    with Horizontal(id="studio-mascot-banner"):
+                        yield AnimatedMascot(id="studio-mascot")
+                        with Vertical(id="studio-mascot-text"):
+                            yield Label("[bold #f59e0b]🥖 THE OVEN: TAILOR STUDIO[/bold #f59e0b]")
+                            yield Label("[dim]Proofing verified experience bullets against role requirements without keyword-stuffing slop.[/dim]")
+                            yield BakeryStepper(current_stage=0, id="studio-stepper")
+
                     yield Label("Target Job URL or Markdown File:", classes="input-label")
                     yield Input(
                         placeholder="https://boards.greenhouse.io/monzo/jobs/... or /path/to/jd.txt",
@@ -668,7 +698,7 @@ class BreadwinnerApp(App):
         else:
             model = "default"
         src_label = "Pantry" if self.pantry.is_initialized() else settings.portfolio_path.name
-        return f" 🥖 Breadwinner Studio | Active Engine: [{provider}: {model}] | Source: {src_label} "
+        return f" 👾 BREADWINNER ARCADE | [bold #50fa7b]ONLINE[/bold #50fa7b] | Engine: [{provider}: {model}] | Source: {src_label} "
 
     def load_pipeline_table(self) -> None:
         table = self.query_one("#pipeline-table", DataTable)
@@ -848,16 +878,22 @@ class BreadwinnerApp(App):
             self.notify("Please tailor a job first or select a job with resume.html.", severity="warning")
             return
 
-        html_path = target_dir / "resume.html"
-        pdf_path = target_dir / "resume.pdf"
-        self.notify("Baking print-ready ATS PDF in headless browser...", title="Breadwinner Bakery")
+        self.push_screen(
+            BakingModal(task_type="bake_pdf", target_info={"app_dir": target_dir}),
+            self._on_pdf_bake_modal_dismissed
+        )
 
+    def _on_pdf_bake_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
+        if not result or not result.get("success"):
+            return
+        size_kb = result.get("size_kb", 0.0)
+        self.notify(f"✓ Fresh out of the oven! Baked resume.pdf ({size_kb} KB)", title="Bake Complete")
         try:
-            render_html_to_pdf(html_path, pdf_path, open_after=False)
-            size_kb = round(pdf_path.stat().st_size / 1024, 1)
-            self.notify(f"✓ Fresh out of the oven! Baked resume.pdf ({size_kb} KB)", title="Bake Complete")
-        except Exception as e:
-            self.notify(f"Bake failed: {e}", severity="error")
+            self.query_one("#studio-stepper", BakeryStepper).set_stage(4)
+            mascot = self.query_one("#studio-mascot", AnimatedMascot)
+            mascot.set_message("Crisp ATS PDF Baked!")
+        except Exception:
+            pass
 
     def action_view_pdf(self) -> None:
         target_dir = None
@@ -1144,111 +1180,75 @@ class BreadwinnerApp(App):
             self.notify("Please enter a job URL or paste a JD file path.", severity="error")
             return
 
-        status_box = self.query_one("#tailor-status-box", Static)
-        status_box.update("[bold yellow]⏳ Ingesting job and running tailoring engine...[/bold yellow]")
+        if persona_override:
+            persona = persona_override
+        else:
+            persona_slug = self.query_one("#select-persona", Select).value
+            persona = PersonaManager.load_persona(persona_slug)
+
+        template_name = self.query_one("#select-template", Select).value
+        self.current_template = template_name
+
+        target_info = {
+            "url_input": url_input,
+            "pantry": self.pantry,
+            "repo": self.repo,
+            "job_directives": job_directives,
+            "persona": persona,
+            "template_name": template_name
+        }
 
         try:
-            # 1. Ingest Job
-            p_source = Path(url_input)
-            if url_input.startswith("http://") or url_input.startswith("https://"):
-                job = JobScraper.ingest_from_url(url_input)
-            elif p_source.is_file():
-                job = JobScraper.ingest_from_text(p_source.read_text(encoding="utf-8"), "Company", "Role")
-            else:
-                job = JobScraper.ingest_from_text(url_input, "Company", "Role")
+            self.query_one("#studio-stepper", BakeryStepper).set_stage(1)
+            mascot = self.query_one("#studio-mascot", AnimatedMascot)
+            mascot.set_message("Kneading application dough...")
+        except Exception:
+            pass
 
-            # 2. Ingest Profile (Pantry prioritized)
-            if self.pantry.is_initialized():
-                profile = self.pantry.load_profile()
-            else:
-                adapter = get_profile_source(settings.portfolio_path)
-                profile = adapter.load_profile()
-            self.current_profile = profile
+        self.push_screen(
+            BakingModal(task_type="tailor", target_info=target_info),
+            self._on_tailoring_modal_dismissed
+        )
 
-            # 3. Persona & Provider
-            if persona_override:
-                persona = persona_override
-            else:
-                persona_slug = self.query_one("#select-persona", Select).value
-                persona = PersonaManager.load_persona(persona_slug)
+    def _on_tailoring_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
+        if not result or not result.get("success"):
+            try:
+                self.query_one("#studio-stepper", BakeryStepper).set_stage(0)
+            except Exception:
+                pass
+            return
 
-            template_name = self.query_one("#select-template", Select).value
-            self.current_template = template_name
-            provider = get_llm_provider()
+        app_result = result["app_result"]
+        job = result["job"]
+        app_dir = result["app_dir"]
+        job_rec = result["job_rec"]
+        score = app_result.match_analysis.match_score
+        pdf_baked = result.get("pdf_baked", False)
 
-            # 4. Tailor
-            engine = TailoringEngine(provider)
-            app_result = engine.analyze_and_tailor(profile, job, persona, job_directives=job_directives)
-            self.current_app_result = app_result
+        self.current_app_result = app_result
+        self.last_tailored_dir = app_dir
+        self.selected_job = job_rec
+        self.current_profile = result.get("profile")
 
-            # 5. Render
-            renderer = TemplateRenderer()
-            resume_html = renderer.render_resume(profile, app_result, template_name)
-            resume_md = renderer.render_resume(profile, app_result, "ats")
-            cover_letter = renderer.render_cover_letter(profile, app_result)
-            portal_qna = renderer.render_portal_qna(profile, app_result)
-            json_resume = renderer.export_json_resume(profile)
+        pdf_notice = " | [bold green]Baked resume.pdf ✓[/bold green]" if pdf_baked else " | [dim]PDF: press 'b' to bake[/dim]"
+        status_box = self.query_one("#tailor-status-box", Static)
+        status_box.update(
+            f"[bold green]✓ Fresh out of the oven![/bold green] "
+            f"Target: [bold]{job.company} — {job.title}[/bold] | "
+            f"ATS Match Score: [bold green]{score}%[/bold green]{pdf_notice}\n"
+            f"Package saved to: [cyan]{app_dir}[/cyan]"
+        )
 
-            # 6. Save
-            date_slug = datetime.now().strftime("%Y-%m-%d")
-            safe_c = "".join(c for c in job.company if c.isalnum() or c in "-_")
-            safe_t = "".join(c for c in job.title if c.isalnum() or c in "-_")
-            app_dir = settings.applications_dir / f"{date_slug}_{safe_c}_{safe_t}"
-            app_dir.mkdir(parents=True, exist_ok=True)
+        self.query_one("#preview-resume-md", Markdown).update(result.get("resume_md", ""))
+        self.query_one("#preview-letter-md", Markdown).update(result.get("cover_letter", ""))
+        self.query_one("#preview-qna-md", Markdown).update(result.get("portal_qna", ""))
 
-            (app_dir / "resume.html").write_text(resume_html, encoding="utf-8")
-            (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
-            (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
-            (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
-            (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
-            self.last_tailored_dir = app_dir
+        try:
+            self.query_one("#studio-stepper", BakeryStepper).set_stage(4)
+            mascot = self.query_one("#studio-mascot", AnimatedMascot)
+            mascot.set_message(f"Loaf Ready: {score}% ATS Match!")
+        except Exception:
+            pass
 
-            # 7. Auto-bake PDF
-            pdf_notice = ""
-            if settings.auto_generate_pdf:
-                try:
-                    render_html_to_pdf(app_dir / "resume.html", app_dir / "resume.pdf", open_after=False)
-                    pdf_notice = " | [bold green]Baked resume.pdf ✓[/bold green]"
-                except Exception as pe:
-                    pdf_notice = f" | [dim]PDF: run 'b' to bake ({pe})[/dim]"
-
-            # 8. Record in SQLite
-            job_rec = JobRecord(
-                id=job.id,
-                company=job.company,
-                title=job.title,
-                url=job.url,
-                location=job.location,
-                portal_type=job.portal_type,
-                status="tailored",
-                match_score=app_result.match_analysis.match_score,
-                persona=persona.slug,
-                date_added=date_slug,
-                folder_path=str(app_dir.resolve()),
-                notes=f"Tailored via {persona.name}" + (" (with custom strategy loop)" if job_directives else "")
-            )
-            self.repo.upsert_job(job_rec)
-            self.selected_job = job_rec
-
-            if settings.csv_tracker_path:
-                CsvSync.export_to_csv(self.repo, settings.csv_tracker_path)
-
-            # 9. Update UI Previews
-            score = app_result.match_analysis.match_score
-            status_box.update(
-                f"[bold green]✓ Fresh out of the oven![/bold green] "
-                f"Target: [bold]{job.company} — {job.title}[/bold] | "
-                f"ATS Match Score: [bold green]{score}%[/bold green]{pdf_notice}\n"
-                f"Package saved to: [cyan]{app_dir}[/cyan]"
-            )
-
-            self.query_one("#preview-resume-md", Markdown).update(resume_md)
-            self.query_one("#preview-letter-md", Markdown).update(cover_letter)
-            self.query_one("#preview-qna-md", Markdown).update(portal_qna)
-
-            self.notify(f"Tailored application for {job.company} ({score}% match)! Press 'b' to bake PDF.", title="Breadwinner Success")
-            self.load_pipeline_table()
-
-        except Exception as e:
-            status_box.update(f"[bold red]Error during tailoring: {e}[/bold red]")
-            self.notify(f"Tailoring failed: {e}", severity="error")
+        self.notify(f"Tailored application for {job.company} ({score}% match)! Press 'b' to bake PDF.", title="Breadwinner Success")
+        self.load_pipeline_table()
