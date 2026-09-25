@@ -463,40 +463,53 @@ class BreadwinnerApp(App):
     SUB_TITLE = "Local 8-Bit Anti-Slop Career Studio 🍞👾"
     CSS = """
     Screen {
-        background: #0b0f19;
-        color: #f8fafc;
+        background: #16161E;
+        color: #F8F8F2;
     }
     Header {
-        background: #1e293b;
-        color: #f59e0b;
+        background: #212330;
+        color: #FFB86C;
         text-style: bold;
     }
     Footer {
-        background: #1e293b;
+        background: #16161E;
+        border-top: solid #2A2E3D;
     }
     TabbedContent {
         height: 100%;
+        background: #16161E;
     }
     TabPane {
         padding: 1;
         height: 100%;
+        background: #16161E;
     }
     #active-badge {
         dock: top;
         padding: 0 1;
-        background: #1e293b;
-        color: #f59e0b;
+        background: #16161E;
+        color: #FFB86C;
         text-style: bold;
+    }
+    #global-stepper {
+        dock: top;
+        height: 1;
+        padding: 0 1;
+        background: #212330;
+        color: #F8F8F2;
+        text-align: center;
+        border-bottom: solid #2A2E3D;
     }
     DataTable {
         height: 1fr;
-        border: solid #334155;
+        border: heavy #2A2E3D;
+        background: #0C0E14;
     }
     #job-details-pane {
         height: 8;
-        border-top: solid #f59e0b;
+        border-top: heavy #D18F52;
         padding: 0 1;
-        background: #1e293b;
+        background: #212330;
     }
     .action-bar {
         height: 3;
@@ -505,65 +518,82 @@ class BreadwinnerApp(App):
     }
     .action-bar Button {
         margin-right: 1;
+        min-width: 14;
     }
     .input-label {
         text-style: bold;
-        color: #f59e0b;
+        color: #FFB86C;
         margin-top: 1;
         margin-bottom: 0;
+    }
+    #input-job-url {
+        background: #0C0E14;
+        border: round #2A2E3D;
+        color: #F8F8F2;
+    }
+    #select-persona, #select-template {
+        background: #0C0E14;
+        border: round #2A2E3D;
+        color: #F8F8F2;
     }
     #tailor-status-box {
         margin-top: 1;
         padding: 1;
-        background: #1e293b;
-        border: solid #10b981;
+        background: #212330;
+        border: round #50FA7B;
     }
     .preview-box {
         height: 1fr;
-        border: solid #334155;
+        border: round #2A2E3D;
         padding: 1;
-        background: #090d16;
+        background: #0C0E14;
     }
     .provider-card {
-        border: solid #334155;
+        border: round #2A2E3D;
         padding: 1;
         margin-bottom: 1;
-        background: #1e293b;
+        background: #212330;
     }
     #studio-mascot-banner {
         height: auto;
         padding: 1;
         margin-bottom: 1;
-        background: #101422;
-        border: round #d18f52;
+        background: #212330;
+        border: heavy #D18F52;
     }
     #studio-mascot {
-        width: 34;
+        width: 32;
         height: auto;
     }
-    #studio-mascot-text {
+    #studio-oven {
+        width: 32;
         height: auto;
-        padding-left: 1;
+        margin-left: 1;
+    }
+    #studio-mascot-text {
+        width: 1fr;
+        height: auto;
+        padding-left: 2;
     }
     """ + RETRO_THEME_CSS
 
     BINDINGS = [
         Binding("q", "quit", "Quit", show=True),
-        Binding("1", "tab_pipeline", "Pipeline", show=True),
+        Binding("1", "tab_pipeline", "Breadbox", show=True),
         Binding("2", "tab_studio", "Studio", show=True),
         Binding("3", "tab_models", "Models", show=True),
         Binding("4", "tab_profile", "Pantry", show=True),
         Binding("b", "bake_pdf", "Bake PDF", show=True),
         Binding("v", "view_pdf", "View PDF", show=True),
         Binding("e", "finetune_bullets", "Fine-Tune", show=True),
-        Binding("i", "pantry_ingest", "Ingest", show=True),
-        Binding("m", "pantry_interview", "Interview", show=True),
         Binding("y", "pantry_sync", "Sync", show=True),
-        Binding("h", "pantry_history", "History", show=True),
-        Binding("s", "change_status", "Change Status", show=True),
-        Binding("f", "toggle_flag", "Toggle Flag", show=True),
-        Binding("o", "open_folder", "Open Folder", show=True),
-        Binding("r", "refresh_data", "Refresh", show=True),
+        Binding("s", "change_status", "Status", show=True),
+        Binding("i", "pantry_ingest", "Ingest", show=False),
+        Binding("m", "pantry_interview", "Interview", show=False),
+        Binding("h", "pantry_history", "History", show=False),
+        Binding("f", "toggle_flag", "Toggle Flag", show=False),
+        Binding("o", "open_folder", "Open Folder", show=False),
+        Binding("r", "refresh_data", "Refresh", show=False),
     ]
 
     def __init__(self, initial_url: Optional[str] = None):
@@ -580,6 +610,7 @@ class BreadwinnerApp(App):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Label(self.get_active_badge_text(), id="active-badge")
+        yield BakeryStepper(current_stage=0, id="global-stepper", classes=None)
         with TabbedContent(initial="tab-pipeline", id="main-tabs"):
             # TAB 1: PIPELINE TRACKER
             with TabPane("Pipeline Tracker (The Breadbox)", id="tab-pipeline"):
@@ -604,10 +635,11 @@ class BreadwinnerApp(App):
                 with VerticalScroll():
                     with Horizontal(id="studio-mascot-banner"):
                         yield AnimatedMascot(id="studio-mascot")
+                        yield AnimatedOven(id="studio-oven")
                         with Vertical(id="studio-mascot-text"):
-                            yield Label("[bold #f59e0b]🥖 THE OVEN: TAILOR STUDIO[/bold #f59e0b]")
+                            yield Label("[bold #FFB86C]🥖 THE OVEN: TAILOR STUDIO[/bold #FFB86C]")
                             yield Label("[dim]Proofing verified experience bullets against role requirements without keyword-stuffing slop.[/dim]")
-                            yield BakeryStepper(current_stage=0, id="studio-stepper")
+                            yield BakeryStepper(current_stage=2, id="studio-stepper")
 
                     yield Label("Target Job URL or Markdown File:", classes="input-label")
                     yield Input(
@@ -853,6 +885,29 @@ class BreadwinnerApp(App):
         except Exception as e:
             return f"Error loading candidate profile: {e}"
 
+    def set_global_stage(self, stage: int) -> None:
+        """Synchronizes global top-level stepper and tailor studio stepper."""
+        try:
+            self.query_one("#global-stepper", BakeryStepper).set_stage(stage)
+        except Exception:
+            pass
+        try:
+            self.query_one("#studio-stepper", BakeryStepper).set_stage(stage)
+        except Exception:
+            pass
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Reactive stage sync when switching between bakery tabs."""
+        tab_id = event.tab.id
+        if tab_id == "tab-profile":
+            self.set_global_stage(0)  # PANTRY
+        elif tab_id == "tab-models":
+            self.set_global_stage(1)  # KNEAD
+        elif tab_id == "tab-studio":
+            self.set_global_stage(2)  # PROOF
+        elif tab_id == "tab-pipeline":
+            self.set_global_stage(4)  # GOLDEN LOAF
+
     # ACTIONS
     def action_tab_pipeline(self) -> None:
         self.query_one("#main-tabs", TabbedContent).active = "tab-pipeline"
@@ -921,9 +976,11 @@ class BreadwinnerApp(App):
         size_kb = result.get("size_kb", 0.0)
         self.notify(f"✓ Fresh out of the oven! Baked resume.pdf ({size_kb} KB)", title="Bake Complete")
         try:
-            self.query_one("#studio-stepper", BakeryStepper).set_stage(4)
+            self.set_global_stage(4)
             mascot = self.query_one("#studio-mascot", AnimatedMascot)
             mascot.set_message("Crisp ATS PDF Baked!")
+            oven = self.query_one("#studio-oven", AnimatedOven)
+            oven.set_state("celebrate")
         except Exception:
             pass
 
@@ -1239,9 +1296,11 @@ class BreadwinnerApp(App):
         }
 
         try:
-            self.query_one("#studio-stepper", BakeryStepper).set_stage(1)
+            self.set_global_stage(1)
             mascot = self.query_one("#studio-mascot", AnimatedMascot)
             mascot.set_message("Kneading application dough...")
+            oven = self.query_one("#studio-oven", AnimatedOven)
+            oven.set_state("baking")
         except Exception:
             pass
 
@@ -1253,7 +1312,9 @@ class BreadwinnerApp(App):
     def _on_tailoring_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
         if not result or not result.get("success"):
             try:
-                self.query_one("#studio-stepper", BakeryStepper).set_stage(0)
+                self.set_global_stage(0)
+                oven = self.query_one("#studio-oven", AnimatedOven)
+                oven.set_state("idle")
             except Exception:
                 pass
             return
@@ -1284,9 +1345,11 @@ class BreadwinnerApp(App):
         self.query_one("#preview-qna-md", Markdown).update(result.get("portal_qna", ""))
 
         try:
-            self.query_one("#studio-stepper", BakeryStepper).set_stage(4)
+            self.set_global_stage(4)
             mascot = self.query_one("#studio-mascot", AnimatedMascot)
             mascot.set_message(f"Loaf Ready: {score}% ATS Match!")
+            oven = self.query_one("#studio-oven", AnimatedOven)
+            oven.set_state("celebrate")
         except Exception:
             pass
 
