@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "breadwinner"
-version = "0.1.0"
-description = "CLI tool for job application ingestion, tailoring, and tracking from portfolio sources."
+version = "1.0.0rc1"
+description = "Local-first 8-bit career engineering studio and anti-hallucination resume tailoring engine."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

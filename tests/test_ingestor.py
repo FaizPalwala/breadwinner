@@ -57,7 +57,7 @@ def test_extract_text_from_pdf_real_or_fallback():
     if sample_pdf.exists():
         text = UniversalIngestor.extract_text_from_file(sample_pdf)
         assert len(text) > 50
-        assert "EDUCATION" in text or "EXPERIENCE" in text or "FAIZ" in text
+        assert "EDUCATION" in text or "EXPERIENCE" in text or "SKILLS" in text
     else:
         # Fallback assertion if sample path absent in other test runners
         with patch.object(UniversalIngestor, "extract_text_from_pdf", return_value="Sample Resume"):

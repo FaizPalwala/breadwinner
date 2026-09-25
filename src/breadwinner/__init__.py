@@ -1,3 +1,3 @@
-"""Breadwinner: Tool for job application tailoring and tracking."""
+"""Breadwinner: Local-first 8-bit career engineering studio and anti-hallucination tailoring engine."""
 
-__version__ = "0.1.0"
+__version__ = "1.0.0rc1"
