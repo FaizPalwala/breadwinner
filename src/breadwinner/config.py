@@ -59,3 +59,40 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def save_env_config(env_vars: dict, env_path: Optional[Path] = None) -> None:
+    """Save or update configuration key-values in .env with private 0600 file permissions."""
+    import os
+    import stat
+
+    path = env_path or Path(".env")
+    existing_env: dict[str, str] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                existing_env[k.strip()] = v.strip().strip('"').strip("'")
+
+    existing_env.update({k: str(v) for k, v in env_vars.items()})
+
+    env_lines = [
+        "# Breadwinner Configuration (Auto-generated)",
+        "# Permissions: 0600 (Private)",
+        ""
+    ]
+    for k, v in existing_env.items():
+        env_lines.append(f'{k}="{v}"')
+
+    path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+    try:
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    except Exception:
+        pass
+
+    for k, v in env_vars.items():
+        os.environ[k] = str(v)
+
+    global settings
+    settings = Settings()

@@ -493,7 +493,8 @@ class BreadwinnerApp(App):
     }
     #global-stepper {
         dock: top;
-        height: 1;
+        height: auto;
+        min-height: 1;
         padding: 0 1;
         background: #212330;
         color: #F8F8F2;
@@ -561,19 +562,41 @@ class BreadwinnerApp(App):
         background: #212330;
         border: heavy #D18F52;
     }
-    #studio-mascot {
-        width: 32;
+    #studio-mascot-row {
         height: auto;
+        margin-bottom: 1;
+    }
+    #studio-mascot {
+        width: 18;
+        height: 5;
     }
     #studio-oven {
         width: 32;
-        height: auto;
+        height: 8;
         margin-left: 1;
     }
     #studio-mascot-text {
         width: 1fr;
         height: auto;
-        padding-left: 2;
+        padding: 0 1;
+    }
+    #studio-banner-title {
+        color: #FFB86C;
+        text-style: bold;
+    }
+    #studio-banner-desc {
+        color: #A89F91;
+        margin-bottom: 0;
+    }
+    #studio-mascot-speech {
+        color: #F8F8F2;
+        margin-top: 1;
+    }
+    #studio-stepper {
+        width: 100%;
+        height: auto;
+        min-height: 1;
+        margin-top: 1;
     }
     """ + RETRO_THEME_CSS
 
@@ -633,13 +656,21 @@ class BreadwinnerApp(App):
             # TAB 2: TAILOR STUDIO
             with TabPane("Tailor Studio (The Oven)", id="tab-studio"):
                 with VerticalScroll():
-                    with Horizontal(id="studio-mascot-banner"):
-                        yield AnimatedMascot(id="studio-mascot")
-                        yield AnimatedOven(id="studio-oven")
-                        with Vertical(id="studio-mascot-text"):
-                            yield Label("[bold #FFB86C]🥖 THE OVEN: TAILOR STUDIO[/bold #FFB86C]")
-                            yield Label("[dim]Proofing verified experience bullets against role requirements without keyword-stuffing slop.[/dim]")
-                            yield BakeryStepper(current_stage=2, id="studio-stepper")
+                    with Vertical(id="studio-mascot-banner"):
+                        with Horizontal(id="studio-mascot-row"):
+                            yield AnimatedMascot(id="studio-mascot")
+                            with Vertical(id="studio-mascot-text"):
+                                yield Label("[bold #FFB86C]🥖 THE OVEN: TAILOR STUDIO[/bold #FFB86C]", id="studio-banner-title")
+                                yield Label(
+                                    "[dim]Proofing verified experience bullets against role requirements without keyword-stuffing slop.[/dim]",
+                                    id="studio-banner-desc"
+                                )
+                                yield Label(
+                                    '[bold #8be9fd]💬 Crumb:[/] [italic #f1fa8c]"Proofing verified facts..."[/italic #f1fa8c]',
+                                    id="studio-mascot-speech"
+                                )
+                            yield AnimatedOven(id="studio-oven")
+                        yield BakeryStepper(current_stage=2, id="studio-stepper")
 
                     yield Label("Target Job URL or Markdown File:", classes="input-label")
                     yield Input(
@@ -720,10 +751,33 @@ class BreadwinnerApp(App):
     def on_mount(self) -> None:
         self.load_pipeline_table()
         self.load_models_tab()
-        if not self.pantry.is_initialized():
-            self.push_screen(BakeryWelcomeModal(self.pantry), self._on_welcome_modal_dismissed)
+
+        has_env_file = Path(".env").exists()
+        has_env_key = bool(
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("DEEPSEEK_API_KEY")
+            or os.environ.get("GROQ_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+        needs_ai_setup = not has_env_file and not has_env_key
+        needs_pantry_setup = not self.pantry.is_initialized()
+
+        if needs_ai_setup or needs_pantry_setup:
+            self.push_screen(
+                BakeryWelcomeModal(
+                    self.pantry,
+                    initial_step="ai" if needs_ai_setup else "pantry"
+                ),
+                self._on_welcome_modal_dismissed
+            )
 
     def _on_welcome_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
+        try:
+            self.query_one("#active-badge", Label).update(self.get_active_badge_text())
+            self.load_models_tab()
+        except Exception:
+            pass
+
         if not result:
             return
 

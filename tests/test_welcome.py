@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock
 from textual.app import App
-from textual.widgets import Input, TextArea, Button
+from textual.widgets import Input, TextArea, Button, Select
 
 from breadwinner.ui.welcome import BakeryWelcomeModal
 
@@ -124,4 +124,88 @@ async def test_welcome_modal_tabs_and_bio():
         await pilot.pause()
 
     assert app.result == {"action": "import", "source": "Staff SRE with 8 years scaling distributed systems."}
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
+    """Verify Step 1 AI engine configuration transitions cleanly to Step 2 pantry."""
+    env_file = tmp_path / ".env"
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        ai_step = modal.query_one("#welcome-ai-step")
+        pantry_step = modal.query_one("#welcome-pantry-step")
+        assert ai_step.styles.display == "block"
+        assert pantry_step.styles.display == "none"
+
+        # Select gemini explicitly
+        sel = modal.query_one("#select-welcome-provider", Select)
+        sel.value = "gemini"
+
+        # Fill API key
+        key_input = modal.query_one("#input-welcome-api-key", Input)
+        key_input.value = "AIzaSyTestApiKey12345"
+
+        # Click save AI
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+        # Step 1 should now be hidden and Step 2 visible
+        assert ai_step.styles.display == "none"
+        assert pantry_step.styles.display == "block"
+
+        # Now click demo in step 2
+        btn_demo = modal.query_one("#btn-welcome-demo", Button)
+        btn_demo.press()
+        await pilot.pause()
+
+    assert app.result == {"action": "demo"}
+    assert env_file.exists()
+    content = env_file.read_text(encoding="utf-8")
+    assert "GEMINI_API_KEY=\"AIzaSyTestApiKey12345\"" in content
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_ai_mock_drive(tmp_path, monkeypatch):
+    """Verify instant test drive button configures mock provider and advances to pantry."""
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        btn_mock = modal.query_one("#btn-welcome-mock-drive", Button)
+        btn_mock.press()
+        await pilot.pause()
+
+        ai_step = modal.query_one("#welcome-ai-step")
+        pantry_step = modal.query_one("#welcome-pantry-step")
+        assert ai_step.styles.display == "none"
+        assert pantry_step.styles.display == "block"
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_ai_skip(tmp_path, monkeypatch):
+    """Verify skip AI button advances directly to pantry."""
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        btn_skip_ai = modal.query_one("#btn-welcome-skip-ai", Button)
+        btn_skip_ai.press()
+        await pilot.pause()
+
+        ai_step = modal.query_one("#welcome-ai-step")
+        pantry_step = modal.query_one("#welcome-pantry-step")
+        assert ai_step.styles.display == "none"
+        assert pantry_step.styles.display == "block"
 

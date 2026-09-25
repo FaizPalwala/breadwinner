@@ -107,36 +107,33 @@ OVEN_BURNT_FRAME = r"""
 
 MASCOT_FRAMES = [
     # Frame 0: Idle breathing
-    r"""
-    [#f1fa8c]   ( 🍞 )   [/]
-   [bold white](｡◕‿◕｡)[/]   [#8be9fd]< "Proofing your career..."[/]
-  [#d18f52]/| ░░░ |) [/]
-   [#d18f52]d     b [/]
-    """.strip("\n"),
-
+    (
+        "   [#f1fa8c]( 🍞 )[/]   \n"
+        "  [bold white](｡◕‿◕｡)[/]  \n"
+        " [#d18f52]/| ░░░ |) [/]\n"
+        "  [#d18f52]d     b [/]  "
+    ),
     # Frame 1: Winking
-    r"""
-    [#f1fa8c]   ( 🍞 )   [/]
-   [bold white](｡◕‿<｡)[/]   [#50fa7b]< "No keyword-stuffing slop!"[/]
-  [#d18f52]/| ░░░ |) [/]
-   [#d18f52]d     b [/]
-    """.strip("\n"),
-
+    (
+        "   [#f1fa8c]( 🍞 )[/]   \n"
+        "  [bold white](｡◕‿<｡)[/]  \n"
+        " [#d18f52]/| ░░░ |) [/]\n"
+        "  [#d18f52]d     b [/]  "
+    ),
     # Frame 2: Kneading / Flour dust
-    r"""
-    [#f1fa8c]   ( 🍞 )   [/]
-  [bold white](づ｡◕‿‿◕｡)づ[/] [#f1fa8c]* dusted with flour *[/]
-   [#d18f52]| ░░░ | [/]
-   [#d18f52]d     b [/]
-    """.strip("\n"),
-
+    (
+        "   [#f1fa8c]( 🍞 )[/]   \n"
+        " [bold white](づ｡◕‿‿◕｡)づ[/]\n"
+        "  [#d18f52]| ░░░ | [/] \n"
+        "  [#d18f52]d     b [/]  "
+    ),
     # Frame 3: Victory celebration
-    r"""
-  [bold #50fa7b]\(*o*)/  ✨ DING! ✨[/]
-   [#f1fa8c]  ( 🍞 )  [/]
-  [bold white](｡♥‿♥｡)[/]   [#ffb86c]< "Golden ATS Masterpiece!"[/]
-  [#d18f52]/| ░░░ |) [/]
-    """.strip("\n")
+    (
+        "  [bold #50fa7b]\\(*o*)/[/] \n"
+        "   [#f1fa8c]( 🍞 )[/]   \n"
+        "  [bold white](｡♥‿♥｡)[/]  \n"
+        "  [#d18f52]d     b [/]  "
+    )
 ]
 
 POKEMON_BAKERY_SPRITES = [
@@ -303,25 +300,31 @@ class AnimatedMascot(Static):
     """Crumb the Baker Loaf mascot who breathes, winks, and dusts flour."""
 
     def __init__(self, id: Optional[str] = None, classes: Optional[str] = None):
-        super().__init__(MASCOT_FRAMES[0], id=id, classes=classes)
+        super().__init__("", id=id, classes=classes)
         self.frame_idx: int = 0
         self.active_message: Optional[str] = None
         self._timer = None
+        self.update(self.render_current_frame())
 
     def on_mount(self) -> None:
         self._timer = self.set_interval(0.9, self.advance_frame)
 
     def advance_frame(self) -> None:
         self.frame_idx = (self.frame_idx + 1) % len(MASCOT_FRAMES)
-        frame_text = MASCOT_FRAMES[self.frame_idx]
-        if self.active_message:
-            # Inject dynamic message bubble
-            frame_text = frame_text.replace('< "Proofing your career..."', f'< "{self.active_message}"')
-        self.update(frame_text)
+        self.update(self.render_current_frame())
 
     def set_message(self, message: str) -> None:
         self.active_message = message
-        self.advance_frame()
+        try:
+            if self.app:
+                from textual.widgets import Label
+                speech_label = self.app.query_one("#studio-mascot-speech", Label)
+                speech_label.update(f'[bold #8be9fd]💬 Crumb:[/] [italic #f1fa8c]"{message}"[/italic #f1fa8c]')
+        except Exception:
+            pass
+
+    def render_current_frame(self) -> str:
+        return MASCOT_FRAMES[self.frame_idx]
 
 
 class PokemonBakeryCounter(Static):

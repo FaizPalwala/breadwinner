@@ -47,3 +47,20 @@ async def test_job_strategy_modal():
     assert modal.job.company == "Datadog"
     assert len(modal.questions) == 1
 
+
+@pytest.mark.anyio
+async def test_breadwinner_app_first_run_prompts_ai_modal(tmp_path, monkeypatch):
+    """Verify first launch with no .env pushes BakeryWelcomeModal in initial_step='ai' mode."""
+    from breadwinner.ui.welcome import BakeryWelcomeModal
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        assert isinstance(app.screen, BakeryWelcomeModal)
+        assert app.screen.initial_step == "ai"
+        assert app.screen.query_one("#welcome-ai-step").styles.display == "block"
+
