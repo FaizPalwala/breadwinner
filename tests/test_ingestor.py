@@ -52,14 +52,15 @@ def test_extract_text_from_url_mocked():
         assert "Ignore footer" not in text
 
 
-def test_extract_text_from_pdf_real_or_fallback():
+def test_extract_text_from_pdf_real_or_fallback(tmp_path):
     sample_pdf = Path("applications/2026-09-14_Monzo_SeniorAppliedAIEngineer/resume.pdf")
     if sample_pdf.exists():
         text = UniversalIngestor.extract_text_from_file(sample_pdf)
         assert len(text) > 50
         assert "EDUCATION" in text or "EXPERIENCE" in text or "SKILLS" in text
     else:
-        # Fallback assertion if sample path absent in other test runners
-        with patch.object(UniversalIngestor, "extract_text_from_pdf", return_value="Sample Resume"):
-            assert UniversalIngestor.extract_text_from_file(Path("test.pdf")) == "Sample Resume"
+        dummy_pdf = tmp_path / "sample.pdf"
+        dummy_pdf.write_bytes(b"%PDF-1.4 dummy")
+        with patch.object(UniversalIngestor, "extract_text_from_pdf", return_value="EDUCATION EXPERIENCE SKILLS"):
+            assert UniversalIngestor.extract_text_from_file(dummy_pdf) == "EDUCATION EXPERIENCE SKILLS"
 
