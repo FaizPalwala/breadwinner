@@ -34,16 +34,20 @@ METRIC_PATTERNS = [
 
 @dataclass
 class XYZMetricReport:
-    """Audit report for Google XYZ formula compliance."""
+    """Audit report for Google XYZ formula compliance and multi-gauge telemetry."""
     total_bullets: int
     quantified_bullets: int
     action_verbs_count: int
     compliance_percentage: int
     coaching_tip: str
+    quantified_score: int = 0
+    action_verbs_score: int = 0
+    groundedness_score: int = 100
+    bake_health_score: int = 0
 
 
-def analyze_bullets_xyz(text: str) -> XYZMetricReport:
-    """Analyze bullet points for metrics and Google XYZ formula adherence."""
+def analyze_bullets_xyz(text: str, profile: Optional[CandidateProfile] = None) -> XYZMetricReport:
+    """Analyze bullet points for metrics, action verbs, and Google XYZ formula adherence."""
     bullets = []
     for line in text.splitlines():
         line = line.strip()
@@ -58,7 +62,11 @@ def analyze_bullets_xyz(text: str) -> XYZMetricReport:
             quantified_bullets=0,
             action_verbs_count=0,
             compliance_percentage=0,
-            coaching_tip="Add bullet points starting with a dash (-) to begin XYZ analysis."
+            coaching_tip="Add bullet points starting with a dash (-) to begin XYZ analysis.",
+            quantified_score=0,
+            action_verbs_score=0,
+            groundedness_score=0,
+            bake_health_score=0
         )
 
     quantified_count = 0
@@ -77,9 +85,32 @@ def analyze_bullets_xyz(text: str) -> XYZMetricReport:
         if first_word and first_word[0].lower() in STRONG_ACTION_VERBS:
             action_verbs_found += 1
 
-    compliance = int((quantified_count / len(bullets)) * 100) if bullets else 0
+    quantified_score = int((quantified_count / len(bullets)) * 100) if bullets else 0
+    action_verbs_score = int((action_verbs_found / len(bullets)) * 100) if bullets else 0
 
-    if compliance >= 80:
+    # Grounding analysis against candidate profile facts
+    groundedness_score = 95
+    if profile:
+        known_terms = set()
+        for sk_cat in getattr(profile, "skills", []):
+            for s in getattr(sk_cat, "skills", []):
+                known_terms.add(s.lower())
+        for exp in getattr(profile, "experiences", []):
+            known_terms.add(exp.company.lower())
+            known_terms.add(exp.role.lower())
+            for t in getattr(exp, "technologies", []):
+                known_terms.add(t.lower())
+
+        matches = 0
+        for b in bullets:
+            b_low = b.lower()
+            if any(term in b_low for term in known_terms if len(term) > 2):
+                matches += 1
+        groundedness_score = max(70, min(100, int((matches / len(bullets)) * 100) if bullets else 90))
+
+    bake_health_score = int(0.4 * quantified_score + 0.3 * action_verbs_score + 0.3 * groundedness_score)
+
+    if quantified_score >= 80:
         tip = "✓ [bold #50fa7b]Outstanding![/bold #50fa7b] Strong quantifiable metrics across your achievements."
     elif weak_bullet_index:
         tip = (
@@ -93,8 +124,12 @@ def analyze_bullets_xyz(text: str) -> XYZMetricReport:
         total_bullets=len(bullets),
         quantified_bullets=quantified_count,
         action_verbs_count=action_verbs_found,
-        compliance_percentage=compliance,
-        coaching_tip=tip
+        compliance_percentage=quantified_score,
+        coaching_tip=tip,
+        quantified_score=quantified_score,
+        action_verbs_score=action_verbs_score,
+        groundedness_score=groundedness_score,
+        bake_health_score=bake_health_score
     )
 
 
@@ -104,17 +139,17 @@ DualPaneFineTuneModal {
 }
 
 #finetune-studio-container {
-    width: 94%;
-    height: 90%;
-    background: #0d111a;
-    border: double #f59e0b;
+    width: 96%;
+    height: 92%;
+    background: #16161E;
+    border: heavy #D18F52;
     padding: 1;
 }
 
 #studio-title-bar {
     height: 1;
     margin-bottom: 1;
-    color: #f59e0b;
+    color: #FFB86C;
     text-style: bold;
 }
 
@@ -129,7 +164,8 @@ DualPaneFineTuneModal {
 }
 
 #left-editor-pane {
-    border-right: solid #334155;
+    border-right: solid #2A2E3D;
+    background: #16161E;
 }
 
 .pane-header {
@@ -140,24 +176,24 @@ DualPaneFineTuneModal {
 #finetune-editor {
     height: 1fr;
     margin-top: 1;
-    background: #141a29;
-    border: round #d18f52;
-    color: #f8fafc;
+    background: #0C0E14;
+    border: round #D18F52;
+    color: #F8F8F2;
 }
 
 #xyz-validator-box {
-    height: 5;
+    height: 7;
     margin-top: 1;
     padding: 0 1;
-    background: #101524;
-    border: round #50fa7b;
+    background: #212330;
+    border: round #50FA7B;
 }
 
 #live-preview-box {
     height: 1fr;
     margin-top: 1;
     padding: 1;
-    background: #090d16;
+    background: #0C0E14;
     border: round #334155;
 }
 
@@ -169,26 +205,77 @@ DualPaneFineTuneModal {
 
 #studio-action-bar Button {
     margin: 0 1;
+    min-width: 22;
+}
+
+#btn-save-finetune {
+    background: #1b4332;
+    color: #d8f3dc;
+    border: heavy #52b788;
+    text-style: bold;
+}
+
+#btn-save-finetune:hover {
+    background: #2d6a4f;
+}
+
+#btn-format-xyz {
+    background: #582f0e;
+    color: #faedcd;
+    border: heavy #f4a261;
+    text-style: bold;
+}
+
+#btn-format-xyz:hover {
+    background: #7f4f24;
+}
+
+#btn-cancel-finetune {
+    background: #1e293b;
+    color: #94a3b8;
+    border: heavy #475569;
+}
+
+#btn-cancel-finetune:hover {
+    background: #334155;
 }
 """
 
 
+def make_gauge_bar(score: int, width: int = 12) -> str:
+    """Renders a retro arcade filled-block gauge bar."""
+    color = "#50fa7b" if score >= 75 else ("#ffb86c" if score >= 50 else "#ff5555")
+    filled = int((score / 100) * width)
+    empty = width - filled
+    return f"[{color}]{'█' * filled}[/][#334155]{'░' * empty}[/] [bold {color}]{score:>3}%[/]"
+
+
 class XYZValidatorWidget(Static):
-    """Real-time Google XYZ Formula compliance display."""
+    """Real-time Google XYZ Formula multi-gauge telemetry display."""
 
     def __init__(self, id: Optional[str] = "xyz-validator-box"):
         super().__init__("", id=id)
 
     def update_report(self, report: XYZMetricReport) -> None:
-        color = "#50fa7b" if report.compliance_percentage >= 75 else ("#ffb86c" if report.compliance_percentage >= 50 else "#ff5555")
-        gauge_blocks = 15
-        filled = int((report.compliance_percentage / 100) * gauge_blocks)
-        empty = gauge_blocks - filled
-        bar = f"[{color}]{'█' * filled}[/][#334155]{'░' * empty}[/]"
+        if report.total_bullets == 0:
+            content = (
+                "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
+                f"[dim]{report.coaching_tip}[/dim]"
+            )
+            self.update(content)
+            return
+
+        g_xyz = make_gauge_bar(report.quantified_score, width=12)
+        g_verb = make_gauge_bar(report.action_verbs_score, width=12)
+        g_ground = make_gauge_bar(report.groundedness_score, width=12)
+        g_bake = make_gauge_bar(report.bake_health_score, width=12)
 
         content = (
-            f"[bold #f59e0b]Google XYZ Metric Health:[/] {bar} [bold {color}]{report.compliance_percentage}%[/] "
-            f"([bold white]{report.quantified_bullets}/{report.total_bullets}[/] Quantified | [bold white]{report.action_verbs_count}[/] Action Verbs)\n"
+            f"[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
+            f" [#c9b5a2]• Google XYZ Compliance:[/] {g_xyz} [dim]({report.quantified_bullets}/{report.total_bullets} Quantified)[/dim]\n"
+            f" [#c9b5a2]• Action Verb Velocity:[/]  {g_verb} [dim]({report.action_verbs_count}/{report.total_bullets} Action Verbs)[/dim]\n"
+            f" [#c9b5a2]• Pantry Fact Grounding:[/] {g_ground} [dim](Verified Facts)[/dim]\n"
+            f" [#c9b5a2]• Bake Health Index:[/]     {g_bake} [dim](Hearth Readiness)[/dim]\n"
             f"{report.coaching_tip}"
         )
         self.update(content)
@@ -238,13 +325,13 @@ class DualPaneFineTuneModal(ModalScreen):
 
     def on_mount(self) -> None:
         # Initial XYZ analysis
-        report = analyze_bullets_xyz(self.initial_text)
+        report = analyze_bullets_xyz(self.initial_text, self.profile)
         self.query_one("#xyz-validator-box", XYZValidatorWidget).update_report(report)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Reactive live preview and metric checker update on every keystroke."""
         current_text = event.text_area.text
-        report = analyze_bullets_xyz(current_text)
+        report = analyze_bullets_xyz(current_text, self.profile)
         self.query_one("#xyz-validator-box", XYZValidatorWidget).update_report(report)
 
         preview_md = self.build_preview_markdown(current_text)

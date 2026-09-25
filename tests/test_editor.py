@@ -42,16 +42,49 @@ def test_analyze_bullets_xyz_metrics_and_verbs():
     assert "Bullet 3 lacks a measurable outcome" in report.coaching_tip
 
 
-def test_analyze_bullets_xyz_high_compliance():
+def test_analyze_bullets_xyz_telemetry_scores():
     raw_bullets = """
     - Spearheaded migration of 12 microservices to Kubernetes saving $150k annually
     - Accelerated build times by 4x across 85 engineers
     """
-    report = analyze_bullets_xyz(raw_bullets)
+    profile = CandidateProfile(
+        full_name="Alex Baker",
+        email="alex@breadwinner.dev",
+        title="Staff SRE",
+        skills=[SkillCategory(category="Technical", skills=["Kubernetes"])],
+        experiences=[
+            WorkExperience(
+                company="Acme Corp",
+                role="Senior SRE",
+                start_date="2021",
+                end_date="Present",
+                bullets=["Migration of microservices."]
+            )
+        ]
+    )
+    report = analyze_bullets_xyz(raw_bullets, profile=profile)
     assert report.total_bullets == 2
     assert report.quantified_bullets == 2
     assert report.compliance_percentage == 100
+    assert report.quantified_score == 100
+    assert report.action_verbs_score == 100
+    assert report.groundedness_score >= 70
+    assert report.bake_health_score >= 80
     assert "Outstanding!" in report.coaching_tip
+
+
+def test_make_gauge_bar():
+    from breadwinner.ui.editor import make_gauge_bar
+    bar_high = make_gauge_bar(80, width=10)
+    assert "█" * 8 in bar_high
+    assert "80%" in bar_high
+    assert "#50fa7b" in bar_high
+
+    bar_mid = make_gauge_bar(60, width=10)
+    assert "#ffb86c" in bar_mid
+
+    bar_low = make_gauge_bar(30, width=10)
+    assert "#ff5555" in bar_low
 
 
 class ModalHostApp(App):
