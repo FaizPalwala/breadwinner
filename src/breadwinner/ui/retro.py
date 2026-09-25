@@ -23,156 +23,164 @@ from breadwinner.db.sync import CsvSync
 from breadwinner.providers.factory import get_llm_provider
 
 
+from rich.cells import cell_len
+from rich.text import Text
+
+
 # ==============================================================================
 # 8-BIT SPRITE FRAMES & ARTWORK
 # ==============================================================================
 
+def _pad_frame(raw_lines: List[str], target_width: int) -> str:
+    """Pad each line of ascii/rich artwork to an exact cell length to guarantee stable borders."""
+    out = []
+    for line in raw_lines:
+        plain = Text.from_markup(line).plain
+        diff = target_width - cell_len(plain)
+        if diff > 0:
+            out.append(line + (" " * diff))
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 OVEN_FRAMES = [
-    # Frame 0: Chimney steam puff 1, glowing wood hearth
-    r"""
-       [#8be9fd]  (  ([/]
-       [#8be9fd]   )  )[/]  [#ffb86c]♨[/]
-     [#d18f52]╔═════════════════════════╗[/]
-     [#d18f52]║[/]  [#ffb86c]🧱 BREADWINNER OVEN 🧱[/]  [#d18f52]║[/]
-     [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]
-     [#d18f52]║[/]    [#ff5555]/   [#f59e0b]░░[/] [bold #f59e0b]🍞[/] [#f59e0b]░░[/]    \[/]    [#d18f52]║[/]
-     [#d18f52]║[/]   [#ff5555]|  [#ff5555]▲[/] [#ffb86c]▲[/] [#ff5555]▲[/] [#ffb86c]▲[/] [#ff5555]▲[/]   |[/]   [#d18f52]║[/]
-     [#d18f52]╚═════════════════════════╝[/]
-      [#ffb86c]450°F HEARTH • STONE PEEL[/]
-    """.strip("\n"),
-
-    # Frame 1: Chimney steam puff 2, flame flicker
-    r"""
-       [#8be9fd]   )  )[/]
-       [#8be9fd]  (  ([/]   [#ffb86c]♨[/]
-     [#d18f52]╔═════════════════════════╗[/]
-     [#d18f52]║[/]  [#ffb86c]🧱 BREADWINNER OVEN 🧱[/]  [#d18f52]║[/]
-     [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]
-     [#d18f52]║[/]    [#ff5555]/  [#ffb86c]░░[/] [bold #ffb86c]~🍞~[/] [#ffb86c]░░[/]   \[/]    [#d18f52]║[/]
-     [#d18f52]║[/]   [#ff5555]|  [#ffb86c]▲[/] [#ff5555]▲[/] [#ffb86c]▲[/] [#ff5555]▲[/] [#ffb86c]▲[/]   |[/]   [#d18f52]║[/]
-     [#d18f52]╚═════════════════════════╝[/]
-      [#ffb86c]450°F HEARTH • CRACKLING[/]
-    """.strip("\n"),
-
-    # Frame 2: Steam swirl, aroma rise
-    r"""
-       [#8be9fd]  ~  ~[/]  [#ffb86c]♨[/]
-       [#8be9fd]   ~  ~[/]
-     [#d18f52]╔═════════════════════════╗[/]
-     [#d18f52]║[/]  [#ffb86c]🧱 BREADWINNER OVEN 🧱[/]  [#d18f52]║[/]
-     [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]
-     [#d18f52]║[/]    [#ff5555]/  [#f1fa8c]✨[/] [bold #f59e0b]🍞[/] [#f1fa8c]✨[/]     \[/]    [#d18f52]║[/]
-     [#d18f52]║[/]   [#ff5555]|  [#ff5555]▲[/] [#ff5555]▲[/] [#ffb86c]▲[/] [#ff5555]▲[/] [#ff5555]▲[/]   |[/]   [#d18f52]║[/]
-     [#d18f52]╚═════════════════════════╝[/]
-      [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]
-    """.strip("\n"),
-
-    # Frame 3: Sparkles, caramelization
-    r"""
-       [#8be9fd]   .  .[/]
-       [#8be9fd]  .  . [/]  [#ffb86c]♨[/]
-     [#d18f52]╔═════════════════════════╗[/]
-     [#d18f52]║[/]  [#ffb86c]🧱 BREADWINNER OVEN 🧱[/]  [#d18f52]║[/]
-     [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]
-     [#d18f52]║[/]    [#ff5555]/  [bold #50fa7b]★[/] [bold #ffb86c]🍞[/] [bold #50fa7b]★[/]     \[/]    [#d18f52]║[/]
-     [#d18f52]║[/]   [#ff5555]|  [#ffb86c]▲[/] [#ffb86c]▲[/] [#ff5555]▲[/] [#ffb86c]▲[/] [#ffb86c]▲[/]   |[/]   [#d18f52]║[/]
-     [#d18f52]╚═════════════════════════╝[/]
-      [#ffb86c]450°F HEARTH • CARAMELIZING[/]
-    """.strip("\n")
+    _pad_frame([
+        "           [#8be9fd](  ([/]",
+        "            [#8be9fd])  )[/]  [#ffb86c]~[/]",
+        "  [#d18f52]╔═════════════════════════╗[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  [#f59e0b]░░[/] [bold #f59e0b]🍞[/] [#f59e0b]░░[/]   \\ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        "  [#d18f52]╚═════════════════════════╝[/]",
+        "   [#ffb86c]450°F HEARTH • STONE PEEL[/]",
+        ""
+    ], 32),
+    _pad_frame([
+        "            [#8be9fd])  )[/]",
+        "           [#8be9fd](  ([/]   [#ffb86c]~[/]",
+        "  [#d18f52]╔═════════════════════════╗[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  [#ffb86c]░░[/] [bold #ffb86c]~🍞~[/] [#ffb86c]░░[/]  \\ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        "  [#d18f52]╚═════════════════════════╝[/]",
+        "   [#ffb86c]450°F HEARTH • CRACKLING[/]",
+        ""
+    ], 32),
+    _pad_frame([
+        "           [#8be9fd]~  ~[/]  [#ffb86c]~[/]",
+        "            [#8be9fd]~  ~[/]",
+        "  [#d18f52]╔═════════════════════════╗[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  *  [bold #ffb86c]🍞[/]  *   \\ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        "  [#d18f52]╚═════════════════════════╝[/]",
+        "  [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]",
+        ""
+    ], 32),
+    _pad_frame([
+        "            [#8be9fd].  .[/]",
+        "           [#8be9fd].  .[/]   [#ffb86c]~[/]",
+        "  [#d18f52]╔═════════════════════════╗[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  ★  [bold #50fa7b]🍞[/]  ★   \\ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        "  [#d18f52]╚═════════════════════════╝[/]",
+        "  [#ffb86c]450°F HEARTH • CARAMELIZING[/]",
+        ""
+    ], 32)
 ]
 
-OVEN_CELEBRATION_FRAME = r"""
-   [bold #50fa7b]   ★   ★   ★   ★   ★[/]
-   [bold #f1fa8c]  ✨  DING! FRESH LOAF!  ✨[/]
- [#50fa7b]╔═════════════════════════╗[/]
- [#50fa7b]║[/]  [bold #50fa7b]🏆 MASTERPIECE BAKED! 🏆[/]  [#50fa7b]║[/]
- [#50fa7b]║[/]     [#f1fa8c].─────────────.[/]     [#50fa7b]║[/]
- [#50fa7b]║[/]    [#f1fa8c]/  [bold #50fa7b]★ [bold #f59e0b]🍞 GOLDEN[/] ★[/]   \[/]    [#50fa7b]║[/]
- [#50fa7b]║[/]   [#f1fa8c]|   READY TO SERVE    |[/]   [#50fa7b]║[/]
- [#50fa7b]╚═════════════════════════╝[/]
-  [bold #50fa7b]CRUST SOUND: *CRUNCH* • 100% DONE[/]
-""".strip("\n")
+OVEN_CELEBRATION_FRAME = _pad_frame([
+    "     [bold #50fa7b]★   ★   ★   ★   ★[/]",
+    "   [bold #f1fa8c]* DING! FRESH LOAF! *[/]",
+    "  [#50fa7b]╔═════════════════════════╗[/]",
+    "  [#50fa7b]║[/]  [bold #50fa7b]* MASTERPIECE BAKED *[/]  [#50fa7b]║[/]",
+    "  [#50fa7b]║[/]     [#f1fa8c].─────────────.[/]     [#50fa7b]║[/]",
+    r"  [#50fa7b]║[/]    [#f1fa8c]/  ★ [bold #f59e0b]🍞 GOLDEN[/] ★  \\ [/]   [#50fa7b]║[/]",
+    "  [#50fa7b]║[/]   [#f1fa8c]|  READY TO SERVE   |[/]   [#50fa7b]║[/]",
+    "  [#50fa7b]╚═════════════════════════╝[/]",
+    "  [bold #50fa7b]CRUST: *CRUNCH* • 100% DONE[/]",
+    ""
+], 32)
 
-OVEN_BURNT_FRAME = r"""
-   [bold #ff5555]      ✖   ✖   ✖[/]
-   [bold #ff5555]   ☠   BURNT CRUST!   ☠[/]
- [#ff5555]╔═════════════════════════╗[/]
- [#ff5555]║[/]  [bold #ff5555]🔥 SMOKE ALARM RINGING 🔥[/]  [#ff5555]║[/]
- [#ff5555]║[/]     [#ff5555].─────────────.[/]     [#ff5555]║[/]
- [#ff5555]║[/]    [#ff5555]/   [dim]░░░ [bold white]✘[/] ░░░[/]   \[/]    [#ff5555]║[/]
- [#ff5555]║[/]   [#ff5555]|   OVEN MALFUNCTION  |[/]   [#ff5555]║[/]
- [#ff5555]╚═════════════════════════╝[/]
-  [bold #ff5555]CHECK LOGS OR RE-ATTEMPT BAKE[/]
-""".strip("\n")
+OVEN_BURNT_FRAME = _pad_frame([
+    "        [bold #ff5555]X   X   X   X[/]",
+    "      [bold #ff5555]* BURNT CRUST! *[/]",
+    "  [#ff5555]╔═════════════════════════╗[/]",
+    "  [#ff5555]║[/]  [bold #ff5555]* SMOKE ALARM RINGING *[/][#ff5555]║[/]",
+    "  [#ff5555]║[/]     [#ff5555].─────────────.[/]     [#ff5555]║[/]",
+    r"  [#ff5555]║[/]    [#ff5555]/   [dim]░░░ [bold white]X[/] ░░░[/]   \\ [/]    [#ff5555]║[/]",
+    "  [#ff5555]║[/]   [#ff5555]|   OVEN MALFUNCTION  |[/]   [#ff5555]║[/]",
+    "  [#ff5555]╚═════════════════════════╝[/]",
+    "   [bold #ff5555]CHECK LOGS OR RE-ATTEMPT[/]",
+    ""
+], 32)
 
 MASCOT_FRAMES = [
-    # Frame 0: Idle breathing
-    (
-        "   [#f1fa8c]( 🍞 )[/]   \n"
-        "  [bold white](｡◕‿◕｡)[/]  \n"
-        " [#d18f52]/| ░░░ |) [/]\n"
-        "  [#d18f52]d     b [/]  "
-    ),
-    # Frame 1: Winking
-    (
-        "   [#f1fa8c]( 🍞 )[/]   \n"
-        "  [bold white](｡◕‿<｡)[/]  \n"
-        " [#d18f52]/| ░░░ |) [/]\n"
-        "  [#d18f52]d     b [/]  "
-    ),
-    # Frame 2: Kneading / Flour dust
-    (
-        "   [#f1fa8c]( 🍞 )[/]   \n"
-        " [bold white](づ｡◕‿‿◕｡)づ[/]\n"
-        "  [#d18f52]| ░░░ | [/] \n"
-        "  [#d18f52]d     b [/]  "
-    ),
-    # Frame 3: Victory celebration
-    (
-        "  [bold #50fa7b]\\(*o*)/[/] \n"
-        "   [#f1fa8c]( 🍞 )[/]   \n"
-        "  [bold white](｡♥‿♥｡)[/]  \n"
-        "  [#d18f52]d     b [/]  "
-    )
+    _pad_frame([
+        "  [#f1fa8c]( 🍞 )[/]",
+        "  [bold white](｡◕‿◕｡)[/]",
+        "[#d18f52]╭| ░░░ |)[/]",
+        "[#d18f52]  d   b[/]"
+    ], 10),
+    _pad_frame([
+        "  [#f1fa8c]( 🍞 )[/]",
+        "  [bold white](｡◕‿<｡)[/]",
+        "[#d18f52]╭| ░░░ |)[/]",
+        "[#d18f52]  d   b[/]"
+    ], 10),
+    _pad_frame([
+        "  [#f1fa8c]( 🍞 )[/]",
+        " [bold white](づ◕‿◕)づ[/]",
+        "[#d18f52] | ░░░ |[/]",
+        "[#d18f52]  d   b[/]"
+    ], 10),
+    _pad_frame([
+        " [bold #50fa7b]\\(*o*)/[/]",
+        "  [#f1fa8c]( 🍞 )[/]",
+        "  [bold white](｡♥‿♥｡)[/]",
+        "[#d18f52]  d   b[/]"
+    ], 10)
 ]
 
 POKEMON_BAKERY_SPRITES = [
-    # Frame 0: Welcoming customer behind counter
-    (
-        "[#f4a261]   ( 🍞 )[/]\n"
-        "[bold #fff1e6] ( ^ ‿ ^ )[/]\n"
-        "[#e76f51]╭([#fefae0] ░░░░ [/])╮[/]\n"
-        "[#bc6c25]═╡═══════╞═[/]\n"
-        "[#bc6c25]│[#f4a261]🥖 🥐 🥨[/][#bc6c25]│[/]\n"
+    _pad_frame([
+        "[#f4a261]  ( 🍞 )  [/]",
+        "[bold #fff1e6] ( ^ ‿ ^ )[/]",
+        "[#e76f51]╭( ░░░░ )╮[/]",
+        "[#bc6c25]═╡══════╞═[/]",
+        "[#bc6c25]│[#f4a261]🥖 🥐 🥨[/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
-    ),
-    # Frame 1: Winking & rolling dough
-    (
-        "[#f4a261]   ( 🍞 )[/]\n"
-        "[bold #fff1e6] ( > ‿ ◕ )[/]\n"
-        "[#e76f51]╭([#bc6c25]──◎──[/])╮[/]\n"
-        "[#bc6c25]═╡═══════╞═[/]\n"
-        "[#bc6c25]│[#fff1e6] * ｡ *  [/][#bc6c25]│[/]\n"
+    ], 10),
+    _pad_frame([
+        "[#f4a261]  ( 🍞 )  [/]",
+        "[bold #fff1e6] ( > ‿ ◕ )[/]",
+        "[#e76f51]╭( ─◎─ )╮[/]",
+        "[#bc6c25]═╡══════╞═[/]",
+        "[#bc6c25]│[#fff1e6] * ｡ *  [/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
-    ),
-    # Frame 2: Sprinkling flour with joy
-    (
-        "[#fff1e6] *[#f4a261]( 🍞 )[/]* [/]\n"
-        "[bold #fff1e6] ( ˘ ▽ ˘ )[/]\n"
-        "[#e76f51](づ[#fff1e6]｡∴｡[/])づ [/]\n"
-        "[#bc6c25]═╡═══════╞═[/]\n"
-        "[#bc6c25]│[#f4a261]🍞 🥖 🥐[/][#bc6c25]│[/]\n"
+    ], 10),
+    _pad_frame([
+        "[#fff1e6]* [#f4a261]( 🍞 )[/] *[/]",
+        "[bold #fff1e6] ( ˘ ▽ ˘ )[/]",
+        "[#e76f51](づ ｡∴｡)づ[/]",
+        "[#bc6c25]═╡══════╞═[/]",
+        "[#bc6c25]│[#f4a261]🍞 🥖 🥐[/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
-    ),
-    # Frame 3: Fresh batch celebration ding!
-    (
-        "[bold #f4a261] ✨DING!✨  [/]\n"
-        "[bold #fff1e6] ( ★ ‿ ★ )[/]\n"
-        "[#f4a261] \\( 🍞 )/  [/]\n"
-        "[#bc6c25]═╡═══════╞═[/]\n"
-        "[#bc6c25]│[#52b788]★ 100% ★[/][#bc6c25]│[/]\n"
+    ], 10),
+    _pad_frame([
+        "[bold #f4a261] * DING! *[/]",
+        "[bold #fff1e6] ( ★ ‿ ★ )[/]",
+        "[#f4a261] \\( 🍞 )/ [/]",
+        "[#bc6c25]═╡══════╞═[/]",
+        "[#bc6c25]│[#52b788]★ 100% ★[/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
-    )
+    ], 10)
 ]
 
 
@@ -336,16 +344,18 @@ class PokemonBakeryCounter(Static):
         margin-bottom: 1;
     }
     #counter-scene-row {
-        height: 7;
+        height: auto;
+        min-height: 7;
     }
     #counter-baker-sprite {
-        width: 16;
+        width: 12;
         height: 6;
         margin-right: 1;
     }
     #counter-dialogue-box {
         width: 1fr;
-        height: 6;
+        height: auto;
+        min-height: 6;
         background: #141926;
         border: round #d4a373;
         padding: 0 1;

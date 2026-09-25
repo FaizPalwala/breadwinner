@@ -209,3 +209,35 @@ async def test_welcome_modal_ai_skip(tmp_path, monkeypatch):
         assert ai_step.styles.display == "none"
         assert pantry_step.styles.display == "block"
 
+
+@pytest.mark.anyio
+async def test_welcome_modal_model_dropdown_populates():
+    """Verify that switching AI providers dynamically populates available models."""
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        sel_prov = modal.query_one("#select-welcome-provider", Select)
+        sel_model = modal.query_one("#select-welcome-model", Select)
+
+        # Initially gemini is selected and gemini models are loaded
+        sel_prov.value = "gemini"
+        await pilot.pause()
+        assert sel_model.value == "gemini-2.5-flash"
+
+        # Switch to DeepSeek
+        sel_prov.value = "deepseek"
+        await pilot.pause()
+        assert sel_model.value == "deepseek-chat"
+
+        # Switch to Groq
+        sel_prov.value = "groq"
+        await pilot.pause()
+        assert sel_model.value == "llama-3.3-70b-versatile"
+
+        # Switch back to Gemini
+        sel_prov.value = "gemini"
+        await pilot.pause()
+        assert sel_model.value == "gemini-2.5-flash"
+

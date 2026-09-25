@@ -1,13 +1,13 @@
 """First-run interactive onboarding modal for Breadwinner with Pokémon-style bakery aesthetic.
 
 Supports a guided 2-step setup:
-Step 1: Light the Oven Hearth (AI Provider & API Keys)
+Step 1: Light the Oven Hearth (AI Provider, Model Selection & API Keys)
 Step 2: Stock the Career Pantry (Resume Dropzone & Demo Loaf)
 """
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Center
@@ -25,8 +25,9 @@ BakeryWelcomeModal {
 }
 
 #welcome-container {
-    width: 86;
+    width: 90;
     height: auto;
+    max-height: 94%;
     background: #10141f;
     border: heavy #d4a373;
     padding: 1 2;
@@ -72,12 +73,14 @@ BakeryWelcomeModal {
     margin-bottom: 1;
 }
 
-#select-welcome-provider {
-    height: 3;
-    background: #0b0e17;
-    border: round #d4a373;
-    color: #fefae0;
+#select-welcome-provider, #select-welcome-model {
     margin-bottom: 1;
+}
+
+#select-welcome-provider SelectCurrent, #select-welcome-model SelectCurrent {
+    border: round #d4a373;
+    background: #0b0e17;
+    color: #fefae0;
 }
 
 #input-welcome-api-key {
@@ -104,7 +107,7 @@ BakeryWelcomeModal {
 
 #welcome-ai-action-bar Button {
     margin: 0 1;
-    min-width: 22;
+    min-width: 18;
     height: 3;
 }
 
@@ -225,7 +228,7 @@ BakeryWelcomeModal {
 
 #welcome-action-bar Button {
     margin: 0 1;
-    min-width: 20;
+    min-width: 18;
     height: 3;
 }
 
@@ -262,6 +265,35 @@ BakeryWelcomeModal {
 }
 """
 
+PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
+    "gemini": [
+        ("Gemini 2.5 Flash (Fast, 1M context - Recommended)", "gemini-2.5-flash"),
+        ("Gemini 2.0 Flash (Next-Gen Ultra-Fast)", "gemini-2.0-flash"),
+        ("Gemini 1.5 Pro (Deep reasoning & complex work)", "gemini-1.5-pro"),
+        ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
+    ],
+    "deepseek": [
+        ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
+        ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
+    ],
+    "groq": [
+        ("Llama 3.3 70B (High speed versatile - Default)", "llama-3.3-70b-versatile"),
+        ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
+        ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
+    ],
+    "lmstudio": [
+        ("local-model (Active loaded model in LM Studio)", "local-model"),
+    ],
+    "ollama": [
+        ("llama3.2 (Meta Llama 3.2 3B - Default)", "llama3.2"),
+        ("mistral (Mistral 7B Instruct)", "mistral"),
+        ("deepseek-r1 (DeepSeek R1 Distill)", "deepseek-r1"),
+    ],
+    "mock": [
+        ("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic"),
+    ],
+}
+
 
 class BakeryWelcomeModal(ModalScreen):
     """First-run onboarding window for non-technical users with Pokémon bakery aesthetic."""
@@ -275,7 +307,7 @@ class BakeryWelcomeModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="welcome-container"):
-            yield Label("🏪 CRUMB'S BREADWINNER BAKERY • EST. 2026", classes="welcome-title")
+            yield Label("CRUMB'S BREADWINNER BAKERY • EST. 2026", classes="welcome-title")
             yield Label(
                 "Anti-Hallucination Career Studio • Fresh Resumes from Verified Facts",
                 classes="welcome-subtitle",
@@ -290,19 +322,19 @@ class BakeryWelcomeModal(ModalScreen):
             # STEP 1: AI Engine Setup
             # -------------------------------------------------------------
             with Vertical(id="welcome-ai-step"):
-                yield Label("🔥 STEP 1: LIGHT THE OVEN FIRE (AI ENGINE)", classes="step-heading")
+                yield Label("STEP 1: LIGHT THE OVEN FIRE (AI ENGINE)", classes="step-heading")
                 yield Label(
                     "[dim]Choose your AI intelligence engine. Keys are safely stored locally in .env (0600 private permissions).[/dim]",
                     classes="step-subheading"
                 )
 
                 provider_opts = [
-                    ("🔥 Google Gemini (Free 15 RPM Tier / BYOK - Recommended)", "gemini"),
-                    ("🧠 DeepSeek (BYOK • Ultra-low cost reasoning)", "deepseek"),
-                    ("⚡ Groq Cloud (Ultra-fast Llama 3.3 • Free / BYOK)", "groq"),
-                    ("💻 LM Studio (100% Local / Offline • localhost:1234)", "lmstudio"),
-                    ("🦙 Ollama (100% Local / Offline • localhost:11434)", "ollama"),
-                    ("🧪 Offline Mock (Instant Test Drive • No key needed)", "mock"),
+                    ("Google Gemini (Free 15 RPM Tier / BYOK - Recommended)", "gemini"),
+                    ("DeepSeek (BYOK • Ultra-low cost reasoning)", "deepseek"),
+                    ("Groq Cloud (Ultra-fast Llama 3.3 • Free / BYOK)", "groq"),
+                    ("LM Studio (100% Local / Offline • localhost:1234)", "lmstudio"),
+                    ("Ollama (100% Local / Offline • localhost:11434)", "ollama"),
+                    ("Offline Mock (Instant Test Drive • No key needed)", "mock"),
                 ]
                 cur_prov = settings.breadwinner_llm_provider
                 valid_cur = cur_prov if any(v == cur_prov for _, v in provider_opts) else "gemini"
@@ -313,6 +345,13 @@ class BakeryWelcomeModal(ModalScreen):
                     id="select-welcome-provider"
                 )
 
+                initial_models = PROVIDER_MODELS.get(valid_cur, [("Default Model", "default")])
+                yield Select(
+                    initial_models,
+                    value=initial_models[0][1],
+                    id="select-welcome-model"
+                )
+
                 yield Input(
                     placeholder="Enter Google Gemini API Key (AIzaSy...)",
                     password=True,
@@ -320,28 +359,28 @@ class BakeryWelcomeModal(ModalScreen):
                 )
 
                 yield Static(
-                    "[dim]🔑 Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
+                    "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
                     id="label-welcome-ai-hint"
                 )
 
                 with Horizontal(id="welcome-ai-action-bar"):
-                    yield Button("🔥 Light Hearth & Continue ➔", variant="success", id="btn-welcome-save-ai")
-                    yield Button("⚡ Instant Test Drive", variant="warning", id="btn-welcome-mock-drive")
-                    yield Button("✖ Skip AI Setup", variant="default", id="btn-welcome-skip-ai")
+                    yield Button("Save & Continue", variant="success", id="btn-welcome-save-ai")
+                    yield Button("Instant Test Drive", variant="warning", id="btn-welcome-mock-drive")
+                    yield Button("Skip AI Setup", variant="default", id="btn-welcome-skip-ai")
 
             # -------------------------------------------------------------
             # STEP 2: Career Pantry Setup
             # -------------------------------------------------------------
             with Vertical(id="welcome-pantry-step"):
-                yield Label("🌾 STEP 2: STOCK THE PANTRY (CAREER INGREDIENTS)", classes="step-heading")
+                yield Label("STEP 2: STOCK THE PANTRY (CAREER INGREDIENTS)", classes="step-heading")
                 # Input Mode Selector Tabs
                 with Horizontal(id="welcome-mode-tabs"):
-                    yield Button("📂 Drop File / URL (Recommended)", id="btn-tab-dropzone", classes="tab-btn active-tab")
-                    yield Button("📝 Paste Bio Notes", id="btn-tab-bio", classes="tab-btn")
+                    yield Button("Drop File / URL (Recommended)", id="btn-tab-dropzone", classes="tab-btn active-tab")
+                    yield Button("Paste Bio Notes", id="btn-tab-bio", classes="tab-btn")
 
                 # MODE A: Tactile Drag & Drop Dropzone Box
                 with Vertical(id="welcome-dropzone-box"):
-                    yield Label("📥 DOUGH BIN: Drag & drop resume (.pdf, .docx, .json, .md) or paste link", classes="dropzone-label")
+                    yield Label("DOUGH BIN: Drag & drop resume (.pdf, .docx, .json, .md) or paste link", classes="dropzone-label")
                     yield Input(
                         placeholder="Drop file from desktop or paste URL (e.g. ~/resume.pdf or https://...)",
                         id="input-welcome-source"
@@ -357,9 +396,9 @@ class BakeryWelcomeModal(ModalScreen):
 
                 # Action Bar
                 with Horizontal(id="welcome-action-bar"):
-                    yield Button("🥖 Stock Pantry (Enter)", variant="success", id="btn-welcome-stock")
-                    yield Button("🎁 Load Demo Loaf", variant="warning", id="btn-welcome-demo")
-                    yield Button("✖ Skip for Now", variant="default", id="btn-welcome-skip")
+                    yield Button("Stock Pantry (Enter)", variant="success", id="btn-welcome-stock")
+                    yield Button("Load Demo Loaf", variant="warning", id="btn-welcome-demo")
+                    yield Button("Skip for Now", variant="default", id="btn-welcome-skip")
 
     def on_mount(self) -> None:
         if self.initial_step == "ai":
@@ -368,8 +407,8 @@ class BakeryWelcomeModal(ModalScreen):
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
                 "Welcome, Apprentice! Choose your AI intelligence engine and enter your key (saved locally in .env).",
-                status="Step 1 of 2: AI Engine Setup 🔥",
-                badge="🏪 BREADWINNER SETUP STUDIO"
+                status="Step 1 of 2: AI Engine Setup",
+                badge="BREADWINNER SETUP STUDIO"
             )
         else:
             self.query_one("#welcome-ai-step").styles.display = "none"
@@ -377,48 +416,54 @@ class BakeryWelcomeModal(ModalScreen):
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
                 "Welcome, Trainer! Drop your resume or portfolio into the dough bin below, and I'll bake an anti-slop masterpiece!",
-                status="Verified Ingredients Only ♪ ▼",
-                badge="🏪 BREADWINNER PANTRY"
+                status="Verified Ingredients Only",
+                badge="BREADWINNER PANTRY"
             )
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Dynamically update key input and hint based on selected provider."""
+        """Dynamically update model options, key input and hint based on selected provider."""
         if event.select.id != "select-welcome-provider":
             return
         provider = str(event.value)
         key_input = self.query_one("#input-welcome-api-key", Input)
         hint = self.query_one("#label-welcome-ai-hint", Static)
         mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
+        model_select = self.query_one("#select-welcome-model", Select)
+
+        # Update available models dropdown for selected provider
+        available_models = PROVIDER_MODELS.get(provider, [("Default Model", "default")])
+        model_select.set_options(available_models)
+        model_select.value = available_models[0][1]
 
         hints = {
             "gemini": (
                 "Enter Google Gemini API Key (AIzaSy...)",
-                "[dim]🔑 Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
+                "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
                 "Google Gemini selected! Generous free tier and ultra-high quality."
             ),
             "deepseek": (
                 "Enter DeepSeek API Key (sk-...)",
-                "[dim]🔑 DeepSeek API key: [underline]https://platform.deepseek.com[/underline] (V3 & R1 models)[/dim]",
+                "[dim]DeepSeek API key: [underline]https://platform.deepseek.com[/underline] (V3 & R1 models)[/dim]",
                 "DeepSeek selected! Ultra-low cost reasoning models."
             ),
             "groq": (
                 "Enter Groq API Key (gsk_...)",
-                "[dim]🔑 Free Groq API key: [underline]https://console.groq.com/keys[/underline] (Llama 3.3)[/dim]",
+                "[dim]Free Groq API key: [underline]https://console.groq.com/keys[/underline] (Llama 3.3)[/dim]",
                 "Groq Cloud selected! Ultra-fast inference speeds."
             ),
             "lmstudio": (
                 "No API key required for local server",
-                "[dim]💻 Local inference via LM Studio at [underline]http://localhost:1234/v1[/underline][/dim]",
+                "[dim]Local inference via LM Studio at [underline]http://localhost:1234/v1[/underline][/dim]",
                 "LM Studio selected! 100% offline local privacy on your hardware."
             ),
             "ollama": (
                 "No API key required for local server",
-                "[dim]🦙 Local inference via Ollama at [underline]http://localhost:11434/v1[/underline][/dim]",
+                "[dim]Local inference via Ollama at [underline]http://localhost:11434/v1[/underline][/dim]",
                 "Ollama selected! Local open-source models running on localhost."
             ),
             "mock": (
                 "No API key required (Mock Test Drive)",
-                "[dim]🧪 Instant testing mode without any API keys or network connection[/dim]",
+                "[dim]Instant testing mode without any API keys or network connection[/dim]",
                 "Offline Mock selected! Perfect for an instant zero-setup test drive."
             ),
         }
@@ -433,7 +478,7 @@ class BakeryWelcomeModal(ModalScreen):
         else:
             key_input.disabled = False
         hint.update(hint_text)
-        mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()} ✓ ▼")
+        mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()}")
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Reactive inspection when user drags and drops a file or pastes a link."""
@@ -448,7 +493,7 @@ class BakeryWelcomeModal(ModalScreen):
             badge.update("[dim]Waiting for ingredient drop... (drag file or paste URL)[/dim]")
             mascot.set_dialogue(
                 "Welcome, Trainer! Drop your resume or portfolio into the dough bin below, and I'll bake an anti-slop masterpiece!",
-                status="Verified Ingredients Only ♪ ▼"
+                status="Verified Ingredients Only"
             )
             return
 
@@ -474,13 +519,13 @@ class BakeryWelcomeModal(ModalScreen):
             badge.update(f"[bold #52b788]✓ INGREDIENT FOUND:[/] [bold white]{path_obj.name}[/] [dim]({size_kb} KB • {doc_type})[/]")
             mascot.set_dialogue(
                 f"Fresh {doc_type} detected ({path_obj.name})! Click [Stock Pantry] to knead your profile!",
-                status="Ingredient Verified ✓ ▼"
+                status="Ingredient Verified"
             )
         elif clean.startswith("http://") or clean.startswith("https://"):
             badge.update(f"[bold #52b788]✓ WEB PORTFOLIO:[/] [bold white]{clean}[/] [dim](Universal Scraper Ready)[/]")
             mascot.set_dialogue(
-                "Target portfolio identified! I'll scrape your case studies and structure your pantry facts! ♪",
-                status="Online Portfolio ✓ ▼"
+                "Target portfolio identified! I'll scrape your case studies and structure your pantry facts!",
+                status="Online Portfolio"
             )
         else:
             badge.update(f"[bold #f4a261]• Input:[/] [white]{clean}[/]")
@@ -490,6 +535,7 @@ class BakeryWelcomeModal(ModalScreen):
 
         if bid == "btn-welcome-save-ai":
             provider = str(self.query_one("#select-welcome-provider", Select).value)
+            model_val = str(self.query_one("#select-welcome-model", Select).value)
             key_val = self.query_one("#input-welcome-api-key", Input).value.strip()
 
             if provider in ("gemini", "deepseek", "groq") and not key_val:
@@ -511,21 +557,21 @@ class BakeryWelcomeModal(ModalScreen):
             if provider == "gemini":
                 if key_val:
                     env_vars["GEMINI_API_KEY"] = key_val
-                env_vars["GEMINI_MODEL"] = "gemini-2.5-flash"
+                env_vars["GEMINI_MODEL"] = model_val or "gemini-2.5-flash"
             elif provider == "deepseek":
                 if key_val:
                     env_vars["DEEPSEEK_API_KEY"] = key_val
-                env_vars["DEEPSEEK_MODEL"] = "deepseek-chat"
+                env_vars["DEEPSEEK_MODEL"] = model_val or "deepseek-chat"
             elif provider == "groq":
                 if key_val:
                     env_vars["GROQ_API_KEY"] = key_val
-                env_vars["GROQ_MODEL"] = "llama-3.3-70b-versatile"
+                env_vars["GROQ_MODEL"] = model_val or "llama-3.3-70b-versatile"
             elif provider == "lmstudio":
                 env_vars["LMSTUDIO_BASE_URL"] = "http://localhost:1234/v1"
-                env_vars["LMSTUDIO_MODEL"] = "local-model"
+                env_vars["LMSTUDIO_MODEL"] = model_val or "local-model"
             elif provider == "ollama":
                 env_vars["OLLAMA_BASE_URL"] = "http://localhost:11434/v1"
-                env_vars["OLLAMA_MODEL"] = "llama3.2"
+                env_vars["OLLAMA_MODEL"] = model_val or "llama3.2"
 
             save_env_config(env_vars)
 
@@ -533,11 +579,11 @@ class BakeryWelcomeModal(ModalScreen):
             self.query_one("#welcome-pantry-step").styles.display = "block"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
-                f"Hearth fire lit with {provider.upper()}! Now drop your resume or click Load Demo Loaf to stock your pantry!",
-                status="Step 2 of 2: Stock Career Pantry 🌾",
-                badge="🏪 CRUMB'S PANTRY"
+                f"Hearth fire lit with {provider.upper()} ({model_val})! Drop your resume or click Load Demo Loaf to stock your pantry!",
+                status="Step 2 of 2: Stock Career Pantry",
+                badge="CRUMB'S PANTRY"
             )
-            self.app.notify(f"✓ AI Engine Configured: {provider.upper()}", title="Oven Fire Lit")
+            self.app.notify(f"✓ AI Engine Configured: {provider.upper()} ({model_val})", title="Oven Fire Lit")
             self.query_one("#input-welcome-source", Input).focus()
 
         elif bid == "btn-welcome-mock-drive":
@@ -549,9 +595,9 @@ class BakeryWelcomeModal(ModalScreen):
             self.query_one("#welcome-pantry-step").styles.display = "block"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
-                "Offline Mock Engine ready! Now drop your resume or click Load Demo Loaf to start baking!",
-                status="Step 2 of 2: Stock Career Pantry 🌾",
-                badge="🏪 CRUMB'S PANTRY"
+                "Offline Mock Engine ready! Drop your resume or click Load Demo Loaf to start baking!",
+                status="Step 2 of 2: Stock Career Pantry",
+                badge="CRUMB'S PANTRY"
             )
             self.app.notify("✓ Instant Test Drive Mode Enabled (Mock Engine)", title="Mock Engine")
             self.query_one("#input-welcome-source", Input).focus()
@@ -562,8 +608,8 @@ class BakeryWelcomeModal(ModalScreen):
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
                 "Skipped AI setup. Drop your resume or click Load Demo Loaf to stock your pantry!",
-                status="Step 2 of 2: Stock Career Pantry 🌾",
-                badge="🏪 CRUMB'S PANTRY"
+                status="Step 2 of 2: Stock Career Pantry",
+                badge="CRUMB'S PANTRY"
             )
             self.query_one("#input-welcome-source", Input).focus()
 
