@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Google Gemini
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-2.0-flash"
 
     # LM Studio (Local M4 Pro / PC)
     lmstudio_base_url: str = "http://localhost:1234/v1"

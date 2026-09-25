@@ -3,7 +3,7 @@
 import re
 import requests
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from pydantic import BaseModel
 
 from breadwinner.config import settings
@@ -129,21 +129,47 @@ class ProviderDiscovery:
         is_active_provider = settings.breadwinner_llm_provider == "gemini"
 
         known_models = [
-            ("gemini-2.5-flash", "Gemini 2.5 Flash (Fastest, 1M context)"),
-            ("gemini-1.5-flash", "Gemini 1.5 Flash (Ultra-low latency)"),
-            ("gemini-1.5-pro", "Gemini 1.5 Pro (Deep reasoning)")
+            ("gemini-2.0-flash", "Gemini 2.0 Flash (Fastest, 1M context - Recommended)"),
+            ("gemini-2.0-flash-lite", "Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)"),
+            ("gemini-1.5-pro", "Gemini 1.5 Pro (Deep reasoning & 2M context)"),
+            ("gemini-1.5-flash", "Gemini 1.5 Flash (Ultra-low latency legacy)"),
         ]
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="gemini",
-                is_active=(is_active_provider and mid == settings.gemini_model),
-                description=mname
-            )
-            for mid, mname in known_models
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    f"https://generativelanguage.googleapis.com/v1beta/models?key={settings.gemini_api_key.strip()}",
+                    timeout=2.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("models", [])
+                    for m in raw:
+                        if isinstance(m, dict) and "generateContent" in m.get("supportedGenerationMethods", []):
+                            mid = m["name"].replace("models/", "")
+                            if mid.startswith("gemini-"):
+                                mname = m.get("displayName", mid)
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mname,
+                                    provider="gemini",
+                                    is_active=(is_active_provider and mid == settings.gemini_model),
+                                    description=m.get("description", mname)
+                                ))
+            except Exception:
+                pass
+
+        if not models:
+            models = [
+                ModelInfo(
+                    id=mid,
+                    name=mname,
+                    provider="gemini",
+                    is_active=(is_active_provider and mid == settings.gemini_model),
+                    description=mname
+                )
+                for mid, mname in known_models
+            ]
 
         status_text = "🟢 Configured (AI Studio Key)" if key_configured else "⚪ Missing GEMINI_API_KEY in .env"
         return ProviderStatus(
@@ -296,4 +322,110 @@ class ProviderDiscovery:
                 settings.ollama_model = model_id
 
         return True
+
+    @classmethod
+    def fetch_models_for_provider(cls, provider: str, api_key: Optional[str] = None) -> List[Tuple[str, str]]:
+        """Fetch live models for a provider if network/credentials available, or return curated defaults."""
+        prov = provider.lower()
+        key = api_key.strip() if api_key else ""
+        if not key:
+            if prov == "gemini":
+                key = settings.gemini_api_key or ""
+            elif prov == "deepseek":
+                key = settings.deepseek_api_key or ""
+            elif prov == "groq":
+                key = settings.groq_api_key or ""
+
+        fallbacks: Dict[str, List[Tuple[str, str]]] = {
+            "gemini": [
+                ("Gemini 2.0 Flash (Fastest, 1M context - Recommended)", "gemini-2.0-flash"),
+                ("Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)", "gemini-2.0-flash-lite"),
+                ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
+                ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
+            ],
+            "deepseek": [
+                ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
+                ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
+            ],
+            "groq": [
+                ("Llama 3.3 70B Versatile (Ultra-fast - Default)", "llama-3.3-70b-versatile"),
+                ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
+                ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
+            ],
+            "lmstudio": [
+                ("local-model (Active loaded model in LM Studio)", "local-model"),
+            ],
+            "ollama": [
+                ("llama3.2 (Standard Llama 3.2)", "llama3.2"),
+                ("qwen2.5-coder (Qwen 2.5 Coder)", "qwen2.5-coder"),
+                ("deepseek-r1 (DeepSeek R1 Distill)", "deepseek-r1"),
+            ],
+            "mock": [
+                ("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic"),
+            ],
+        }
+
+        if prov == "gemini" and key:
+            try:
+                resp = requests.get(
+                    f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
+                    timeout=2.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("models", [])
+                    live = []
+                    for m in raw:
+                        if isinstance(m, dict) and "generateContent" in m.get("supportedGenerationMethods", []):
+                            mid = m["name"].replace("models/", "")
+                            if mid.startswith("gemini-"):
+                                mname = m.get("displayName", mid)
+                                live.append((f"{mname} ({mid})", mid))
+                    if live:
+                        return live
+            except Exception:
+                pass
+
+        elif prov == "groq" and key:
+            try:
+                resp = requests.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {key}"},
+                    timeout=2.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    live = [
+                        (f"{m['id']}", m["id"])
+                        for m in raw if isinstance(m, dict) and "id" in m and not m["id"].startswith("whisper")
+                    ]
+                    if live:
+                        return live
+            except Exception:
+                pass
+
+        elif prov == "lmstudio":
+            try:
+                base = settings.lmstudio_base_url.rstrip("/")
+                resp = requests.get(f"{base}/models", timeout=1.5)
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    live = [(f"{m['id'].split('/')[-1]} ({m['id']})", m["id"]) for m in raw if "id" in m]
+                    if live:
+                        return live
+            except Exception:
+                pass
+
+        elif prov == "ollama":
+            try:
+                base = settings.ollama_base_url.rstrip("/")
+                resp = requests.get(f"{base}/tags", timeout=1.5)
+                if resp.status_code == 200:
+                    raw = resp.json().get("models", [])
+                    live = [(f"{m['name']}", m["name"]) for m in raw if "name" in m]
+                    if live:
+                        return live
+            except Exception:
+                pass
+
+        return fallbacks.get(prov, [("Default Model", "default")])
 

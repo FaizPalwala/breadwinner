@@ -36,9 +36,12 @@ def _pad_frame(raw_lines: List[str], target_width: int) -> str:
     out = []
     for line in raw_lines:
         plain = Text.from_markup(line).plain
-        diff = target_width - cell_len(plain)
+        cur_len = cell_len(plain)
+        diff = target_width - cur_len
         if diff > 0:
             out.append(line + (" " * diff))
+        elif diff < 0:
+            out.append(plain[:target_width])
         else:
             out.append(line)
     return "\n".join(out)
@@ -123,62 +126,62 @@ OVEN_BURNT_FRAME = _pad_frame([
 
 MASCOT_FRAMES = [
     _pad_frame([
-        "  [#f1fa8c]( 🍞 )[/]",
-        "  [bold white](｡◕‿◕｡)[/]",
+        "  [#f1fa8c](===)[/]   ",
+        " [bold white]( ^ - ^ )[/]",
         "[#d18f52]╭| ░░░ |)[/]",
-        "[#d18f52]  d   b[/]"
+        "[#d18f52]  d   b   [/]"
     ], 10),
     _pad_frame([
-        "  [#f1fa8c]( 🍞 )[/]",
-        "  [bold white](｡◕‿<｡)[/]",
+        "  [#f1fa8c](===)[/]   ",
+        " [bold white]( > - < )[/]",
         "[#d18f52]╭| ░░░ |)[/]",
-        "[#d18f52]  d   b[/]"
+        "[#d18f52]  d   b   [/]"
     ], 10),
     _pad_frame([
-        "  [#f1fa8c]( 🍞 )[/]",
-        " [bold white](づ◕‿◕)づ[/]",
-        "[#d18f52] | ░░░ |[/]",
-        "[#d18f52]  d   b[/]"
+        "  [#f1fa8c](===)[/]   ",
+        " [bold white]( ^ . ^ )[/]",
+        "[#d18f52] | ░░░ |  [/]",
+        "[#d18f52]  d   b   [/]"
     ], 10),
     _pad_frame([
-        " [bold #50fa7b]\\(*o*)/[/]",
-        "  [#f1fa8c]( 🍞 )[/]",
-        "  [bold white](｡♥‿♥｡)[/]",
-        "[#d18f52]  d   b[/]"
+        r" [bold #50fa7b]\(*o*)/[/]  ",
+        "  [#f1fa8c](===)[/]   ",
+        " [bold white]( * - * )[/]",
+        "[#d18f52]  d   b   [/]"
     ], 10)
 ]
 
 POKEMON_BAKERY_SPRITES = [
     _pad_frame([
-        "[#f4a261]  ( 🍞 )  [/]",
-        "[bold #fff1e6] ( ^ ‿ ^ )[/]",
+        "[#f4a261]  (===)   [/]",
+        "[bold #fff1e6] ( ^ - ^ )[/]",
         "[#e76f51]╭( ░░░░ )╮[/]",
         "[#bc6c25]═╡══════╞═[/]",
-        "[#bc6c25]│[#f4a261]🥖 🥐 🥨[/][#bc6c25]│[/]",
+        "[#bc6c25]│[#f4a261] ~LOAF~ [/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
     ], 10),
     _pad_frame([
-        "[#f4a261]  ( 🍞 )  [/]",
-        "[bold #fff1e6] ( > ‿ ◕ )[/]",
-        "[#e76f51]╭( ─◎─ )╮[/]",
+        "[#f4a261]  (===)   [/]",
+        "[bold #fff1e6] ( > - < )[/]",
+        "[#e76f51]╭( -oo- )╮[/]",
         "[#bc6c25]═╡══════╞═[/]",
-        "[#bc6c25]│[#fff1e6] * ｡ *  [/][#bc6c25]│[/]",
+        "[#bc6c25]│[#fff1e6] *  . * [/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
     ], 10),
     _pad_frame([
-        "[#fff1e6]* [#f4a261]( 🍞 )[/] *[/]",
-        "[bold #fff1e6] ( ˘ ▽ ˘ )[/]",
-        "[#e76f51](づ ｡∴｡)づ[/]",
+        "[#fff1e6] *[#f4a261](===)[/]*  [/]",
+        "[bold #fff1e6] ( ^ . ^ )[/]",
+        "[#e76f51]<( .::. )>[/]",
         "[#bc6c25]═╡══════╞═[/]",
-        "[#bc6c25]│[#f4a261]🍞 🥖 🥐[/][#bc6c25]│[/]",
+        "[#bc6c25]│[#f4a261] {o}{o} [/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
     ], 10),
     _pad_frame([
         "[bold #f4a261] * DING! *[/]",
-        "[bold #fff1e6] ( ★ ‿ ★ )[/]",
-        "[#f4a261] \\( 🍞 )/ [/]",
+        "[bold #fff1e6] ( * o * )[/]",
+        r"[#f4a261] \(===)/  [/]",
         "[#bc6c25]═╡══════╞═[/]",
-        "[#bc6c25]│[#52b788]★ 100% ★[/][#bc6c25]│[/]",
+        "[#bc6c25]│[#52b788]  100%  [/][#bc6c25]│[/]",
         "[#bc6c25]╰────────╯[/]"
     ], 10)
 ]
@@ -342,10 +345,12 @@ class PokemonBakeryCounter(Static):
     PokemonBakeryCounter {
         height: auto;
         margin-bottom: 1;
+        overflow-x: hidden;
     }
     #counter-scene-row {
         height: auto;
         min-height: 7;
+        overflow-x: hidden;
     }
     #counter-baker-sprite {
         width: 12;
@@ -359,18 +364,22 @@ class PokemonBakeryCounter(Static):
         background: #141926;
         border: round #d4a373;
         padding: 0 1;
+        overflow-x: hidden;
     }
     .poke-dialogue-title {
         color: #f4a261;
         text-style: bold;
+        width: 100%;
     }
     .poke-dialogue-body {
         color: #fefae0;
+        width: 100%;
     }
     .poke-dialogue-status {
         color: #52b788;
         text-style: bold;
         text-align: right;
+        width: 100%;
     }
     """
 

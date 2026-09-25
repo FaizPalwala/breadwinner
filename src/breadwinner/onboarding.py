@@ -188,7 +188,7 @@ def run_setup_wizard(env_file_path: Optional[Path] = None, pantry_dir: Optional[
     if selected_provider == "gemini":
         console.print("[dim]Get a free key from: https://aistudio.google.com/app/apikey[/dim]")
         key = Prompt.ask("Enter your Google Gemini API key", password=True)
-        model = Prompt.ask("Select model", default="gemini-2.5-flash")
+        model = Prompt.ask("Select model", default="gemini-2.0-flash")
         env_vars["GEMINI_API_KEY"] = key.strip()
         env_vars["GEMINI_MODEL"] = model.strip()
 

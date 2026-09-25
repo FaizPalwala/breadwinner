@@ -14,8 +14,15 @@ def test_gemini_models_list():
     status = ProviderDiscovery.check_gemini()
     assert status.slug == "gemini"
     model_ids = [m.id for m in status.models]
-    assert "gemini-2.5-flash" in model_ids
+    assert "gemini-2.0-flash" in model_ids
     assert "gemini-1.5-flash" in model_ids
+
+
+def test_fetch_models_for_provider():
+    gemini_models = ProviderDiscovery.fetch_models_for_provider("gemini")
+    assert any(m[1] == "gemini-2.0-flash" for m in gemini_models)
+    groq_models = ProviderDiscovery.fetch_models_for_provider("groq")
+    assert any(m[1] == "llama-3.3-70b-versatile" for m in groq_models)
 
 
 def test_deepseek_models_list():

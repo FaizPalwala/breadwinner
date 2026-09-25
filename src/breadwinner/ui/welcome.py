@@ -16,6 +16,7 @@ from textual.screen import ModalScreen
 
 from breadwinner.config import settings, save_env_config
 from breadwinner.core.pantry import PantryManager
+from breadwinner.providers.discovery import ProviderDiscovery
 from breadwinner.ui.retro import PokemonBakeryCounter
 
 
@@ -31,6 +32,7 @@ BakeryWelcomeModal {
     background: #10141f;
     border: heavy #d4a373;
     padding: 1 2;
+    overflow-x: hidden;
 }
 
 .welcome-title {
@@ -71,6 +73,7 @@ BakeryWelcomeModal {
     text-align: center;
     color: #a89f91;
     margin-bottom: 1;
+    width: 100%;
 }
 
 #select-welcome-provider, #select-welcome-model {
@@ -107,7 +110,7 @@ BakeryWelcomeModal {
 
 #welcome-ai-action-bar Button {
     margin: 0 1;
-    min-width: 18;
+    min-width: 15;
     height: 3;
 }
 
@@ -141,6 +144,17 @@ BakeryWelcomeModal {
 
 #btn-welcome-skip-ai:hover {
     background: #334155;
+}
+
+#btn-welcome-exit, #btn-welcome-exit-pantry {
+    background: #3a1515;
+    color: #ffcccc;
+    border: heavy #e63946;
+    text-style: bold;
+}
+
+#btn-welcome-exit:hover, #btn-welcome-exit-pantry:hover {
+    background: #5c1e1e;
 }
 
 /* ========================================================================= */
@@ -228,7 +242,7 @@ BakeryWelcomeModal {
 
 #welcome-action-bar Button {
     margin: 0 1;
-    min-width: 18;
+    min-width: 15;
     height: 3;
 }
 
@@ -267,9 +281,9 @@ BakeryWelcomeModal {
 
 PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
     "gemini": [
-        ("Gemini 2.5 Flash (Fast, 1M context - Recommended)", "gemini-2.5-flash"),
-        ("Gemini 2.0 Flash (Next-Gen Ultra-Fast)", "gemini-2.0-flash"),
-        ("Gemini 1.5 Pro (Deep reasoning & complex work)", "gemini-1.5-pro"),
+        ("Gemini 2.0 Flash (Fastest, 1M context - Recommended)", "gemini-2.0-flash"),
+        ("Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)", "gemini-2.0-flash-lite"),
+        ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
         ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
     ],
     "deepseek": [
@@ -367,6 +381,7 @@ class BakeryWelcomeModal(ModalScreen):
                     yield Button("Save & Continue", variant="success", id="btn-welcome-save-ai")
                     yield Button("Instant Test Drive", variant="warning", id="btn-welcome-mock-drive")
                     yield Button("Skip AI Setup", variant="default", id="btn-welcome-skip-ai")
+                    yield Button("Quit", variant="error", id="btn-welcome-exit")
 
             # -------------------------------------------------------------
             # STEP 2: Career Pantry Setup
@@ -399,6 +414,7 @@ class BakeryWelcomeModal(ModalScreen):
                     yield Button("Stock Pantry (Enter)", variant="success", id="btn-welcome-stock")
                     yield Button("Load Demo Loaf", variant="warning", id="btn-welcome-demo")
                     yield Button("Skip for Now", variant="default", id="btn-welcome-skip")
+                    yield Button("Quit", variant="error", id="btn-welcome-exit-pantry")
 
     def on_mount(self) -> None:
         if self.initial_step == "ai":
@@ -431,9 +447,11 @@ class BakeryWelcomeModal(ModalScreen):
         model_select = self.query_one("#select-welcome-model", Select)
 
         # Update available models dropdown for selected provider
-        available_models = PROVIDER_MODELS.get(provider, [("Default Model", "default")])
+        api_key = key_input.value.strip() if key_input else ""
+        available_models = ProviderDiscovery.fetch_models_for_provider(provider, api_key=api_key)
         model_select.set_options(available_models)
-        model_select.value = available_models[0][1]
+        if available_models:
+            model_select.value = available_models[0][1]
 
         hints = {
             "gemini": (
@@ -557,7 +575,7 @@ class BakeryWelcomeModal(ModalScreen):
             if provider == "gemini":
                 if key_val:
                     env_vars["GEMINI_API_KEY"] = key_val
-                env_vars["GEMINI_MODEL"] = model_val or "gemini-2.5-flash"
+                env_vars["GEMINI_MODEL"] = model_val or "gemini-2.0-flash"
             elif provider == "deepseek":
                 if key_val:
                     env_vars["DEEPSEEK_API_KEY"] = key_val
@@ -646,6 +664,10 @@ class BakeryWelcomeModal(ModalScreen):
 
         elif bid == "btn-welcome-demo":
             self.dismiss({"action": "demo"})
+
+        elif bid in ("btn-welcome-exit", "btn-welcome-exit-pantry"):
+            self.app.exit()
+            return
 
         else:
             self.dismiss(None)

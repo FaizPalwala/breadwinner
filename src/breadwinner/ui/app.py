@@ -617,6 +617,7 @@ class BreadwinnerApp(App):
         Binding("f", "toggle_flag", "Toggle Flag", show=False),
         Binding("o", "open_folder", "Open Folder", show=False),
         Binding("r", "refresh_data", "Refresh", show=False),
+        Binding("q", "quit", "Quit", show=True),
     ]
 
     def __init__(self, initial_url: Optional[str] = None):
@@ -650,6 +651,7 @@ class BreadwinnerApp(App):
                     Button("View PDF (v)", variant="primary", id="btn-pipeline-view-pdf"),
                     Button("Open Folder (o)", variant="default", id="btn-open-folder"),
                     Button("Refresh (r)", variant="default", id="btn-refresh"),
+                    Button("Quit (q)", variant="error", id="btn-pipeline-quit"),
                     classes="action-bar"
                 )
 
@@ -1217,6 +1219,8 @@ class BreadwinnerApp(App):
             self.action_open_folder()
         elif bid == "btn-refresh":
             self.action_refresh_data()
+        elif bid == "btn-pipeline-quit":
+            self.action_quit()
         elif bid == "btn-run-tailor":
             self.run_tailoring_flow()
         elif bid == "btn-strategy-loop":

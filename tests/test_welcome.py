@@ -224,7 +224,7 @@ async def test_welcome_modal_model_dropdown_populates():
         # Initially gemini is selected and gemini models are loaded
         sel_prov.value = "gemini"
         await pilot.pause()
-        assert sel_model.value == "gemini-2.5-flash"
+        assert sel_model.value == "gemini-2.0-flash"
 
         # Switch to DeepSeek
         sel_prov.value = "deepseek"
@@ -239,5 +239,22 @@ async def test_welcome_modal_model_dropdown_populates():
         # Switch back to Gemini
         sel_prov.value = "gemini"
         await pilot.pause()
-        assert sel_model.value == "gemini-2.5-flash"
+        assert sel_model.value == "gemini-2.0-flash"
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_exit_button():
+    """Verify that clicking the Quit button exits the application."""
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        exit_btn = modal.query_one("#btn-welcome-exit", Button)
+        assert exit_btn is not None
+        exit_btn.press()
+        await pilot.pause()
+
+    # The app should have exited
+    assert app.is_running is False
 
