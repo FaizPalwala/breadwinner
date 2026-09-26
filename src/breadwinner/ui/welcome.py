@@ -1,7 +1,7 @@
 """First-run interactive onboarding modal for Breadwinner with Pokémon-style bakery aesthetic.
 
 Supports a guided 3-step setup:
-Step 1: Configure AI Providers & API Keys (multi-provider switcher pills & status badges)
+Step 1: Configure AI Providers & API Keys (tactile multi-provider switcher pills & real-time badges)
 Step 2: Live Model Discovery & Default Model Selection (real-time API handshake)
 Step 3: Stock the Career Pantry (Resume Dropzone & Demo Loaf)
 """
@@ -17,7 +17,15 @@ from textual.screen import ModalScreen
 
 from breadwinner.config import settings, save_env_config
 from breadwinner.core.pantry import PantryManager
-from breadwinner.providers.discovery import ProviderDiscovery
+from breadwinner.providers.discovery import ProviderDiscovery, PROVIDER_MODELS
+from breadwinner.providers.registry import (
+    ProviderSpec,
+    PROVIDERS_REGISTRY,
+    get_provider_spec,
+    get_provider_options,
+    get_provider_env_vars,
+    get_configured_initial_keys,
+)
 from breadwinner.ui.retro import PokemonBakeryCounter
 
 
@@ -27,13 +35,16 @@ BakeryWelcomeModal {
 }
 
 #welcome-container {
-    width: 96;
+    width: 90%;
+    min-width: 78;
+    max-width: 104;
     height: auto;
     max-height: 94%;
     background: #10141f;
     border: heavy #d4a373;
     padding: 1 2;
     overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .welcome-title {
@@ -69,7 +80,7 @@ BakeryWelcomeModal {
 }
 
 /* ========================================================================= */
-/* STEP 1: CONFIGURE AI ENGINES & API KEYS                                   */
+/* STEP 1: CONFIGURE AI ENGINES & API KEYS (DYNAMIC PILL SWITCHER)           */
 /* ========================================================================= */
 
 #welcome-ai-step {
@@ -77,7 +88,7 @@ BakeryWelcomeModal {
     margin-bottom: 1;
 }
 
-#welcome-provider-pills {
+.pills-row {
     height: 1;
     align: center middle;
     margin-bottom: 1;
@@ -85,31 +96,47 @@ BakeryWelcomeModal {
 
 .prov-pill {
     height: 1;
-    min-width: 14;
+    min-width: 13;
     margin: 0 1;
     padding: 0 1;
     border: none;
-    background: #1a2234;
-    color: #94a3b8;
+    background: #232d42;
+    color: #e2e8f0;
+    text-style: bold;
 }
 
 .prov-pill:hover {
-    background: #25334d;
-    color: #fefae0;
+    background: #3b4d6e;
+    color: #ffffff;
+}
+
+.configured-pill {
+    background: #17382d;
+    color: #a7f3d0;
+    text-style: bold;
+}
+
+.configured-pill:hover {
+    background: #235443;
+    color: #ffffff;
 }
 
 .active-pill {
-    background: #2b3954;
-    color: #fefae0;
+    background: #f4a261;
+    color: #0b0e17;
     text-style: bold;
-    border-bottom: heavy #52b788;
 }
 
-#select-welcome-provider, #select-welcome-model, #select-active-provider {
+.active-pill:hover {
+    background: #e76f51;
+    color: #0b0e17;
+}
+
+#select-welcome-model, #select-active-provider {
     margin-bottom: 1;
 }
 
-#select-welcome-provider SelectCurrent, #select-welcome-model SelectCurrent, #select-active-provider SelectCurrent {
+#select-welcome-model SelectCurrent, #select-active-provider SelectCurrent {
     border: round #d4a373;
     background: #0b0e17;
     color: #fefae0;
@@ -256,18 +283,19 @@ BakeryWelcomeModal {
     margin: 0 1;
     padding: 0 1;
     border: none;
-    background: #1a2234;
-    color: #94a3b8;
+    background: #232d42;
+    color: #e2e8f0;
+    text-style: bold;
 }
 
 .tab-btn:hover {
-    background: #25334d;
-    color: #fefae0;
+    background: #3b4d6e;
+    color: #ffffff;
 }
 
 .active-tab {
-    background: #2b3954;
-    color: #fefae0;
+    background: #f4a261;
+    color: #0b0e17;
     text-style: bold;
 }
 
@@ -301,13 +329,13 @@ BakeryWelcomeModal {
 }
 
 #welcome-bio-box {
+    height: auto;
     display: none;
-    height: 6;
     margin-bottom: 1;
 }
 
 #input-welcome-bio {
-    height: 1fr;
+    height: 6;
     background: #0b0e17;
     border: round #d4a373;
     color: #fefae0;
@@ -346,59 +374,6 @@ BakeryWelcomeModal {
 }
 """
 
-PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
-    "gemini": [
-        ("Gemini 2.0 Flash (Fastest, 1M context - Recommended)", "gemini-2.0-flash"),
-        ("Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)", "gemini-2.0-flash-lite"),
-        ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
-        ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
-    ],
-    "openrouter": [
-        ("Claude 3.7 Sonnet (Anthropic flagship via OpenRouter)", "anthropic/claude-3.7-sonnet"),
-        ("Claude 3.5 Sonnet (High intelligence via OpenRouter)", "anthropic/claude-3.5-sonnet"),
-        ("GPT-4o (OpenAI flagship via OpenRouter)", "openai/gpt-4o"),
-        ("Gemini 2.0 Flash (Google via OpenRouter)", "google/gemini-2.0-flash-001"),
-        ("DeepSeek R1 (Chain of thought logic via OpenRouter)", "deepseek/deepseek-r1"),
-        ("Llama 3.3 70B (Meta open weights via OpenRouter)", "meta-llama/llama-3.3-70b-instruct"),
-    ],
-    "anthropic": [
-        ("Claude 3.7 Sonnet (Hybrid fast/extended reasoning - Recommended)", "claude-3-7-sonnet-20250219"),
-        ("Claude 3.5 Sonnet (Gold standard prose & precision)", "claude-3-5-sonnet-20241022"),
-        ("Claude 3.5 Haiku (Fast & affordable lightweight model)", "claude-3-5-haiku-20241022"),
-    ],
-    "openai": [
-        ("GPT-4o (Flagship multimodal intelligence - Recommended)", "gpt-4o"),
-        ("GPT-4o Mini (High-speed & cost-efficient)", "gpt-4o-mini"),
-        ("o3-mini (High-speed STEM & logic reasoning)", "o3-mini"),
-        ("o1 (Deep analytical complex reasoning)", "o1"),
-    ],
-    "deepseek": [
-        ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
-        ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
-    ],
-    "groq": [
-        ("Llama 3.3 70B (High speed versatile - Default)", "llama-3.3-70b-versatile"),
-        ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
-        ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
-    ],
-    "mistral": [
-        ("Mistral Large (Premier frontier reasoning)", "mistral-large-latest"),
-        ("Codestral (State-of-the-art coding)", "codestral-latest"),
-        ("Mistral Small (Fast & responsive)", "mistral-small-latest"),
-    ],
-    "lmstudio": [
-        ("local-model (Active loaded model in LM Studio)", "local-model"),
-    ],
-    "ollama": [
-        ("llama3.2 (Meta Llama 3.2 3B - Default)", "llama3.2"),
-        ("mistral (Mistral 7B Instruct)", "mistral"),
-        ("deepseek-r1 (DeepSeek R1 Distill)", "deepseek-r1"),
-    ],
-    "mock": [
-        ("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic"),
-    ],
-}
-
 
 class BakeryWelcomeModal(ModalScreen):
     """First-run onboarding window for non-technical users with Pokémon bakery aesthetic."""
@@ -410,82 +385,78 @@ class BakeryWelcomeModal(ModalScreen):
         self.pantry = pantry
         self.initial_step = initial_step
         self.current_step = 1 if initial_step == "ai" else 3
-        self.provider_opts: List[Tuple[str, str]] = [
-            ("Google Gemini", "gemini"),
-            ("OpenRouter", "openrouter"),
-            ("Anthropic Claude", "anthropic"),
-            ("OpenAI", "openai"),
-            ("DeepSeek", "deepseek"),
-            ("Groq Cloud", "groq"),
-            ("Mistral AI", "mistral"),
-            ("LM Studio (Local)", "lmstudio"),
-            ("Ollama (Local)", "ollama"),
-            ("Offline Mock", "mock"),
-        ]
-        self.provider_keys: Dict[str, str] = {}
-        # Prepopulate with existing configured environment keys
-        if settings.gemini_api_key:
-            self.provider_keys["gemini"] = settings.gemini_api_key
-        if settings.openrouter_api_key:
-            self.provider_keys["openrouter"] = settings.openrouter_api_key
-        if settings.anthropic_api_key:
-            self.provider_keys["anthropic"] = settings.anthropic_api_key
-        if settings.openai_api_key:
-            self.provider_keys["openai"] = settings.openai_api_key
-        if settings.deepseek_api_key:
-            self.provider_keys["deepseek"] = settings.deepseek_api_key
-        if settings.groq_api_key:
-            self.provider_keys["groq"] = settings.groq_api_key
-        if settings.mistral_api_key:
-            self.provider_keys["mistral"] = settings.mistral_api_key
+        self.provider_opts: List[Tuple[str, str]] = get_provider_options()
 
-    def get_styled_provider_opts(self) -> List[Tuple[str, str]]:
-        """Return provider options formatted with live status indicators."""
+        self.active_provider: str = settings.breadwinner_llm_provider
+        if not get_provider_spec(self.active_provider):
+            self.active_provider = "gemini"
+
+        self.provider_keys: Dict[str, str] = get_configured_initial_keys()
+
+    def get_step2_provider_opts(self) -> List[Tuple[str, str]]:
+        """Return provider options formatted with live status indicators for Step 2 selector."""
         opts = []
-        for label, slug in self.provider_opts:
-            has_key = bool(self.provider_keys.get(slug, "").strip())
-            if slug in ("lmstudio", "ollama", "mock"):
-                opts.append((f"🟢 {label} (Ready)", slug))
+        for spec in PROVIDERS_REGISTRY:
+            has_key = bool(self.provider_keys.get(spec.slug, "").strip())
+            if spec.is_local:
+                opts.append((f"🟢 {spec.name} (Ready)", spec.slug))
             elif has_key:
-                opts.append((f"🟢 {label} (Key set)", slug))
+                opts.append((f"🟢 {spec.name} (Key set)", spec.slug))
             else:
-                opts.append((f"⚪ {label}", slug))
+                opts.append((f"⚪ {spec.name}", spec.slug))
         return opts
 
     def render_keys_summary(self) -> str:
         """Render badge summary of configured keys."""
-        slug_to_label = {slug: label for label, slug in self.provider_opts}
         configured = [
-            slug_to_label.get(p, p)
-            for p, k in self.provider_keys.items()
-            if k and p not in ("lmstudio", "ollama", "mock")
+            spec.name
+            for spec in PROVIDERS_REGISTRY
+            if self.provider_keys.get(spec.slug) and not spec.is_local
         ]
         if configured:
             summary = " • ".join(f"[bold #52b788]{name} ✓[/]" for name in configured)
             return f"[dim]Configured engines:[/] {summary}"
-        return "[dim]No keys entered yet. Configure one or more providers above.[/dim]"
+        return "[dim]No keys entered yet. Click any pill above to configure.[/dim]"
 
     def update_pills(self, active_prov: str) -> None:
-        """Update provider switcher pills with active state and status icons."""
-        pills = ["gemini", "openrouter", "anthropic", "openai"]
-        pill_names = {
-            "gemini": "Gemini",
-            "openrouter": "OpenRouter",
-            "anthropic": "Anthropic",
-            "openai": "OpenAI"
-        }
-        for p in pills:
+        """Update provider switcher pills with active state, configured badges, and styling."""
+        for spec in PROVIDERS_REGISTRY:
             try:
-                pill = self.query_one(f"#pill-prov-{p}", Button)
-                has_key = bool(self.provider_keys.get(p, "").strip())
-                status_icon = "🟢" if has_key else "⚪"
-                pill.label = f"{status_icon} {pill_names[p]}"
-                if p == active_prov:
+                pill = self.query_one(f"#pill-prov-{spec.slug}", Button)
+                has_key = bool(self.provider_keys.get(spec.slug, "").strip())
+                is_ready = has_key or spec.is_local
+                status_icon = "🟢" if is_ready else "⚪"
+                pill.label = f"{status_icon} {spec.pill_label}"
+
+                pill.remove_class("active-pill")
+                pill.remove_class("configured-pill")
+
+                if spec.slug == active_prov:
                     pill.add_class("active-pill")
-                else:
-                    pill.remove_class("active-pill")
+                elif is_ready:
+                    pill.add_class("configured-pill")
             except Exception:
                 pass
+
+    def select_provider(self, slug: str) -> None:
+        """Select an active provider in Step 1, updating pill states, input, hint, and mascot."""
+        spec = get_provider_spec(slug)
+        if not spec:
+            return
+        self.active_provider = slug
+        self.update_pills(slug)
+
+        key_input = self.query_one("#input-welcome-api-key", Input)
+        hint = self.query_one("#label-welcome-ai-hint", Static)
+        mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
+
+        key_input.value = self.provider_keys.get(slug, "")
+        key_input.placeholder = spec.key_placeholder
+        key_input.disabled = not spec.requires_key
+        hint.update(spec.hint_text)
+
+        if self.current_step == 1:
+            mascot.set_dialogue(spec.mascot_msg, status=f"Engine: {slug.upper()}")
 
     def compose(self) -> ComposeResult:
         with Vertical(id="welcome-container"):
@@ -501,42 +472,41 @@ class BakeryWelcomeModal(ModalScreen):
                 yield PokemonBakeryCounter(id="welcome-mascot")
 
             # -------------------------------------------------------------
-            # STEP 1: CONFIGURE AI ENGINES & API KEYS
+            # STEP 1: CONFIGURE AI ENGINES & API KEYS (DYNAMIC PILL SWITCHER)
             # -------------------------------------------------------------
             with Vertical(id="welcome-ai-step"):
                 yield Label("STEP 1 OF 3: CONFIGURE AI ENGINES & API KEYS", classes="step-heading")
                 yield Label(
-                    "[dim]Configure one or multiple providers. Switch between pills or the dropdown to enter keys.[/dim]",
+                    "[dim]Select any engine pill below to enter its key. Configure multiple or just your favorite![/dim]",
                     classes="step-subheading"
                 )
 
-                # Quick Engine Switcher Pills
-                with Horizontal(id="welcome-provider-pills"):
-                    yield Button("🟢 Gemini", id="pill-prov-gemini", classes="prov-pill active-pill")
-                    yield Button("⚪ OpenRouter", id="pill-prov-openrouter", classes="prov-pill")
-                    yield Button("⚪ Anthropic", id="pill-prov-anthropic", classes="prov-pill")
-                    yield Button("⚪ OpenAI", id="pill-prov-openai", classes="prov-pill")
-                    yield Button("All Engines ▾", id="pill-prov-more", classes="prov-pill")
+                # Row 1: Cloud Frontier & Gateway (5 pills)
+                row1_specs = [s for s in PROVIDERS_REGISTRY if s.category in ("cloud", "gateway")][:5]
+                row2_specs = [s for s in PROVIDERS_REGISTRY if s not in row1_specs]
 
-                cur_prov = settings.breadwinner_llm_provider
-                valid_cur = cur_prov if any(v == cur_prov for _, v in self.provider_opts) else "gemini"
+                with Horizontal(classes="pills-row", id="welcome-provider-pills-row1"):
+                    for spec in row1_specs:
+                        yield Button(f"⚪ {spec.pill_label}", id=f"pill-prov-{spec.slug}", classes="prov-pill")
 
-                yield Select(
-                    self.get_styled_provider_opts(),
-                    value=valid_cur,
-                    id="select-welcome-provider"
-                )
+                # Row 2: Fast Inference, Local & Offline (5 pills)
+                with Horizontal(classes="pills-row", id="welcome-provider-pills-row2"):
+                    for spec in row2_specs:
+                        yield Button(f"⚪ {spec.pill_label}", id=f"pill-prov-{spec.slug}", classes="prov-pill")
 
-                initial_key = self.provider_keys.get(valid_cur, "")
+                active_spec = get_provider_spec(self.active_provider) or PROVIDERS_REGISTRY[0]
+                initial_key = self.provider_keys.get(self.active_provider, "")
+
                 yield Input(
                     value=initial_key,
-                    placeholder="Enter Google Gemini API Key (AIzaSy...)",
+                    placeholder=active_spec.key_placeholder,
                     password=True,
+                    disabled=not active_spec.requires_key,
                     id="input-welcome-api-key"
                 )
 
                 yield Static(
-                    "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
+                    active_spec.hint_text,
                     id="label-welcome-ai-hint"
                 )
 
@@ -562,8 +532,8 @@ class BakeryWelcomeModal(ModalScreen):
                 )
 
                 yield Select(
-                    self.provider_opts,
-                    value=valid_cur,
+                    self.get_step2_provider_opts(),
+                    value=self.active_provider,
                     id="select-active-provider"
                 )
 
@@ -572,7 +542,7 @@ class BakeryWelcomeModal(ModalScreen):
                     id="label-live-model-status"
                 )
 
-                initial_models = list(PROVIDER_MODELS.get(valid_cur, [("Default Model", "default")]))
+                initial_models = list(PROVIDER_MODELS.get(self.active_provider, [("Default Model", "default")]))
                 initial_models.append(("✎ Custom Model ID...", "custom"))
                 yield Select(
                     initial_models,
@@ -635,8 +605,7 @@ class BakeryWelcomeModal(ModalScreen):
                 status="Step 1 of 3: AI Engine & Keys",
                 badge="BREADWINNER SETUP STUDIO"
             )
-            cur_prov = str(self.query_one("#select-welcome-provider", Select).value)
-            self.update_pills(cur_prov)
+            self.select_provider(self.active_provider)
         else:
             self.query_one("#welcome-ai-step").styles.display = "none"
             self.query_one("#welcome-models-step").styles.display = "none"
@@ -667,8 +636,8 @@ class BakeryWelcomeModal(ModalScreen):
         if models_with_custom:
             model_select.value = models_with_custom[0][1]
 
-        slug_to_label = {slug: label for label, slug in self.provider_opts}
-        prov_name = slug_to_label.get(provider, provider.upper())
+        spec = get_provider_spec(provider)
+        prov_name = spec.name if spec else provider.upper()
         count = len(models)
         if is_live:
             status_label.update(f"[bold #52b788]✓ Live API Handshake Success:[/] Discovered {count} models directly from {prov_name}!")
@@ -686,85 +655,8 @@ class BakeryWelcomeModal(ModalScreen):
             )
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Handle dropdown updates across Step 1 and Step 2."""
-        if event.select.id == "select-welcome-provider":
-            # STEP 1: Provider selection
-            provider = str(event.value)
-            key_input = self.query_one("#input-welcome-api-key", Input)
-            hint = self.query_one("#label-welcome-ai-hint", Static)
-            mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
-
-            # Pre-load whatever key is known for this provider
-            key_input.value = self.provider_keys.get(provider, "")
-            self.update_pills(provider)
-
-            hints = {
-                "gemini": (
-                    "Enter Google Gemini API Key (AIzaSy...)",
-                    "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
-                    "Google Gemini selected! Generous free tier and ultra-high quality."
-                ),
-                "openrouter": (
-                    "Enter OpenRouter API Key (sk-or-...)",
-                    "[dim]Universal Gateway key: [underline]https://openrouter.ai/keys[/underline] (Access 300+ models)[/dim]",
-                    "OpenRouter selected! Universal access to Claude, GPT, DeepSeek, and Llama."
-                ),
-                "anthropic": (
-                    "Enter Anthropic Claude API Key (sk-ant-...)",
-                    "[dim]Anthropic API key: [underline]https://console.anthropic.com/settings/keys[/underline][/dim]",
-                    "Anthropic Claude selected! Gold standard career narrative reasoning."
-                ),
-                "openai": (
-                    "Enter OpenAI API Key (sk-proj-...)",
-                    "[dim]OpenAI API key: [underline]https://platform.openai.com/api-keys[/underline][/dim]",
-                    "OpenAI selected! Flagship GPT-4o intelligence and reasoning models."
-                ),
-                "deepseek": (
-                    "Enter DeepSeek API Key (sk-...)",
-                    "[dim]DeepSeek API key: [underline]https://platform.deepseek.com[/underline] (V3 & R1 models)[/dim]",
-                    "DeepSeek selected! Ultra-low cost frontier reasoning."
-                ),
-                "groq": (
-                    "Enter Groq API Key (gsk_...)",
-                    "[dim]Free Groq API key: [underline]https://console.groq.com/keys[/underline] (Llama 3.3)[/dim]",
-                    "Groq Cloud selected! Ultra-fast inference speeds."
-                ),
-                "mistral": (
-                    "Enter Mistral API Key (API key...)",
-                    "[dim]Mistral API key: [underline]https://console.mistral.ai/api-keys[/underline][/dim]",
-                    "Mistral AI selected! Premier open-weights frontier reasoning."
-                ),
-                "lmstudio": (
-                    "No API key required for local server",
-                    "[dim]Local inference via LM Studio at [underline]http://localhost:1234/v1[/underline][/dim]",
-                    "LM Studio selected! 100% offline local privacy on your hardware."
-                ),
-                "ollama": (
-                    "No API key required for local server",
-                    "[dim]Local inference via Ollama at [underline]http://localhost:11434/v1[/underline][/dim]",
-                    "Ollama selected! Local open-source models running on localhost."
-                ),
-                "mock": (
-                    "No API key required (Mock Test Drive)",
-                    "[dim]Instant testing mode without any API keys or network connection[/dim]",
-                    "Offline Mock selected! Perfect for an instant zero-setup test drive."
-                ),
-            }
-            placeholder, hint_text, mascot_msg = hints.get(
-                provider,
-                ("Enter API Key...", "[dim]Enter API Key[/dim]", f"{provider.upper()} selected.")
-            )
-            key_input.placeholder = placeholder
-            if provider in ("lmstudio", "ollama", "mock"):
-                key_input.disabled = True
-                key_input.value = ""
-            else:
-                key_input.disabled = False
-            hint.update(hint_text)
-            if self.current_step == 1:
-                mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()}")
-
-        elif event.select.id == "select-active-provider":
+        """Handle dropdown updates for Step 2 model and provider selection."""
+        if event.select.id == "select-active-provider":
             # STEP 2: Active provider changed
             if self.current_step == 2:
                 self.load_step_2_models(str(event.value))
@@ -781,8 +673,9 @@ class BakeryWelcomeModal(ModalScreen):
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle reactive updates as user types."""
         if event.input.id == "input-welcome-api-key":
-            prov = str(self.query_one("#select-welcome-provider", Select).value)
-            if prov not in ("lmstudio", "ollama", "mock"):
+            prov = self.active_provider
+            spec = get_provider_spec(prov)
+            if spec and spec.requires_key:
                 self.provider_keys[prov] = event.value.strip()
                 summary_label = self.query_one("#label-configured-keys-summary", Static)
                 summary_label.update(self.render_keys_summary())
@@ -843,51 +736,36 @@ class BakeryWelcomeModal(ModalScreen):
         # Quick Provider Switcher Pills
         if bid and bid.startswith("pill-prov-"):
             target_prov = bid.replace("pill-prov-", "")
-            if target_prov == "more":
-                try:
-                    self.query_one("#select-welcome-provider", Select).focus()
-                except Exception:
-                    pass
-            else:
-                sel = self.query_one("#select-welcome-provider", Select)
-                sel.value = target_prov
-                self.update_pills(target_prov)
+            self.select_provider(target_prov)
             return
 
         # -------------------------------------------------------------
         # STEP 1 -> STEP 2 (Save Keys & Trigger Live Discovery)
         # -------------------------------------------------------------
         if bid == "btn-welcome-save-ai":
-            current_prov = str(self.query_one("#select-welcome-provider", Select).value)
+            current_prov = self.active_provider
+            spec = get_provider_spec(current_prov)
+
             key_val = self.query_one("#input-welcome-api-key", Input).value.strip()
-            if key_val:
+            if key_val and spec and spec.requires_key:
                 self.provider_keys[current_prov] = key_val
 
-            required_key_providers = ("gemini", "openrouter", "anthropic", "openai", "deepseek", "groq", "mistral")
             has_any_key = any(bool(k.strip()) for k in self.provider_keys.values())
 
-            if current_prov in required_key_providers and not self.provider_keys.get(current_prov) and not has_any_key:
+            if spec and spec.requires_key and not self.provider_keys.get(current_prov) and not has_any_key:
                 self.app.notify("Please enter an API key, or choose 'Test Drive'!", severity="warning")
                 return
 
             # Save all non-empty configured keys into .env
             env_vars: Dict[str, str] = {
+                "BREADWINNER_LLM_PROVIDER": current_prov,
                 "AUTO_GENERATE_PDF": "true",
             }
-            env_key_map = {
-                "gemini": "GEMINI_API_KEY",
-                "openrouter": "OPENROUTER_API_KEY",
-                "anthropic": "ANTHROPIC_API_KEY",
-                "openai": "OPENAI_API_KEY",
-                "deepseek": "DEEPSEEK_API_KEY",
-                "groq": "GROQ_API_KEY",
-                "mistral": "MISTRAL_API_KEY",
-            }
+            env_key_map = get_provider_env_vars()
             for p, k in self.provider_keys.items():
                 if k and p in env_key_map:
                     env_vars[env_key_map[p]] = k
-            if env_vars:
-                save_env_config(env_vars)
+            save_env_config(env_vars)
 
             # Transition to Step 2
             self.current_step = 2
@@ -896,7 +774,7 @@ class BakeryWelcomeModal(ModalScreen):
             self.query_one("#welcome-pantry-step").styles.display = "none"
 
             active_select = self.query_one("#select-active-provider", Select)
-            active_select.set_options(self.provider_opts)
+            active_select.set_options(self.get_step2_provider_opts())
             active_select.value = current_prov
 
             self.load_step_2_models(current_prov)
@@ -966,8 +844,7 @@ class BakeryWelcomeModal(ModalScreen):
                 status="Step 1 of 3: AI Engine & Keys",
                 badge="SETUP STUDIO"
             )
-            cur_prov = str(self.query_one("#select-welcome-provider", Select).value)
-            self.update_pills(cur_prov)
+            self.select_provider(self.active_provider)
 
         # -------------------------------------------------------------
         # Instant Test Drive / Skip

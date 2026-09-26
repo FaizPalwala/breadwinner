@@ -144,9 +144,9 @@ async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
         assert models_step.styles.display == "none"
         assert pantry_step.styles.display == "none"
 
-        # Step 1: Select gemini explicitly and fill API key
-        sel = modal.query_one("#select-welcome-provider", Select)
-        sel.value = "gemini"
+        # Step 1: Select gemini via pill and fill API key
+        pill_gemini = modal.query_one("#pill-prov-gemini", Button)
+        pill_gemini.press()
         await pilot.pause()
 
         key_input = modal.query_one("#input-welcome-api-key", Input)
@@ -238,8 +238,8 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        sel_prov = modal.query_one("#select-welcome-provider", Select)
-        sel_prov.value = "mock"
+        pill_mock = modal.query_one("#pill-prov-mock", Button)
+        pill_mock.press()
         await pilot.pause()
 
         btn_save = modal.query_one("#btn-welcome-save-ai", Button)
@@ -289,9 +289,9 @@ async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        # Step 1: Configure key
-        sel_prov = modal.query_one("#select-welcome-provider", Select)
-        sel_prov.value = "gemini"
+        # Step 1: Configure key via pill
+        pill_gemini = modal.query_one("#pill-prov-gemini", Button)
+        pill_gemini.press()
         await pilot.pause()
 
         key_input = modal.query_one("#input-welcome-api-key", Input)
@@ -347,8 +347,8 @@ async def test_welcome_modal_openrouter_setup(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        sel_prov = modal.query_one("#select-welcome-provider", Select)
-        sel_prov.value = "openrouter"
+        pill_openrouter = modal.query_one("#pill-prov-openrouter", Button)
+        pill_openrouter.press()
         await pilot.pause()
 
         key_input = modal.query_one("#input-welcome-api-key", Input)
@@ -379,8 +379,8 @@ async def test_welcome_modal_back_to_keys(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        sel_prov = modal.query_one("#select-welcome-provider", Select)
-        sel_prov.value = "mock"
+        pill_mock = modal.query_one("#pill-prov-mock", Button)
+        pill_mock.press()
         await pilot.pause()
 
         btn_save = modal.query_one("#btn-welcome-save-ai", Button)
@@ -466,6 +466,54 @@ async def test_welcome_modal_multi_provider_key_configuration(tmp_path, monkeypa
     assert 'GEMINI_API_KEY="AIzaSyGeminiKey123"' in content
     assert 'OPENROUTER_API_KEY="sk-or-v1-OpenRouterKey456"' in content
     assert 'ANTHROPIC_API_KEY="sk-ant-AnthropicKey789"' in content
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_all_ten_provider_pills_interactive(tmp_path, monkeypatch):
+    """Verify that all 10 provider pills exist, dropdown is eliminated, and pill switching functions."""
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        # Step 1 should NOT have the redundant dropdown
+        with pytest.raises(Exception):
+            modal.query_one("#select-welcome-provider")
+
+        expected_slugs = [
+            "gemini", "openrouter", "anthropic", "openai", "deepseek",
+            "groq", "mistral", "ollama", "lmstudio", "mock"
+        ]
+
+        # Verify all 10 pills are mounted
+        for slug in expected_slugs:
+            pill = modal.query_one(f"#pill-prov-{slug}", Button)
+            assert pill is not None
+
+        key_input = modal.query_one("#input-welcome-api-key", Input)
+
+        # Click Ollama pill (local provider, key input disabled)
+        pill_ollama = modal.query_one("#pill-prov-ollama", Button)
+        pill_ollama.press()
+        await pilot.pause()
+
+        assert modal.active_provider == "ollama"
+        assert pill_ollama.has_class("active-pill")
+        assert key_input.disabled is True
+
+        # Click DeepSeek pill (frontier cloud, key input enabled)
+        pill_deepseek = modal.query_one("#pill-prov-deepseek", Button)
+        pill_deepseek.press()
+        await pilot.pause()
+
+        assert modal.active_provider == "deepseek"
+        assert pill_deepseek.has_class("active-pill")
+        assert not pill_ollama.has_class("active-pill")
+        assert key_input.disabled is False
+        assert "DeepSeek" in key_input.placeholder
+
 
 
 

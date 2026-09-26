@@ -27,6 +27,60 @@ class ProviderStatus(BaseModel):
     active_model: Optional[str] = None
 
 
+PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
+    "gemini": [
+        ("Gemini 2.0 Flash (Fastest, 1M context - Recommended)", "gemini-2.0-flash"),
+        ("Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)", "gemini-2.0-flash-lite"),
+        ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
+        ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
+    ],
+    "openrouter": [
+        ("Claude 3.7 Sonnet (Anthropic flagship via OpenRouter)", "anthropic/claude-3.7-sonnet"),
+        ("Claude 3.5 Sonnet (High intelligence via OpenRouter)", "anthropic/claude-3.5-sonnet"),
+        ("GPT-4o (OpenAI flagship via OpenRouter)", "openai/gpt-4o"),
+        ("Gemini 2.0 Flash (Google via OpenRouter)", "google/gemini-2.0-flash-001"),
+        ("DeepSeek R1 (Chain of thought logic via OpenRouter)", "deepseek/deepseek-r1"),
+        ("Llama 3.3 70B (Meta open weights via OpenRouter)", "meta-llama/llama-3.3-70b-instruct"),
+    ],
+    "anthropic": [
+        ("Claude 3.7 Sonnet (Hybrid fast/extended reasoning - Recommended)", "claude-3-7-sonnet-20250219"),
+        ("Claude 3.5 Sonnet (Gold standard prose & precision)", "claude-3-5-sonnet-20241022"),
+        ("Claude 3.5 Haiku (Fast & affordable lightweight model)", "claude-3-5-haiku-20241022"),
+    ],
+    "openai": [
+        ("GPT-4o (Flagship multimodal intelligence - Recommended)", "gpt-4o"),
+        ("GPT-4o Mini (High-speed & cost-efficient)", "gpt-4o-mini"),
+        ("o3-mini (High-speed STEM & logic reasoning)", "o3-mini"),
+        ("o1 (Deep analytical complex reasoning)", "o1"),
+    ],
+    "deepseek": [
+        ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
+        ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
+    ],
+    "groq": [
+        ("Llama 3.3 70B Versatile (Ultra-fast - Default)", "llama-3.3-70b-versatile"),
+        ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
+        ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
+    ],
+    "mistral": [
+        ("Mistral Large (Premier frontier reasoning)", "mistral-large-latest"),
+        ("Codestral (State-of-the-art coding)", "codestral-latest"),
+        ("Mistral Small (Fast & responsive)", "mistral-small-latest"),
+    ],
+    "lmstudio": [
+        ("local-model (Active loaded model in LM Studio)", "local-model"),
+    ],
+    "ollama": [
+        ("llama3.2 (Standard Llama 3.2)", "llama3.2"),
+        ("qwen2.5-coder (Qwen 2.5 Coder)", "qwen2.5-coder"),
+        ("deepseek-r1 (DeepSeek R1 Distill)", "deepseek-r1"),
+    ],
+    "mock": [
+        ("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic"),
+    ],
+}
+
+
 class ProviderDiscovery:
     """Discovers available LLM providers, health, and currently loaded models."""
 
@@ -495,58 +549,7 @@ class ProviderDiscovery:
             elif prov == "mistral":
                 key = settings.mistral_api_key or ""
 
-        fallbacks: Dict[str, List[Tuple[str, str]]] = {
-            "gemini": [
-                ("Gemini 2.0 Flash (Fastest, 1M context - Recommended)", "gemini-2.0-flash"),
-                ("Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)", "gemini-2.0-flash-lite"),
-                ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
-                ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
-            ],
-            "openrouter": [
-                ("Claude 3.7 Sonnet (Anthropic flagship via OpenRouter)", "anthropic/claude-3.7-sonnet"),
-                ("Claude 3.5 Sonnet (High intelligence via OpenRouter)", "anthropic/claude-3.5-sonnet"),
-                ("GPT-4o (OpenAI flagship via OpenRouter)", "openai/gpt-4o"),
-                ("Gemini 2.0 Flash (Google via OpenRouter)", "google/gemini-2.0-flash-001"),
-                ("DeepSeek R1 (Chain of thought logic via OpenRouter)", "deepseek/deepseek-r1"),
-                ("Llama 3.3 70B (Meta open weights via OpenRouter)", "meta-llama/llama-3.3-70b-instruct"),
-            ],
-            "anthropic": [
-                ("Claude 3.7 Sonnet (Hybrid fast/extended reasoning - Recommended)", "claude-3-7-sonnet-20250219"),
-                ("Claude 3.5 Sonnet (Gold standard prose & precision)", "claude-3-5-sonnet-20241022"),
-                ("Claude 3.5 Haiku (Fast & affordable lightweight model)", "claude-3-5-haiku-20241022"),
-            ],
-            "openai": [
-                ("GPT-4o (Flagship multimodal intelligence - Recommended)", "gpt-4o"),
-                ("GPT-4o Mini (High-speed & cost-efficient)", "gpt-4o-mini"),
-                ("o3-mini (High-speed STEM & logic reasoning)", "o3-mini"),
-                ("o1 (Deep analytical complex reasoning)", "o1"),
-            ],
-            "deepseek": [
-                ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
-                ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
-            ],
-            "groq": [
-                ("Llama 3.3 70B Versatile (Ultra-fast - Default)", "llama-3.3-70b-versatile"),
-                ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
-                ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
-            ],
-            "mistral": [
-                ("Mistral Large (Premier frontier reasoning)", "mistral-large-latest"),
-                ("Codestral (State-of-the-art coding)", "codestral-latest"),
-                ("Mistral Small (Fast & responsive)", "mistral-small-latest"),
-            ],
-            "lmstudio": [
-                ("local-model (Active loaded model in LM Studio)", "local-model"),
-            ],
-            "ollama": [
-                ("llama3.2 (Standard Llama 3.2)", "llama3.2"),
-                ("qwen2.5-coder (Qwen 2.5 Coder)", "qwen2.5-coder"),
-                ("deepseek-r1 (DeepSeek R1 Distill)", "deepseek-r1"),
-            ],
-            "mock": [
-                ("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic"),
-            ],
-        }
+        fallbacks = PROVIDER_MODELS
 
         if prov == "gemini" and key:
             try:
