@@ -165,7 +165,7 @@ PROVIDERS_REGISTRY: List[ProviderSpec] = [
     ProviderSpec(
         slug="mock",
         name="Offline Mock",
-        pill_label="Test Drive",
+        pill_label="Mock",
         category="mock",
         env_var=None,
         settings_key_attr=None,
@@ -177,6 +177,7 @@ PROVIDERS_REGISTRY: List[ProviderSpec] = [
         is_local=True,
         requires_key=False,
     ),
+
 ]
 
 

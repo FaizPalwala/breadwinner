@@ -90,20 +90,24 @@ BakeryWelcomeModal {
 
 .pills-row {
     height: 1;
+    width: 100%;
     align: center middle;
     margin-bottom: 1;
+    overflow: hidden hidden;
 }
 
 Button.-style-default.prov-pill, Button.prov-pill {
     height: 1;
-    min-width: 13;
+    width: 1fr;
+    min-width: 8;
     margin: 0 1;
-    padding: 0 1;
+    padding: 0;
     border: none;
     background: #232d42;
     color: #e2e8f0;
     text-style: bold;
 }
+
 
 Button.-style-default.prov-pill:hover, Button.prov-pill:hover {
     background: #3b4d6e;

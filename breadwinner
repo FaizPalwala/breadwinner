@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Breadwinner Root & Global Launcher Script
+# Resolves symlinks to locate the true project repository and invokes its virtualenv
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+PROJECT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+if [ -f "$PROJECT_DIR/.venv/bin/breadwinner" ]; then
+    exec "$PROJECT_DIR/.venv/bin/breadwinner" "$@"
+else
+    echo "Error: Virtual environment not found at $PROJECT_DIR/.venv"
+    echo "Run 'python3 -m venv .venv && source .venv/bin/activate && pip install -e .' first."
+    exit 1
+fi
