@@ -94,13 +94,17 @@ def test_try_expand_terminal(monkeypatch):
     monkeypatch.delenv("VSCODE_PID", raising=False)
     monkeypatch.setattr("shutil.get_terminal_size", lambda fallback=(80, 24): os.terminal_size((70, 20)))
 
+    try_expand_terminal()
+    assert any("\033[8;38;104t" in s for s in written)
+
+    written.clear()
     try_expand_terminal(100, 30)
     assert any("\033[8;30;100t" in s for s in written)
 
     # In VS Code environment, it must NOT emit escape codes
     written.clear()
     monkeypatch.setenv("TERM_PROGRAM", "vscode")
-    try_expand_terminal(100, 30)
+    try_expand_terminal()
     assert len(written) == 0
 
 

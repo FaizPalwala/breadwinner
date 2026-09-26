@@ -39,12 +39,12 @@ BakeryWelcomeModal {
     min-width: 78;
     max-width: 104;
     height: auto;
-    max-height: 94%;
+    max-height: 96%;
     background: #10141f;
     border: heavy #d4a373;
     padding: 1 2;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: hidden;
 }
 
 .welcome-title {
@@ -240,6 +240,14 @@ Button.-style-default.active-pill:hover, Button.prov-pill.active-pill:hover {
 
 #welcome-models-step {
     height: auto;
+    margin-bottom: 0;
+    display: none;
+}
+
+#label-step2-engine-badge {
+    text-align: center;
+    height: 1;
+    margin-top: 0;
     margin-bottom: 1;
     display: none;
 }
@@ -412,17 +420,45 @@ class BakeryWelcomeModal(ModalScreen):
 
         self.provider_keys: Dict[str, str] = get_configured_initial_keys()
 
-    def get_step2_provider_opts(self) -> List[Tuple[str, str]]:
-        """Return provider options formatted with live status indicators for Step 2 selector."""
-        opts = []
+    def get_configured_provider_slugs(self) -> List[str]:
+        """Return list of provider slugs that the user explicitly configured with a key or local/mock."""
+        configured = []
         for spec in PROVIDERS_REGISTRY:
             has_key = bool(self.provider_keys.get(spec.slug, "").strip())
-            if spec.is_local:
-                opts.append((f"🟢 {spec.name} (Ready)", spec.slug))
+            if has_key:
+                configured.append(spec.slug)
+            elif spec.is_local and spec.slug == self.active_provider:
+                configured.append(spec.slug)
+        if self.active_provider == "mock" and "mock" not in configured:
+            configured.append("mock")
+        if not configured:
+            configured = [self.active_provider]
+        elif self.active_provider not in configured:
+            configured.insert(0, self.active_provider)
+        return configured
+
+    def get_step2_provider_opts(self) -> List[Tuple[str, str]]:
+        """Return provider options formatted with live status indicators for Step 2 selector.
+
+        Strictly includes ONLY providers that have an API key configured or are ready local/mock.
+        Unconfigured cloud providers are strictly excluded.
+        """
+        configured_slugs = self.get_configured_provider_slugs()
+        if not configured_slugs:
+            configured_slugs = [self.active_provider]
+
+        opts = []
+        for slug in configured_slugs:
+            spec = get_provider_spec(slug)
+            name = spec.name if spec else slug.upper()
+            is_local = spec.is_local if spec else False
+            has_key = bool(self.provider_keys.get(slug, "").strip())
+            if is_local:
+                opts.append((f"🟢 {name} (Ready)", slug))
             elif has_key:
-                opts.append((f"🟢 {spec.name} (Key set)", spec.slug))
+                opts.append((f"🟢 {name} (Key set)", slug))
             else:
-                opts.append((f"⚪ {spec.name}", spec.slug))
+                opts.append((f"🟢 {name}", slug))
         return opts
 
     def render_keys_summary(self) -> str:
@@ -548,6 +584,11 @@ class BakeryWelcomeModal(ModalScreen):
                 yield Label(
                     "[dim]Live API handshake complete. Select your active engine and default model from the live registry below.[/dim]",
                     classes="step-subheading"
+                )
+
+                yield Static(
+                    "",
+                    id="label-step2-engine-badge"
                 )
 
                 yield Select(
@@ -677,8 +718,10 @@ class BakeryWelcomeModal(ModalScreen):
         """Handle dropdown updates for Step 2 model and provider selection."""
         if event.select.id == "select-active-provider":
             # STEP 2: Active provider changed
-            if self.current_step == 2:
-                self.load_step_2_models(str(event.value))
+            if self.current_step == 2 and event.value != Select.BLANK:
+                new_prov = str(event.value)
+                self.active_provider = new_prov
+                self.load_step_2_models(new_prov)
 
         elif event.select.id == "select-welcome-model":
             # STEP 2: Model changed (Custom Model toggle)
@@ -775,6 +818,14 @@ class BakeryWelcomeModal(ModalScreen):
                 self.app.notify("Please enter an API key, or choose 'Test Drive'!", severity="warning")
                 return
 
+            # If current active provider has no key and is not local, switch to first configured provider
+            if spec and spec.requires_key and not self.provider_keys.get(current_prov):
+                for p_slug, p_key in self.provider_keys.items():
+                    if p_key.strip():
+                        current_prov = p_slug
+                        self.active_provider = p_slug
+                        break
+
             # Save all non-empty configured keys into .env
             env_vars: Dict[str, str] = {
                 "BREADWINNER_LLM_PROVIDER": current_prov,
@@ -792,9 +843,26 @@ class BakeryWelcomeModal(ModalScreen):
             self.query_one("#welcome-models-step").styles.display = "block"
             self.query_one("#welcome-pantry-step").styles.display = "none"
 
+            opts = self.get_step2_provider_opts()
             active_select = self.query_one("#select-active-provider", Select)
-            active_select.set_options(self.get_step2_provider_opts())
+            active_select.set_options(opts)
+            if current_prov not in [val for _, val in opts]:
+                current_prov = opts[0][1]
+                self.active_provider = current_prov
             active_select.value = current_prov
+
+            engine_badge = self.query_one("#label-step2-engine-badge", Static)
+            if len(opts) == 1:
+                active_select.styles.display = "none"
+                active_spec = get_provider_spec(current_prov)
+                prov_name = active_spec.name if active_spec else current_prov.upper()
+                engine_badge.update(
+                    f"[bold #f4a261]ENGINE:[/] [bold #50fa7b]{prov_name}[/]  •  [dim]Live API Connected ✓[/dim]"
+                )
+                engine_badge.styles.display = "block"
+            else:
+                active_select.styles.display = "block"
+                engine_badge.styles.display = "none"
 
             self.load_step_2_models(current_prov)
 
@@ -802,7 +870,10 @@ class BakeryWelcomeModal(ModalScreen):
         # STEP 2 -> STEP 3 (Save Default Model & Transition to Pantry)
         # -------------------------------------------------------------
         elif bid == "btn-welcome-save-model":
-            active_prov = str(self.query_one("#select-active-provider", Select).value)
+            active_prov = self.active_provider
+            sel_widget = self.query_one("#select-active-provider", Select)
+            if sel_widget.value != Select.BLANK:
+                active_prov = str(sel_widget.value)
             model_val = str(self.query_one("#select-welcome-model", Select).value)
             custom_model_val = self.query_one("#input-welcome-custom-model", Input).value.strip()
 

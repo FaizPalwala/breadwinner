@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock
 from textual.app import App
-from textual.widgets import Input, TextArea, Button, Select
+from textual.widgets import Input, TextArea, Button, Select, Static
 
 from breadwinner.ui.welcome import BakeryWelcomeModal
 
@@ -230,7 +230,7 @@ async def test_welcome_modal_ai_skip(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
-    """Verify that Step 2 fetches and populates live models for active provider."""
+    """Verify that Step 2 fetches and populates live models for active configured providers."""
     monkeypatch.chdir(tmp_path)
 
     mock_pantry = MagicMock()
@@ -238,8 +238,17 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        pill_mock = modal.query_one("#pill-prov-mock", Button)
-        pill_mock.press()
+        # Configure keys for Groq and Gemini
+        pill_groq = modal.query_one("#pill-prov-groq", Button)
+        pill_groq.press()
+        await pilot.pause()
+        modal.query_one("#input-welcome-api-key", Input).value = "gsk_test123"
+        await pilot.pause()
+
+        pill_gemini = modal.query_one("#pill-prov-gemini", Button)
+        pill_gemini.press()
+        await pilot.pause()
+        modal.query_one("#input-welcome-api-key", Input).value = "AIzaSy_test123"
         await pilot.pause()
 
         btn_save = modal.query_one("#btn-welcome-save-ai", Button)
@@ -250,6 +259,14 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
         active_sel = modal.query_one("#select-active-provider", Select)
         model_sel = modal.query_one("#select-welcome-model", Select)
 
+        # Active provider options should contain configured providers (Gemini, Groq)
+        # and exclude unconfigured providers (Anthropic, OpenAI, etc.)
+        prov_values = [val for _, val in active_sel._options]
+        assert "groq" in prov_values
+        assert "gemini" in prov_values
+        assert "anthropic" not in prov_values
+        assert "openai" not in prov_values
+
         # Switch to Groq
         active_sel.value = "groq"
         await pilot.pause()
@@ -258,6 +275,41 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
         # Switch to Gemini
         active_sel.value = "gemini"
         await pilot.pause()
+        assert model_sel.value == "gemini-2.0-flash"
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_step2_single_provider_badge_and_filter(tmp_path, monkeypatch):
+    """Verify that when only 1 provider is configured, Step 2 displays a single-engine badge,
+    hides the provider select dropdown, and strictly populates its models."""
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        pill_gemini = modal.query_one("#pill-prov-gemini", Button)
+        pill_gemini.press()
+        await pilot.pause()
+        modal.query_one("#input-welcome-api-key", Input).value = "AIzaSy_only_gemini"
+        await pilot.pause()
+
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+        # In Step 2
+        active_sel = modal.query_one("#select-active-provider", Select)
+        badge = modal.query_one("#label-step2-engine-badge", Static)
+        model_sel = modal.query_one("#select-welcome-model", Select)
+
+        # Single provider badge should be visible, dropdown hidden
+        assert active_sel.styles.display == "none"
+        assert badge.styles.display == "block"
+        assert "Google Gemini" in str(badge.render())
+
+        # Models populated should be Gemini's, not Anthropic/OpenAI
         assert model_sel.value == "gemini-2.0-flash"
 
 
