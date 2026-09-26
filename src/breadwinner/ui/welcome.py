@@ -94,7 +94,7 @@ BakeryWelcomeModal {
     margin-bottom: 1;
 }
 
-.prov-pill {
+Button.-style-default.prov-pill, Button.prov-pill {
     height: 1;
     min-width: 13;
     margin: 0 1;
@@ -105,31 +105,40 @@ BakeryWelcomeModal {
     text-style: bold;
 }
 
-.prov-pill:hover {
+Button.-style-default.prov-pill:hover, Button.prov-pill:hover {
     background: #3b4d6e;
     color: #ffffff;
+    border: none;
 }
 
-.configured-pill {
+Button.-style-default.prov-pill:focus, Button.prov-pill:focus {
+    border: none;
+}
+
+Button.-style-default.configured-pill, Button.prov-pill.configured-pill {
     background: #17382d;
     color: #a7f3d0;
     text-style: bold;
+    border: none;
 }
 
-.configured-pill:hover {
+Button.-style-default.configured-pill:hover, Button.prov-pill.configured-pill:hover {
     background: #235443;
     color: #ffffff;
+    border: none;
 }
 
-.active-pill {
+Button.-style-default.active-pill, Button.prov-pill.active-pill {
     background: #f4a261;
     color: #0b0e17;
     text-style: bold;
+    border: none;
 }
 
-.active-pill:hover {
+Button.-style-default.active-pill:hover, Button.prov-pill.active-pill:hover {
     background: #e76f51;
     color: #0b0e17;
+    border: none;
 }
 
 #select-welcome-model, #select-active-provider {
@@ -277,7 +286,7 @@ BakeryWelcomeModal {
     margin: 1 0;
 }
 
-.tab-btn {
+Button.-style-default.tab-btn, Button.tab-btn {
     height: 1;
     min-width: 20;
     margin: 0 1;
@@ -288,15 +297,21 @@ BakeryWelcomeModal {
     text-style: bold;
 }
 
-.tab-btn:hover {
+Button.-style-default.tab-btn:hover, Button.tab-btn:hover {
     background: #3b4d6e;
     color: #ffffff;
+    border: none;
 }
 
-.active-tab {
+Button.-style-default.tab-btn:focus, Button.tab-btn:focus {
+    border: none;
+}
+
+Button.-style-default.active-tab, Button.tab-btn.active-tab {
     background: #f4a261;
     color: #0b0e17;
     text-style: bold;
+    border: none;
 }
 
 #welcome-dropzone-box {
