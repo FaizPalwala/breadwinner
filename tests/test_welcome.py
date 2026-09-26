@@ -401,4 +401,72 @@ async def test_welcome_modal_back_to_keys(tmp_path, monkeypatch):
         assert models_step.styles.display == "none"
 
 
+@pytest.mark.anyio
+async def test_welcome_modal_multi_provider_key_configuration(tmp_path, monkeypatch):
+    """Verify entering multiple keys using provider switcher pills and saving all to .env."""
+    env_file = tmp_path / ".env"
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        # Check Step 1 mascot dialogue is correct (not overwritten by Step 2)
+        mascot = modal.query_one("#welcome-mascot")
+        assert mascot.badge_title == "BREADWINNER SETUP STUDIO"
+        assert mascot.status_line.startswith("Engine:")
+
+        # Step 1: Click Gemini pill to ensure active engine is gemini
+        pill_gemini = modal.query_one("#pill-prov-gemini", Button)
+        pill_gemini.press()
+        await pilot.pause()
+
+        key_input = modal.query_one("#input-welcome-api-key", Input)
+        key_input.value = "AIzaSyGeminiKey123"
+        await pilot.pause()
+
+        # Click OpenRouter pill
+        pill_openrouter = modal.query_one("#pill-prov-openrouter", Button)
+        pill_openrouter.press()
+        await pilot.pause()
+
+        # Input should now reflect OpenRouter
+        assert key_input.placeholder.startswith("Enter OpenRouter")
+        key_input.value = "sk-or-v1-OpenRouterKey456"
+        await pilot.pause()
+
+        # Click Anthropic pill
+        pill_anthropic = modal.query_one("#pill-prov-anthropic", Button)
+        pill_anthropic.press()
+        await pilot.pause()
+
+        assert key_input.placeholder.startswith("Enter Anthropic")
+        key_input.value = "sk-ant-AnthropicKey789"
+        await pilot.pause()
+
+        # Verify provider keys tracked and summary
+        assert modal.provider_keys["gemini"] == "AIzaSyGeminiKey123"
+        assert modal.provider_keys["openrouter"] == "sk-or-v1-OpenRouterKey456"
+        assert modal.provider_keys["anthropic"] == "sk-ant-AnthropicKey789"
+        summary_text = modal.render_keys_summary()
+        assert "Google Gemini" in summary_text
+        assert "OpenRouter" in summary_text
+        assert "Anthropic Claude" in summary_text
+
+        # Advance to Step 2
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+        assert modal.query_one("#welcome-models-step").styles.display == "block"
+
+    assert env_file.exists()
+    content = env_file.read_text(encoding="utf-8")
+    assert 'GEMINI_API_KEY="AIzaSyGeminiKey123"' in content
+    assert 'OPENROUTER_API_KEY="sk-or-v1-OpenRouterKey456"' in content
+    assert 'ANTHROPIC_API_KEY="sk-ant-AnthropicKey789"' in content
+
+
+
 

@@ -1,7 +1,7 @@
 """First-run interactive onboarding modal for Breadwinner with Pokémon-style bakery aesthetic.
 
 Supports a guided 3-step setup:
-Step 1: Configure AI Providers & API Keys (multi-provider support)
+Step 1: Configure AI Providers & API Keys (multi-provider switcher pills & status badges)
 Step 2: Live Model Discovery & Default Model Selection (real-time API handshake)
 Step 3: Stock the Career Pantry (Resume Dropzone & Demo Loaf)
 """
@@ -27,7 +27,7 @@ BakeryWelcomeModal {
 }
 
 #welcome-container {
-    width: 90;
+    width: 96;
     height: auto;
     max-height: 94%;
     background: #10141f;
@@ -77,6 +77,34 @@ BakeryWelcomeModal {
     margin-bottom: 1;
 }
 
+#welcome-provider-pills {
+    height: 1;
+    align: center middle;
+    margin-bottom: 1;
+}
+
+.prov-pill {
+    height: 1;
+    min-width: 14;
+    margin: 0 1;
+    padding: 0 1;
+    border: none;
+    background: #1a2234;
+    color: #94a3b8;
+}
+
+.prov-pill:hover {
+    background: #25334d;
+    color: #fefae0;
+}
+
+.active-pill {
+    background: #2b3954;
+    color: #fefae0;
+    text-style: bold;
+    border-bottom: heavy #52b788;
+}
+
 #select-welcome-provider, #select-welcome-model, #select-active-provider {
     margin-bottom: 1;
 }
@@ -110,16 +138,17 @@ BakeryWelcomeModal {
     margin-bottom: 1;
 }
 
-#welcome-ai-action-bar {
+#welcome-ai-action-bar, #welcome-models-action-bar, #welcome-action-bar {
     align: center middle;
     height: 3;
     margin-top: 1;
 }
 
-#welcome-ai-action-bar Button {
+#welcome-ai-action-bar Button, #welcome-models-action-bar Button, #welcome-action-bar Button {
     margin: 0 1;
-    min-width: 15;
+    min-width: 12;
     height: 3;
+    padding: 0 1;
 }
 
 #btn-welcome-save-ai {
@@ -184,18 +213,6 @@ BakeryWelcomeModal {
 #input-welcome-custom-model {
     margin-bottom: 1;
     display: none;
-}
-
-#welcome-models-action-bar {
-    align: center middle;
-    height: 3;
-    margin-top: 1;
-}
-
-#welcome-models-action-bar Button {
-    margin: 0 1;
-    min-width: 15;
-    height: 3;
 }
 
 #btn-welcome-save-model {
@@ -296,18 +313,6 @@ BakeryWelcomeModal {
     color: #fefae0;
 }
 
-#welcome-action-bar {
-    align: center middle;
-    height: 3;
-    margin-top: 1;
-}
-
-#welcome-action-bar Button {
-    margin: 0 1;
-    min-width: 15;
-    height: 3;
-}
-
 #btn-welcome-stock {
     background: #1b4332;
     color: #d8f3dc;
@@ -404,6 +409,7 @@ class BakeryWelcomeModal(ModalScreen):
         super().__init__()
         self.pantry = pantry
         self.initial_step = initial_step
+        self.current_step = 1 if initial_step == "ai" else 3
         self.provider_opts: List[Tuple[str, str]] = [
             ("Google Gemini", "gemini"),
             ("OpenRouter", "openrouter"),
@@ -433,10 +439,24 @@ class BakeryWelcomeModal(ModalScreen):
         if settings.mistral_api_key:
             self.provider_keys["mistral"] = settings.mistral_api_key
 
+    def get_styled_provider_opts(self) -> List[Tuple[str, str]]:
+        """Return provider options formatted with live status indicators."""
+        opts = []
+        for label, slug in self.provider_opts:
+            has_key = bool(self.provider_keys.get(slug, "").strip())
+            if slug in ("lmstudio", "ollama", "mock"):
+                opts.append((f"🟢 {label} (Ready)", slug))
+            elif has_key:
+                opts.append((f"🟢 {label} (Key set)", slug))
+            else:
+                opts.append((f"⚪ {label}", slug))
+        return opts
+
     def render_keys_summary(self) -> str:
         """Render badge summary of configured keys."""
+        slug_to_label = {slug: label for label, slug in self.provider_opts}
         configured = [
-            dict(self.provider_opts).get(p, p)
+            slug_to_label.get(p, p)
             for p, k in self.provider_keys.items()
             if k and p not in ("lmstudio", "ollama", "mock")
         ]
@@ -444,6 +464,28 @@ class BakeryWelcomeModal(ModalScreen):
             summary = " • ".join(f"[bold #52b788]{name} ✓[/]" for name in configured)
             return f"[dim]Configured engines:[/] {summary}"
         return "[dim]No keys entered yet. Configure one or more providers above.[/dim]"
+
+    def update_pills(self, active_prov: str) -> None:
+        """Update provider switcher pills with active state and status icons."""
+        pills = ["gemini", "openrouter", "anthropic", "openai"]
+        pill_names = {
+            "gemini": "Gemini",
+            "openrouter": "OpenRouter",
+            "anthropic": "Anthropic",
+            "openai": "OpenAI"
+        }
+        for p in pills:
+            try:
+                pill = self.query_one(f"#pill-prov-{p}", Button)
+                has_key = bool(self.provider_keys.get(p, "").strip())
+                status_icon = "🟢" if has_key else "⚪"
+                pill.label = f"{status_icon} {pill_names[p]}"
+                if p == active_prov:
+                    pill.add_class("active-pill")
+                else:
+                    pill.remove_class("active-pill")
+            except Exception:
+                pass
 
     def compose(self) -> ComposeResult:
         with Vertical(id="welcome-container"):
@@ -464,15 +506,23 @@ class BakeryWelcomeModal(ModalScreen):
             with Vertical(id="welcome-ai-step"):
                 yield Label("STEP 1 OF 3: CONFIGURE AI ENGINES & API KEYS", classes="step-heading")
                 yield Label(
-                    "[dim]Select a provider and enter your API key. Configure one or multiple providers; keys are saved locally in .env (0600 permissions).[/dim]",
+                    "[dim]Configure one or multiple providers. Switch between pills or the dropdown to enter keys.[/dim]",
                     classes="step-subheading"
                 )
+
+                # Quick Engine Switcher Pills
+                with Horizontal(id="welcome-provider-pills"):
+                    yield Button("🟢 Gemini", id="pill-prov-gemini", classes="prov-pill active-pill")
+                    yield Button("⚪ OpenRouter", id="pill-prov-openrouter", classes="prov-pill")
+                    yield Button("⚪ Anthropic", id="pill-prov-anthropic", classes="prov-pill")
+                    yield Button("⚪ OpenAI", id="pill-prov-openai", classes="prov-pill")
+                    yield Button("All Engines ▾", id="pill-prov-more", classes="prov-pill")
 
                 cur_prov = settings.breadwinner_llm_provider
                 valid_cur = cur_prov if any(v == cur_prov for _, v in self.provider_opts) else "gemini"
 
                 yield Select(
-                    self.provider_opts,
+                    self.get_styled_provider_opts(),
                     value=valid_cur,
                     id="select-welcome-provider"
                 )
@@ -496,9 +546,9 @@ class BakeryWelcomeModal(ModalScreen):
                 )
 
                 with Horizontal(id="welcome-ai-action-bar"):
-                    yield Button("Next: Discover Live Models →", variant="success", id="btn-welcome-save-ai")
-                    yield Button("Instant Test Drive", variant="warning", id="btn-welcome-mock-drive")
-                    yield Button("Skip AI Setup", variant="default", id="btn-welcome-skip-ai")
+                    yield Button("Next: Discover Models →", variant="success", id="btn-welcome-save-ai")
+                    yield Button("Test Drive", variant="warning", id="btn-welcome-mock-drive")
+                    yield Button("Skip AI", variant="default", id="btn-welcome-skip-ai")
                     yield Button("Quit", variant="error", id="btn-welcome-exit")
 
             # -------------------------------------------------------------
@@ -574,16 +624,19 @@ class BakeryWelcomeModal(ModalScreen):
                     yield Button("Quit", variant="error", id="btn-welcome-exit-pantry")
 
     def on_mount(self) -> None:
+        self.current_step = 1 if self.initial_step == "ai" else 3
         if self.initial_step == "ai":
             self.query_one("#welcome-ai-step").styles.display = "block"
             self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "none"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
-                "Welcome, Apprentice! Select an engine and enter your API key(s) to ignite the hearth. You can configure multiple providers or just your favorite!",
+                "Welcome, Apprentice! Enter your API key(s) below to ignite the hearth. You can configure multiple providers or just your favorite!",
                 status="Step 1 of 3: AI Engine & Keys",
                 badge="BREADWINNER SETUP STUDIO"
             )
+            cur_prov = str(self.query_one("#select-welcome-provider", Select).value)
+            self.update_pills(cur_prov)
         else:
             self.query_one("#welcome-ai-step").styles.display = "none"
             self.query_one("#welcome-models-step").styles.display = "none"
@@ -597,6 +650,9 @@ class BakeryWelcomeModal(ModalScreen):
 
     def load_step_2_models(self, provider: str) -> None:
         """Fetch live models for active provider and populate model selector."""
+        if self.current_step != 2:
+            return
+
         key = self.provider_keys.get(provider, "")
         status_label = self.query_one("#label-live-model-status", Static)
         model_select = self.query_one("#select-welcome-model", Select)
@@ -611,7 +667,8 @@ class BakeryWelcomeModal(ModalScreen):
         if models_with_custom:
             model_select.value = models_with_custom[0][1]
 
-        prov_name = dict(self.provider_opts).get(provider, provider.upper())
+        slug_to_label = {slug: label for label, slug in self.provider_opts}
+        prov_name = slug_to_label.get(provider, provider.upper())
         count = len(models)
         if is_live:
             status_label.update(f"[bold #52b788]✓ Live API Handshake Success:[/] Discovered {count} models directly from {prov_name}!")
@@ -639,6 +696,7 @@ class BakeryWelcomeModal(ModalScreen):
 
             # Pre-load whatever key is known for this provider
             key_input.value = self.provider_keys.get(provider, "")
+            self.update_pills(provider)
 
             hints = {
                 "gemini": (
@@ -703,11 +761,13 @@ class BakeryWelcomeModal(ModalScreen):
             else:
                 key_input.disabled = False
             hint.update(hint_text)
-            mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()}")
+            if self.current_step == 1:
+                mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()}")
 
         elif event.select.id == "select-active-provider":
             # STEP 2: Active provider changed
-            self.load_step_2_models(str(event.value))
+            if self.current_step == 2:
+                self.load_step_2_models(str(event.value))
 
         elif event.select.id == "select-welcome-model":
             # STEP 2: Model changed (Custom Model toggle)
@@ -726,6 +786,7 @@ class BakeryWelcomeModal(ModalScreen):
                 self.provider_keys[prov] = event.value.strip()
                 summary_label = self.query_one("#label-configured-keys-summary", Static)
                 summary_label.update(self.render_keys_summary())
+                self.update_pills(prov)
             return
 
         if event.input.id != "input-welcome-source":
@@ -779,6 +840,20 @@ class BakeryWelcomeModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
 
+        # Quick Provider Switcher Pills
+        if bid and bid.startswith("pill-prov-"):
+            target_prov = bid.replace("pill-prov-", "")
+            if target_prov == "more":
+                try:
+                    self.query_one("#select-welcome-provider", Select).focus()
+                except Exception:
+                    pass
+            else:
+                sel = self.query_one("#select-welcome-provider", Select)
+                sel.value = target_prov
+                self.update_pills(target_prov)
+            return
+
         # -------------------------------------------------------------
         # STEP 1 -> STEP 2 (Save Keys & Trigger Live Discovery)
         # -------------------------------------------------------------
@@ -792,7 +867,7 @@ class BakeryWelcomeModal(ModalScreen):
             has_any_key = any(bool(k.strip()) for k in self.provider_keys.values())
 
             if current_prov in required_key_providers and not self.provider_keys.get(current_prov) and not has_any_key:
-                self.app.notify("Please enter an API key, or choose 'Instant Test Drive'!", severity="warning")
+                self.app.notify("Please enter an API key, or choose 'Test Drive'!", severity="warning")
                 return
 
             # Save all non-empty configured keys into .env
@@ -815,6 +890,7 @@ class BakeryWelcomeModal(ModalScreen):
                 save_env_config(env_vars)
 
             # Transition to Step 2
+            self.current_step = 2
             self.query_one("#welcome-ai-step").styles.display = "none"
             self.query_one("#welcome-models-step").styles.display = "block"
             self.query_one("#welcome-pantry-step").styles.display = "none"
@@ -863,6 +939,7 @@ class BakeryWelcomeModal(ModalScreen):
 
             save_env_config(env_vars)
 
+            self.current_step = 3
             self.query_one("#welcome-ai-step").styles.display = "none"
             self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
@@ -879,6 +956,7 @@ class BakeryWelcomeModal(ModalScreen):
         # STEP 2 -> STEP 1 (Back to API Keys)
         # -------------------------------------------------------------
         elif bid == "btn-welcome-back-to-keys":
+            self.current_step = 1
             self.query_one("#welcome-ai-step").styles.display = "block"
             self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "none"
@@ -888,6 +966,8 @@ class BakeryWelcomeModal(ModalScreen):
                 status="Step 1 of 3: AI Engine & Keys",
                 badge="SETUP STUDIO"
             )
+            cur_prov = str(self.query_one("#select-welcome-provider", Select).value)
+            self.update_pills(cur_prov)
 
         # -------------------------------------------------------------
         # Instant Test Drive / Skip
@@ -897,6 +977,7 @@ class BakeryWelcomeModal(ModalScreen):
                 "BREADWINNER_LLM_PROVIDER": "mock",
                 "AUTO_GENERATE_PDF": "true"
             })
+            self.current_step = 3
             self.query_one("#welcome-ai-step").styles.display = "none"
             self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
@@ -910,6 +991,7 @@ class BakeryWelcomeModal(ModalScreen):
             self.query_one("#input-welcome-source", Input).focus()
 
         elif bid == "btn-welcome-skip-ai":
+            self.current_step = 3
             self.query_one("#welcome-ai-step").styles.display = "none"
             self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
