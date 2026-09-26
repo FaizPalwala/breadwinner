@@ -1,8 +1,9 @@
 """First-run interactive onboarding modal for Breadwinner with Pokémon-style bakery aesthetic.
 
-Supports a guided 2-step setup:
-Step 1: Light the Oven Hearth (AI Provider, Model Selection & API Keys)
-Step 2: Stock the Career Pantry (Resume Dropzone & Demo Loaf)
+Supports a guided 3-step setup:
+Step 1: Configure AI Providers & API Keys (multi-provider support)
+Step 2: Live Model Discovery & Default Model Selection (real-time API handshake)
+Step 3: Stock the Career Pantry (Resume Dropzone & Demo Loaf)
 """
 
 import os
@@ -53,15 +54,6 @@ BakeryWelcomeModal {
     margin-bottom: 1;
 }
 
-/* ========================================================================= */
-/* STEP 1: AI ENGINE SETUP                                                   */
-/* ========================================================================= */
-
-#welcome-ai-step {
-    height: auto;
-    margin-bottom: 1;
-}
-
 .step-heading {
     text-align: center;
     color: #f4a261;
@@ -76,11 +68,20 @@ BakeryWelcomeModal {
     width: 100%;
 }
 
-#select-welcome-provider, #select-welcome-model {
+/* ========================================================================= */
+/* STEP 1: CONFIGURE AI ENGINES & API KEYS                                   */
+/* ========================================================================= */
+
+#welcome-ai-step {
+    height: auto;
     margin-bottom: 1;
 }
 
-#select-welcome-provider SelectCurrent, #select-welcome-model SelectCurrent {
+#select-welcome-provider, #select-welcome-model, #select-active-provider {
+    margin-bottom: 1;
+}
+
+#select-welcome-provider SelectCurrent, #select-welcome-model SelectCurrent, #select-active-provider SelectCurrent {
     border: round #d4a373;
     background: #0b0e17;
     color: #fefae0;
@@ -94,15 +95,17 @@ BakeryWelcomeModal {
     margin-bottom: 0;
 }
 
-#input-welcome-custom-model {
-    margin-bottom: 1;
-    display: none;
-}
-
 #label-welcome-ai-hint {
     text-align: center;
     height: 1;
     color: #a89f91;
+    margin-top: 0;
+    margin-bottom: 1;
+}
+
+#label-configured-keys-summary {
+    text-align: center;
+    height: 1;
     margin-top: 0;
     margin-bottom: 1;
 }
@@ -151,19 +154,73 @@ BakeryWelcomeModal {
     background: #334155;
 }
 
-#btn-welcome-exit, #btn-welcome-exit-pantry {
+#btn-welcome-exit, #btn-welcome-exit-models, #btn-welcome-exit-pantry {
     background: #3a1515;
     color: #ffcccc;
     border: heavy #e63946;
     text-style: bold;
 }
 
-#btn-welcome-exit:hover, #btn-welcome-exit-pantry:hover {
+#btn-welcome-exit:hover, #btn-welcome-exit-models:hover, #btn-welcome-exit-pantry:hover {
     background: #5c1e1e;
 }
 
 /* ========================================================================= */
-/* STEP 2: PANTRY INGREDIENTS SETUP                                          */
+/* STEP 2: LIVE MODEL REGISTRY & DEFAULT SELECTION                           */
+/* ========================================================================= */
+
+#welcome-models-step {
+    height: auto;
+    margin-bottom: 1;
+    display: none;
+}
+
+#label-live-model-status {
+    text-align: center;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#input-welcome-custom-model {
+    margin-bottom: 1;
+    display: none;
+}
+
+#welcome-models-action-bar {
+    align: center middle;
+    height: 3;
+    margin-top: 1;
+}
+
+#welcome-models-action-bar Button {
+    margin: 0 1;
+    min-width: 15;
+    height: 3;
+}
+
+#btn-welcome-save-model {
+    background: #1b4332;
+    color: #d8f3dc;
+    border: heavy #52b788;
+    text-style: bold;
+}
+
+#btn-welcome-save-model:hover {
+    background: #2d6a4f;
+}
+
+#btn-welcome-back-to-keys {
+    background: #1e293b;
+    color: #94a3b8;
+    border: heavy #475569;
+}
+
+#btn-welcome-back-to-keys:hover {
+    background: #334155;
+}
+
+/* ========================================================================= */
+/* STEP 3: PANTRY INGREDIENTS SETUP                                          */
 /* ========================================================================= */
 
 #welcome-pantry-step {
@@ -347,6 +404,46 @@ class BakeryWelcomeModal(ModalScreen):
         super().__init__()
         self.pantry = pantry
         self.initial_step = initial_step
+        self.provider_opts: List[Tuple[str, str]] = [
+            ("Google Gemini", "gemini"),
+            ("OpenRouter", "openrouter"),
+            ("Anthropic Claude", "anthropic"),
+            ("OpenAI", "openai"),
+            ("DeepSeek", "deepseek"),
+            ("Groq Cloud", "groq"),
+            ("Mistral AI", "mistral"),
+            ("LM Studio (Local)", "lmstudio"),
+            ("Ollama (Local)", "ollama"),
+            ("Offline Mock", "mock"),
+        ]
+        self.provider_keys: Dict[str, str] = {}
+        # Prepopulate with existing configured environment keys
+        if settings.gemini_api_key:
+            self.provider_keys["gemini"] = settings.gemini_api_key
+        if settings.openrouter_api_key:
+            self.provider_keys["openrouter"] = settings.openrouter_api_key
+        if settings.anthropic_api_key:
+            self.provider_keys["anthropic"] = settings.anthropic_api_key
+        if settings.openai_api_key:
+            self.provider_keys["openai"] = settings.openai_api_key
+        if settings.deepseek_api_key:
+            self.provider_keys["deepseek"] = settings.deepseek_api_key
+        if settings.groq_api_key:
+            self.provider_keys["groq"] = settings.groq_api_key
+        if settings.mistral_api_key:
+            self.provider_keys["mistral"] = settings.mistral_api_key
+
+    def render_keys_summary(self) -> str:
+        """Render badge summary of configured keys."""
+        configured = [
+            dict(self.provider_opts).get(p, p)
+            for p, k in self.provider_keys.items()
+            if k and p not in ("lmstudio", "ollama", "mock")
+        ]
+        if configured:
+            summary = " • ".join(f"[bold #52b788]{name} ✓[/]" for name in configured)
+            return f"[dim]Configured engines:[/] {summary}"
+        return "[dim]No keys entered yet. Configure one or more providers above.[/dim]"
 
     def compose(self) -> ComposeResult:
         with Vertical(id="welcome-container"):
@@ -362,34 +459,67 @@ class BakeryWelcomeModal(ModalScreen):
                 yield PokemonBakeryCounter(id="welcome-mascot")
 
             # -------------------------------------------------------------
-            # STEP 1: AI Engine Setup
+            # STEP 1: CONFIGURE AI ENGINES & API KEYS
             # -------------------------------------------------------------
             with Vertical(id="welcome-ai-step"):
-                yield Label("STEP 1: LIGHT THE OVEN FIRE (AI ENGINE)", classes="step-heading")
+                yield Label("STEP 1 OF 3: CONFIGURE AI ENGINES & API KEYS", classes="step-heading")
                 yield Label(
-                    "[dim]Choose your AI intelligence engine. Keys are safely stored locally in .env (0600 private permissions).[/dim]",
+                    "[dim]Select a provider and enter your API key. Configure one or multiple providers; keys are saved locally in .env (0600 permissions).[/dim]",
                     classes="step-subheading"
                 )
 
-                provider_opts = [
-                    ("Google Gemini", "gemini"),
-                    ("OpenRouter", "openrouter"),
-                    ("Anthropic Claude", "anthropic"),
-                    ("OpenAI", "openai"),
-                    ("DeepSeek", "deepseek"),
-                    ("Groq Cloud", "groq"),
-                    ("Mistral AI", "mistral"),
-                    ("LM Studio (Local)", "lmstudio"),
-                    ("Ollama (Local)", "ollama"),
-                    ("Offline Mock", "mock"),
-                ]
                 cur_prov = settings.breadwinner_llm_provider
-                valid_cur = cur_prov if any(v == cur_prov for _, v in provider_opts) else "gemini"
+                valid_cur = cur_prov if any(v == cur_prov for _, v in self.provider_opts) else "gemini"
 
                 yield Select(
-                    provider_opts,
+                    self.provider_opts,
                     value=valid_cur,
                     id="select-welcome-provider"
+                )
+
+                initial_key = self.provider_keys.get(valid_cur, "")
+                yield Input(
+                    value=initial_key,
+                    placeholder="Enter Google Gemini API Key (AIzaSy...)",
+                    password=True,
+                    id="input-welcome-api-key"
+                )
+
+                yield Static(
+                    "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
+                    id="label-welcome-ai-hint"
+                )
+
+                yield Static(
+                    self.render_keys_summary(),
+                    id="label-configured-keys-summary"
+                )
+
+                with Horizontal(id="welcome-ai-action-bar"):
+                    yield Button("Next: Discover Live Models →", variant="success", id="btn-welcome-save-ai")
+                    yield Button("Instant Test Drive", variant="warning", id="btn-welcome-mock-drive")
+                    yield Button("Skip AI Setup", variant="default", id="btn-welcome-skip-ai")
+                    yield Button("Quit", variant="error", id="btn-welcome-exit")
+
+            # -------------------------------------------------------------
+            # STEP 2: LIVE MODEL DISCOVERY & DEFAULT SELECTION
+            # -------------------------------------------------------------
+            with Vertical(id="welcome-models-step"):
+                yield Label("STEP 2 OF 3: LIVE MODEL DISCOVERY & DEFAULT SELECTION", classes="step-heading")
+                yield Label(
+                    "[dim]Live API handshake complete. Select your active engine and default model from the live registry below.[/dim]",
+                    classes="step-subheading"
+                )
+
+                yield Select(
+                    self.provider_opts,
+                    value=valid_cur,
+                    id="select-active-provider"
+                )
+
+                yield Static(
+                    "[dim]Connecting to provider model registry...[/dim]",
+                    id="label-live-model-status"
                 )
 
                 initial_models = list(PROVIDER_MODELS.get(valid_cur, [("Default Model", "default")]))
@@ -405,28 +535,16 @@ class BakeryWelcomeModal(ModalScreen):
                     id="input-welcome-custom-model"
                 )
 
-                yield Input(
-                    placeholder="Enter Google Gemini API Key (AIzaSy...)",
-                    password=True,
-                    id="input-welcome-api-key"
-                )
-
-                yield Static(
-                    "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
-                    id="label-welcome-ai-hint"
-                )
-
-                with Horizontal(id="welcome-ai-action-bar"):
-                    yield Button("Save & Continue", variant="success", id="btn-welcome-save-ai")
-                    yield Button("Instant Test Drive", variant="warning", id="btn-welcome-mock-drive")
-                    yield Button("Skip AI Setup", variant="default", id="btn-welcome-skip-ai")
-                    yield Button("Quit", variant="error", id="btn-welcome-exit")
+                with Horizontal(id="welcome-models-action-bar"):
+                    yield Button("Save & Continue to Pantry →", variant="success", id="btn-welcome-save-model")
+                    yield Button("← Back to Keys", variant="default", id="btn-welcome-back-to-keys")
+                    yield Button("Quit", variant="error", id="btn-welcome-exit-models")
 
             # -------------------------------------------------------------
-            # STEP 2: Career Pantry Setup
+            # STEP 3: CAREER PANTRY SETUP
             # -------------------------------------------------------------
             with Vertical(id="welcome-pantry-step"):
-                yield Label("STEP 2: STOCK THE PANTRY (CAREER INGREDIENTS)", classes="step-heading")
+                yield Label("STEP 3 OF 3: STOCK THE PANTRY (CAREER INGREDIENTS)", classes="step-heading")
                 # Input Mode Selector Tabs
                 with Horizontal(id="welcome-mode-tabs"):
                     yield Button("Drop File / URL (Recommended)", id="btn-tab-dropzone", classes="tab-btn active-tab")
@@ -458,15 +576,17 @@ class BakeryWelcomeModal(ModalScreen):
     def on_mount(self) -> None:
         if self.initial_step == "ai":
             self.query_one("#welcome-ai-step").styles.display = "block"
+            self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "none"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
-                "Welcome, Apprentice! Choose your AI intelligence engine and enter your key (saved locally in .env).",
-                status="Step 1 of 2: AI Engine Setup",
+                "Welcome, Apprentice! Select an engine and enter your API key(s) to ignite the hearth. You can configure multiple providers or just your favorite!",
+                status="Step 1 of 3: AI Engine & Keys",
                 badge="BREADWINNER SETUP STUDIO"
             )
         else:
             self.query_one("#welcome-ai-step").styles.display = "none"
+            self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
@@ -475,103 +595,139 @@ class BakeryWelcomeModal(ModalScreen):
                 badge="BREADWINNER PANTRY"
             )
 
+    def load_step_2_models(self, provider: str) -> None:
+        """Fetch live models for active provider and populate model selector."""
+        key = self.provider_keys.get(provider, "")
+        status_label = self.query_one("#label-live-model-status", Static)
+        model_select = self.query_one("#select-welcome-model", Select)
+        custom_input = self.query_one("#input-welcome-custom-model", Input)
+        custom_input.styles.display = "none"
+        mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
+
+        models, is_live = ProviderDiscovery.fetch_models_with_status(provider, api_key=key)
+        models_with_custom = list(models)
+        models_with_custom.append(("✎ Custom Model ID...", "custom"))
+        model_select.set_options(models_with_custom)
+        if models_with_custom:
+            model_select.value = models_with_custom[0][1]
+
+        prov_name = dict(self.provider_opts).get(provider, provider.upper())
+        count = len(models)
+        if is_live:
+            status_label.update(f"[bold #52b788]✓ Live API Handshake Success:[/] Discovered {count} models directly from {prov_name}!")
+            mascot.set_dialogue(
+                f"Connected to {prov_name}! Discovered {count} live models. Select your default model or type a custom one!",
+                status=f"Live Handshake: {count} Models",
+                badge="LIVE REGISTRY"
+            )
+        else:
+            status_label.update(f"[dim]Showing {count} verified curated models for {prov_name}[/dim]")
+            mascot.set_dialogue(
+                f"Selected {prov_name}. Pick your default model from the verified list below or enter a custom model ID.",
+                status=f"Curated: {count} Models",
+                badge="MODEL SELECTION"
+            )
+
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Dynamically update model options, key input and hint based on selected provider or custom model toggle."""
-        if event.select.id == "select-welcome-model":
+        """Handle dropdown updates across Step 1 and Step 2."""
+        if event.select.id == "select-welcome-provider":
+            # STEP 1: Provider selection
+            provider = str(event.value)
+            key_input = self.query_one("#input-welcome-api-key", Input)
+            hint = self.query_one("#label-welcome-ai-hint", Static)
+            mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
+
+            # Pre-load whatever key is known for this provider
+            key_input.value = self.provider_keys.get(provider, "")
+
+            hints = {
+                "gemini": (
+                    "Enter Google Gemini API Key (AIzaSy...)",
+                    "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
+                    "Google Gemini selected! Generous free tier and ultra-high quality."
+                ),
+                "openrouter": (
+                    "Enter OpenRouter API Key (sk-or-...)",
+                    "[dim]Universal Gateway key: [underline]https://openrouter.ai/keys[/underline] (Access 300+ models)[/dim]",
+                    "OpenRouter selected! Universal access to Claude, GPT, DeepSeek, and Llama."
+                ),
+                "anthropic": (
+                    "Enter Anthropic Claude API Key (sk-ant-...)",
+                    "[dim]Anthropic API key: [underline]https://console.anthropic.com/settings/keys[/underline][/dim]",
+                    "Anthropic Claude selected! Gold standard career narrative reasoning."
+                ),
+                "openai": (
+                    "Enter OpenAI API Key (sk-proj-...)",
+                    "[dim]OpenAI API key: [underline]https://platform.openai.com/api-keys[/underline][/dim]",
+                    "OpenAI selected! Flagship GPT-4o intelligence and reasoning models."
+                ),
+                "deepseek": (
+                    "Enter DeepSeek API Key (sk-...)",
+                    "[dim]DeepSeek API key: [underline]https://platform.deepseek.com[/underline] (V3 & R1 models)[/dim]",
+                    "DeepSeek selected! Ultra-low cost frontier reasoning."
+                ),
+                "groq": (
+                    "Enter Groq API Key (gsk_...)",
+                    "[dim]Free Groq API key: [underline]https://console.groq.com/keys[/underline] (Llama 3.3)[/dim]",
+                    "Groq Cloud selected! Ultra-fast inference speeds."
+                ),
+                "mistral": (
+                    "Enter Mistral API Key (API key...)",
+                    "[dim]Mistral API key: [underline]https://console.mistral.ai/api-keys[/underline][/dim]",
+                    "Mistral AI selected! Premier open-weights frontier reasoning."
+                ),
+                "lmstudio": (
+                    "No API key required for local server",
+                    "[dim]Local inference via LM Studio at [underline]http://localhost:1234/v1[/underline][/dim]",
+                    "LM Studio selected! 100% offline local privacy on your hardware."
+                ),
+                "ollama": (
+                    "No API key required for local server",
+                    "[dim]Local inference via Ollama at [underline]http://localhost:11434/v1[/underline][/dim]",
+                    "Ollama selected! Local open-source models running on localhost."
+                ),
+                "mock": (
+                    "No API key required (Mock Test Drive)",
+                    "[dim]Instant testing mode without any API keys or network connection[/dim]",
+                    "Offline Mock selected! Perfect for an instant zero-setup test drive."
+                ),
+            }
+            placeholder, hint_text, mascot_msg = hints.get(
+                provider,
+                ("Enter API Key...", "[dim]Enter API Key[/dim]", f"{provider.upper()} selected.")
+            )
+            key_input.placeholder = placeholder
+            if provider in ("lmstudio", "ollama", "mock"):
+                key_input.disabled = True
+                key_input.value = ""
+            else:
+                key_input.disabled = False
+            hint.update(hint_text)
+            mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()}")
+
+        elif event.select.id == "select-active-provider":
+            # STEP 2: Active provider changed
+            self.load_step_2_models(str(event.value))
+
+        elif event.select.id == "select-welcome-model":
+            # STEP 2: Model changed (Custom Model toggle)
             custom_input = self.query_one("#input-welcome-custom-model", Input)
             if str(event.value) == "custom":
                 custom_input.styles.display = "block"
                 custom_input.focus()
             else:
                 custom_input.styles.display = "none"
-            return
-
-        if event.select.id != "select-welcome-provider":
-            return
-
-        provider = str(event.value)
-        key_input = self.query_one("#input-welcome-api-key", Input)
-        hint = self.query_one("#label-welcome-ai-hint", Static)
-        mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
-        model_select = self.query_one("#select-welcome-model", Select)
-        custom_input = self.query_one("#input-welcome-custom-model", Input)
-        custom_input.styles.display = "none"
-
-        # Update available models dropdown for selected provider
-        api_key = key_input.value.strip() if key_input else ""
-        available_models = list(ProviderDiscovery.fetch_models_for_provider(provider, api_key=api_key))
-        available_models.append(("✎ Custom Model ID...", "custom"))
-        model_select.set_options(available_models)
-        if available_models:
-            model_select.value = available_models[0][1]
-
-        hints = {
-            "gemini": (
-                "Enter Google Gemini API Key (AIzaSy...)",
-                "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
-                "Google Gemini selected! Generous free tier and ultra-high quality."
-            ),
-            "openrouter": (
-                "Enter OpenRouter API Key (sk-or-...)",
-                "[dim]Universal Gateway key: [underline]https://openrouter.ai/keys[/underline] (Access 300+ models)[/dim]",
-                "OpenRouter selected! Universal access to Claude, GPT, DeepSeek, and Llama."
-            ),
-            "anthropic": (
-                "Enter Anthropic Claude API Key (sk-ant-...)",
-                "[dim]Anthropic API key: [underline]https://console.anthropic.com/settings/keys[/underline][/dim]",
-                "Anthropic Claude selected! Gold standard career narrative reasoning."
-            ),
-            "openai": (
-                "Enter OpenAI API Key (sk-proj-...)",
-                "[dim]OpenAI API key: [underline]https://platform.openai.com/api-keys[/underline][/dim]",
-                "OpenAI selected! Flagship GPT-4o intelligence and reasoning models."
-            ),
-            "deepseek": (
-                "Enter DeepSeek API Key (sk-...)",
-                "[dim]DeepSeek API key: [underline]https://platform.deepseek.com[/underline] (V3 & R1 models)[/dim]",
-                "DeepSeek selected! Ultra-low cost frontier reasoning."
-            ),
-            "groq": (
-                "Enter Groq API Key (gsk_...)",
-                "[dim]Free Groq API key: [underline]https://console.groq.com/keys[/underline] (Llama 3.3)[/dim]",
-                "Groq Cloud selected! Ultra-fast inference speeds."
-            ),
-            "mistral": (
-                "Enter Mistral API Key (API key...)",
-                "[dim]Mistral API key: [underline]https://console.mistral.ai/api-keys[/underline][/dim]",
-                "Mistral AI selected! Premier open-weights frontier reasoning."
-            ),
-            "lmstudio": (
-                "No API key required for local server",
-                "[dim]Local inference via LM Studio at [underline]http://localhost:1234/v1[/underline][/dim]",
-                "LM Studio selected! 100% offline local privacy on your hardware."
-            ),
-            "ollama": (
-                "No API key required for local server",
-                "[dim]Local inference via Ollama at [underline]http://localhost:11434/v1[/underline][/dim]",
-                "Ollama selected! Local open-source models running on localhost."
-            ),
-            "mock": (
-                "No API key required (Mock Test Drive)",
-                "[dim]Instant testing mode without any API keys or network connection[/dim]",
-                "Offline Mock selected! Perfect for an instant zero-setup test drive."
-            ),
-        }
-        placeholder, hint_text, mascot_msg = hints.get(
-            provider,
-            ("Enter API Key...", "[dim]Enter API Key[/dim]", f"{provider.upper()} selected.")
-        )
-        key_input.placeholder = placeholder
-        if provider in ("lmstudio", "ollama", "mock"):
-            key_input.disabled = True
-            key_input.value = ""
-        else:
-            key_input.disabled = False
-        hint.update(hint_text)
-        mascot.set_dialogue(mascot_msg, status=f"Engine: {provider.upper()}")
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Reactive inspection when user drags and drops a file or pastes a link."""
+        """Handle reactive updates as user types."""
+        if event.input.id == "input-welcome-api-key":
+            prov = str(self.query_one("#select-welcome-provider", Select).value)
+            if prov not in ("lmstudio", "ollama", "mock"):
+                self.provider_keys[prov] = event.value.strip()
+                summary_label = self.query_one("#label-configured-keys-summary", Static)
+                summary_label.update(self.render_keys_summary())
+            return
+
         if event.input.id != "input-welcome-source":
             return
 
@@ -623,8 +779,57 @@ class BakeryWelcomeModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
 
+        # -------------------------------------------------------------
+        # STEP 1 -> STEP 2 (Save Keys & Trigger Live Discovery)
+        # -------------------------------------------------------------
         if bid == "btn-welcome-save-ai":
-            provider = str(self.query_one("#select-welcome-provider", Select).value)
+            current_prov = str(self.query_one("#select-welcome-provider", Select).value)
+            key_val = self.query_one("#input-welcome-api-key", Input).value.strip()
+            if key_val:
+                self.provider_keys[current_prov] = key_val
+
+            required_key_providers = ("gemini", "openrouter", "anthropic", "openai", "deepseek", "groq", "mistral")
+            has_any_key = any(bool(k.strip()) for k in self.provider_keys.values())
+
+            if current_prov in required_key_providers and not self.provider_keys.get(current_prov) and not has_any_key:
+                self.app.notify("Please enter an API key, or choose 'Instant Test Drive'!", severity="warning")
+                return
+
+            # Save all non-empty configured keys into .env
+            env_vars: Dict[str, str] = {
+                "AUTO_GENERATE_PDF": "true",
+            }
+            env_key_map = {
+                "gemini": "GEMINI_API_KEY",
+                "openrouter": "OPENROUTER_API_KEY",
+                "anthropic": "ANTHROPIC_API_KEY",
+                "openai": "OPENAI_API_KEY",
+                "deepseek": "DEEPSEEK_API_KEY",
+                "groq": "GROQ_API_KEY",
+                "mistral": "MISTRAL_API_KEY",
+            }
+            for p, k in self.provider_keys.items():
+                if k and p in env_key_map:
+                    env_vars[env_key_map[p]] = k
+            if env_vars:
+                save_env_config(env_vars)
+
+            # Transition to Step 2
+            self.query_one("#welcome-ai-step").styles.display = "none"
+            self.query_one("#welcome-models-step").styles.display = "block"
+            self.query_one("#welcome-pantry-step").styles.display = "none"
+
+            active_select = self.query_one("#select-active-provider", Select)
+            active_select.set_options(self.provider_opts)
+            active_select.value = current_prov
+
+            self.load_step_2_models(current_prov)
+
+        # -------------------------------------------------------------
+        # STEP 2 -> STEP 3 (Save Default Model & Transition to Pantry)
+        # -------------------------------------------------------------
+        elif bid == "btn-welcome-save-model":
+            active_prov = str(self.query_one("#select-active-provider", Select).value)
             model_val = str(self.query_one("#select-welcome-model", Select).value)
             custom_model_val = self.query_one("#input-welcome-custom-model", Input).value.strip()
 
@@ -634,88 +839,71 @@ class BakeryWelcomeModal(ModalScreen):
                     return
                 model_val = custom_model_val
 
-            key_val = self.query_one("#input-welcome-api-key", Input).value.strip()
-
-            required_key_providers = ("gemini", "openrouter", "anthropic", "openai", "deepseek", "groq", "mistral")
-            if provider in required_key_providers and not key_val:
-                env_key_map = {
-                    "gemini": "GEMINI_API_KEY",
-                    "openrouter": "OPENROUTER_API_KEY",
-                    "anthropic": "ANTHROPIC_API_KEY",
-                    "openai": "OPENAI_API_KEY",
-                    "deepseek": "DEEPSEEK_API_KEY",
-                    "groq": "GROQ_API_KEY",
-                    "mistral": "MISTRAL_API_KEY",
-                }
-                existing_key = os.environ.get(env_key_map.get(provider, ""))
-                if not existing_key:
-                    self.app.notify("Please enter an API key, or choose 'Instant Test Drive'!", severity="warning")
-                    return
-                key_val = existing_key
-
             env_vars: Dict[str, str] = {
-                "BREADWINNER_LLM_PROVIDER": provider,
+                "BREADWINNER_LLM_PROVIDER": active_prov,
                 "AUTO_GENERATE_PDF": "true",
             }
-            if provider == "gemini":
-                if key_val:
-                    env_vars["GEMINI_API_KEY"] = key_val
-                env_vars["GEMINI_MODEL"] = model_val or "gemini-2.0-flash"
-            elif provider == "openrouter":
-                if key_val:
-                    env_vars["OPENROUTER_API_KEY"] = key_val
-                env_vars["OPENROUTER_MODEL"] = model_val or "anthropic/claude-3.7-sonnet"
-            elif provider == "anthropic":
-                if key_val:
-                    env_vars["ANTHROPIC_API_KEY"] = key_val
-                env_vars["ANTHROPIC_MODEL"] = model_val or "claude-3-7-sonnet-20250219"
-            elif provider == "openai":
-                if key_val:
-                    env_vars["OPENAI_API_KEY"] = key_val
-                env_vars["OPENAI_MODEL"] = model_val or "gpt-4o"
-            elif provider == "deepseek":
-                if key_val:
-                    env_vars["DEEPSEEK_API_KEY"] = key_val
-                env_vars["DEEPSEEK_MODEL"] = model_val or "deepseek-chat"
-            elif provider == "groq":
-                if key_val:
-                    env_vars["GROQ_API_KEY"] = key_val
-                env_vars["GROQ_MODEL"] = model_val or "llama-3.3-70b-versatile"
-            elif provider == "mistral":
-                if key_val:
-                    env_vars["MISTRAL_API_KEY"] = key_val
-                env_vars["MISTRAL_MODEL"] = model_val or "mistral-large-latest"
-            elif provider == "lmstudio":
+            model_env_map = {
+                "gemini": "GEMINI_MODEL",
+                "openrouter": "OPENROUTER_MODEL",
+                "anthropic": "ANTHROPIC_MODEL",
+                "openai": "OPENAI_MODEL",
+                "deepseek": "DEEPSEEK_MODEL",
+                "groq": "GROQ_MODEL",
+                "mistral": "MISTRAL_MODEL",
+                "lmstudio": "LMSTUDIO_MODEL",
+                "ollama": "OLLAMA_MODEL",
+            }
+            if active_prov in model_env_map and model_val:
+                env_vars[model_env_map[active_prov]] = model_val
+            if active_prov == "lmstudio":
                 env_vars["LMSTUDIO_BASE_URL"] = "http://localhost:1234/v1"
-                env_vars["LMSTUDIO_MODEL"] = model_val or "local-model"
-            elif provider == "ollama":
+            elif active_prov == "ollama":
                 env_vars["OLLAMA_BASE_URL"] = "http://localhost:11434/v1"
-                env_vars["OLLAMA_MODEL"] = model_val or "llama3.2"
 
             save_env_config(env_vars)
 
             self.query_one("#welcome-ai-step").styles.display = "none"
+            self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
-                f"Hearth fire lit with {provider.upper()} ({model_val})! Drop your resume or click Load Demo Loaf to stock your pantry!",
-                status="Step 2 of 2: Stock Career Pantry",
+                f"Hearth fire lit with {active_prov.upper()} ({model_val})! Drop your resume or click Load Demo Loaf to stock your pantry!",
+                status="Step 3 of 3: Stock Career Pantry",
                 badge="CRUMB'S PANTRY"
             )
-            self.app.notify(f"✓ AI Engine Configured: {provider.upper()} ({model_val})", title="Oven Fire Lit")
+            self.app.notify(f"✓ AI Engine Configured: {active_prov.upper()} ({model_val})", title="Oven Fire Lit")
             self.query_one("#input-welcome-source", Input).focus()
 
+        # -------------------------------------------------------------
+        # STEP 2 -> STEP 1 (Back to API Keys)
+        # -------------------------------------------------------------
+        elif bid == "btn-welcome-back-to-keys":
+            self.query_one("#welcome-ai-step").styles.display = "block"
+            self.query_one("#welcome-models-step").styles.display = "none"
+            self.query_one("#welcome-pantry-step").styles.display = "none"
+            mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
+            mascot.set_dialogue(
+                "Back to keys! Configure more providers or update existing keys.",
+                status="Step 1 of 3: AI Engine & Keys",
+                badge="SETUP STUDIO"
+            )
+
+        # -------------------------------------------------------------
+        # Instant Test Drive / Skip
+        # -------------------------------------------------------------
         elif bid == "btn-welcome-mock-drive":
             save_env_config({
                 "BREADWINNER_LLM_PROVIDER": "mock",
                 "AUTO_GENERATE_PDF": "true"
             })
             self.query_one("#welcome-ai-step").styles.display = "none"
+            self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
                 "Offline Mock Engine ready! Drop your resume or click Load Demo Loaf to start baking!",
-                status="Step 2 of 2: Stock Career Pantry",
+                status="Step 3 of 3: Stock Career Pantry",
                 badge="CRUMB'S PANTRY"
             )
             self.app.notify("✓ Instant Test Drive Mode Enabled (Mock Engine)", title="Mock Engine")
@@ -723,15 +911,19 @@ class BakeryWelcomeModal(ModalScreen):
 
         elif bid == "btn-welcome-skip-ai":
             self.query_one("#welcome-ai-step").styles.display = "none"
+            self.query_one("#welcome-models-step").styles.display = "none"
             self.query_one("#welcome-pantry-step").styles.display = "block"
             mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
             mascot.set_dialogue(
                 "Skipped AI setup. Drop your resume or click Load Demo Loaf to stock your pantry!",
-                status="Step 2 of 2: Stock Career Pantry",
+                status="Step 3 of 3: Stock Career Pantry",
                 badge="CRUMB'S PANTRY"
             )
             self.query_one("#input-welcome-source", Input).focus()
 
+        # -------------------------------------------------------------
+        # STEP 3: Career Pantry Actions
+        # -------------------------------------------------------------
         elif bid == "btn-tab-dropzone":
             self.query_one("#welcome-dropzone-box").styles.display = "block"
             self.query_one("#welcome-bio-box").styles.display = "none"
@@ -766,7 +958,7 @@ class BakeryWelcomeModal(ModalScreen):
         elif bid == "btn-welcome-demo":
             self.dismiss({"action": "demo"})
 
-        elif bid in ("btn-welcome-exit", "btn-welcome-exit-pantry"):
+        elif bid in ("btn-welcome-exit", "btn-welcome-exit-models", "btn-welcome-exit-pantry"):
             self.app.exit()
             return
 

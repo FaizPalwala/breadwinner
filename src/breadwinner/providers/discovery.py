@@ -475,8 +475,8 @@ class ProviderDiscovery:
         return True
 
     @classmethod
-    def fetch_models_for_provider(cls, provider: str, api_key: Optional[str] = None) -> List[Tuple[str, str]]:
-        """Fetch live models for a provider if network/credentials available, or return curated defaults."""
+    def fetch_models_with_status(cls, provider: str, api_key: Optional[str] = None) -> Tuple[List[Tuple[str, str]], bool]:
+        """Fetch models for provider, returning (models, is_live_boolean)."""
         prov = provider.lower()
         key = api_key.strip() if api_key else ""
         if not key:
@@ -552,7 +552,7 @@ class ProviderDiscovery:
             try:
                 resp = requests.get(
                     f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
-                    timeout=2.0
+                    timeout=5.0
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("models", [])
@@ -561,10 +561,23 @@ class ProviderDiscovery:
                         if isinstance(m, dict) and "generateContent" in m.get("supportedGenerationMethods", []):
                             mid = m["name"].replace("models/", "")
                             if mid.startswith("gemini-"):
-                                mname = m.get("displayName", mid)
+                                mname = m.get("displayName") or mid
                                 live.append((f"{mname} ({mid})", mid))
                     if live:
-                        return live
+                        # Prioritize 2.0-flash and modern models
+                        def _gemini_sort(item: Tuple[str, str]) -> int:
+                            m_id = item[1].lower()
+                            if "2.0-flash" in m_id:
+                                return 0
+                            if "2.0" in m_id:
+                                return 1
+                            if "1.5-pro" in m_id:
+                                return 2
+                            if "1.5-flash" in m_id:
+                                return 3
+                            return 10
+                        live.sort(key=_gemini_sort)
+                        return live, True
             except Exception:
                 pass
 
@@ -573,7 +586,7 @@ class ProviderDiscovery:
                 resp = requests.get(
                     "https://openrouter.ai/api/v1/models",
                     headers={"Authorization": f"Bearer {key}"},
-                    timeout=2.5
+                    timeout=5.0
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("data", [])
@@ -581,29 +594,31 @@ class ProviderDiscovery:
                     for m in raw:
                         if isinstance(m, dict) and "id" in m:
                             mid = m["id"]
-                            mname = m.get("name", mid)
+                            mname = m.get("name") or mid
                             live.append((f"{mname} ({mid})", mid))
                     if live:
-                        # Return top 25 models from OpenRouter
-                        return live[:25]
+                        return live[:40], True
             except Exception:
                 pass
 
-        elif prov == "groq" and key:
+        elif prov == "anthropic" and key:
             try:
                 resp = requests.get(
-                    "https://api.groq.com/openai/v1/models",
-                    headers={"Authorization": f"Bearer {key}"},
-                    timeout=2.0
+                    "https://api.anthropic.com/v1/models",
+                    headers={
+                        "x-api-key": key,
+                        "anthropic-version": "2023-06-01"
+                    },
+                    timeout=5.0
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("data", [])
                     live = [
-                        (f"{m['id']}", m["id"])
-                        for m in raw if isinstance(m, dict) and "id" in m and not m["id"].startswith("whisper")
+                        (f"{m.get('display_name', m['id'])} ({m['id']})", m["id"])
+                        for m in raw if isinstance(m, dict) and "id" in m
                     ]
                     if live:
-                        return live
+                        return live, True
             except Exception:
                 pass
 
@@ -612,7 +627,7 @@ class ProviderDiscovery:
                 resp = requests.get(
                     "https://api.openai.com/v1/models",
                     headers={"Authorization": f"Bearer {key}"},
-                    timeout=2.0
+                    timeout=5.0
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("data", [])
@@ -622,16 +637,16 @@ class ProviderDiscovery:
                         for m in raw if isinstance(m, dict) and any(m.get("id", "").startswith(p) for p in valid_prefixes)
                     ]
                     if live:
-                        return live
+                        return sorted(live, key=lambda x: x[1], reverse=True), True
             except Exception:
                 pass
 
-        elif prov == "mistral" and key:
+        elif prov == "deepseek" and key:
             try:
                 resp = requests.get(
-                    "https://api.mistral.ai/v1/models",
+                    "https://api.deepseek.com/models",
                     headers={"Authorization": f"Bearer {key}"},
-                    timeout=2.0
+                    timeout=5.0
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("data", [])
@@ -640,33 +655,74 @@ class ProviderDiscovery:
                         for m in raw if isinstance(m, dict) and "id" in m
                     ]
                     if live:
-                        return live
+                        return live, True
+            except Exception:
+                pass
+
+        elif prov == "groq" and key:
+            try:
+                resp = requests.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {key}"},
+                    timeout=5.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    live = [
+                        (f"{m['id']}", m["id"])
+                        for m in raw if isinstance(m, dict) and "id" in m and not m["id"].startswith("whisper")
+                    ]
+                    if live:
+                        return live, True
+            except Exception:
+                pass
+
+        elif prov == "mistral" and key:
+            try:
+                resp = requests.get(
+                    "https://api.mistral.ai/v1/models",
+                    headers={"Authorization": f"Bearer {key}"},
+                    timeout=5.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    live = [
+                        (f"{m['id']}", m["id"])
+                        for m in raw if isinstance(m, dict) and "id" in m
+                    ]
+                    if live:
+                        return live, True
             except Exception:
                 pass
 
         elif prov == "lmstudio":
             try:
                 base = settings.lmstudio_base_url.rstrip("/")
-                resp = requests.get(f"{base}/models", timeout=1.5)
+                resp = requests.get(f"{base}/models", timeout=2.0)
                 if resp.status_code == 200:
                     raw = resp.json().get("data", [])
                     live = [(f"{m['id'].split('/')[-1]} ({m['id']})", m["id"]) for m in raw if "id" in m]
                     if live:
-                        return live
+                        return live, True
             except Exception:
                 pass
 
         elif prov == "ollama":
             try:
                 base = settings.ollama_base_url.rstrip("/")
-                resp = requests.get(f"{base}/tags", timeout=1.5)
+                resp = requests.get(f"{base}/tags", timeout=2.0)
                 if resp.status_code == 200:
                     raw = resp.json().get("models", [])
                     live = [(f"{m['name']}", m["name"]) for m in raw if "name" in m]
                     if live:
-                        return live
+                        return live, True
             except Exception:
                 pass
 
-        return fallbacks.get(prov, [("Default Model", "default")])
+        return fallbacks.get(prov, [("Default Model", "default")]), False
+
+    @classmethod
+    def fetch_models_for_provider(cls, provider: str, api_key: Optional[str] = None) -> List[Tuple[str, str]]:
+        """Fetch live models for a provider or return curated defaults."""
+        return cls.fetch_models_with_status(provider, api_key=api_key)[0]
 

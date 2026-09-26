@@ -128,7 +128,7 @@ async def test_welcome_modal_tabs_and_bio():
 
 @pytest.mark.anyio
 async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
-    """Verify Step 1 AI engine configuration transitions cleanly to Step 2 pantry."""
+    """Verify Step 1 AI keys -> Step 2 Model discovery -> Step 3 Pantry flow."""
     env_file = tmp_path / ".env"
     monkeypatch.chdir(tmp_path)
 
@@ -138,28 +138,42 @@ async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
 
     async with app.run_test(size=(120, 40)) as pilot:
         ai_step = modal.query_one("#welcome-ai-step")
+        models_step = modal.query_one("#welcome-models-step")
         pantry_step = modal.query_one("#welcome-pantry-step")
         assert ai_step.styles.display == "block"
+        assert models_step.styles.display == "none"
         assert pantry_step.styles.display == "none"
 
-        # Select gemini explicitly
+        # Step 1: Select gemini explicitly and fill API key
         sel = modal.query_one("#select-welcome-provider", Select)
         sel.value = "gemini"
+        await pilot.pause()
 
-        # Fill API key
         key_input = modal.query_one("#input-welcome-api-key", Input)
         key_input.value = "AIzaSyTestApiKey12345"
+        await pilot.pause()
 
-        # Click save AI
+        # Click Next: Discover Live Models
         btn_save = modal.query_one("#btn-welcome-save-ai", Button)
         btn_save.press()
         await pilot.pause()
 
-        # Step 1 should now be hidden and Step 2 visible
+        # Step 1 is hidden, Step 2 is visible
         assert ai_step.styles.display == "none"
+        assert models_step.styles.display == "block"
+        assert pantry_step.styles.display == "none"
+
+        # Step 2: Save active model and proceed to pantry
+        btn_save_model = modal.query_one("#btn-welcome-save-model", Button)
+        btn_save_model.press()
+        await pilot.pause()
+
+        # Step 2 is hidden, Step 3 (pantry) is visible
+        assert ai_step.styles.display == "none"
+        assert models_step.styles.display == "none"
         assert pantry_step.styles.display == "block"
 
-        # Now click demo in step 2
+        # Step 3: Click demo loaf in pantry
         btn_demo = modal.query_one("#btn-welcome-demo", Button)
         btn_demo.press()
         await pilot.pause()
@@ -172,7 +186,7 @@ async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_welcome_modal_ai_mock_drive(tmp_path, monkeypatch):
-    """Verify instant test drive button configures mock provider and advances to pantry."""
+    """Verify instant test drive button configures mock provider and advances directly to pantry."""
     monkeypatch.chdir(tmp_path)
 
     mock_pantry = MagicMock()
@@ -185,8 +199,10 @@ async def test_welcome_modal_ai_mock_drive(tmp_path, monkeypatch):
         await pilot.pause()
 
         ai_step = modal.query_one("#welcome-ai-step")
+        models_step = modal.query_one("#welcome-models-step")
         pantry_step = modal.query_one("#welcome-pantry-step")
         assert ai_step.styles.display == "none"
+        assert models_step.styles.display == "none"
         assert pantry_step.styles.display == "block"
 
 
@@ -205,41 +221,44 @@ async def test_welcome_modal_ai_skip(tmp_path, monkeypatch):
         await pilot.pause()
 
         ai_step = modal.query_one("#welcome-ai-step")
+        models_step = modal.query_one("#welcome-models-step")
         pantry_step = modal.query_one("#welcome-pantry-step")
         assert ai_step.styles.display == "none"
+        assert models_step.styles.display == "none"
         assert pantry_step.styles.display == "block"
 
 
 @pytest.mark.anyio
-async def test_welcome_modal_model_dropdown_populates():
-    """Verify that switching AI providers dynamically populates available models."""
+async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
+    """Verify that Step 2 fetches and populates live models for active provider."""
+    monkeypatch.chdir(tmp_path)
+
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
         sel_prov = modal.query_one("#select-welcome-provider", Select)
-        sel_model = modal.query_one("#select-welcome-model", Select)
-
-        # Initially gemini is selected and gemini models are loaded
-        sel_prov.value = "gemini"
+        sel_prov.value = "mock"
         await pilot.pause()
-        assert sel_model.value == "gemini-2.0-flash"
 
-        # Switch to DeepSeek
-        sel_prov.value = "deepseek"
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
         await pilot.pause()
-        assert sel_model.value == "deepseek-chat"
+
+        # We are on Step 2
+        active_sel = modal.query_one("#select-active-provider", Select)
+        model_sel = modal.query_one("#select-welcome-model", Select)
 
         # Switch to Groq
-        sel_prov.value = "groq"
+        active_sel.value = "groq"
         await pilot.pause()
-        assert sel_model.value == "llama-3.3-70b-versatile"
+        assert model_sel.value == "llama-3.3-70b-versatile"
 
-        # Switch back to Gemini
-        sel_prov.value = "gemini"
+        # Switch to Gemini
+        active_sel.value = "gemini"
         await pilot.pause()
-        assert sel_model.value == "gemini-2.0-flash"
+        assert model_sel.value == "gemini-2.0-flash"
 
 
 @pytest.mark.anyio
@@ -261,7 +280,7 @@ async def test_welcome_modal_exit_button():
 
 @pytest.mark.anyio
 async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
-    """Verify Option C: user can choose Custom Model ID and enter custom model."""
+    """Verify Option C: user can choose Custom Model ID on Step 2 and enter custom model."""
     env_file = tmp_path / ".env"
     monkeypatch.chdir(tmp_path)
 
@@ -270,10 +289,20 @@ async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
+        # Step 1: Configure key
         sel_prov = modal.query_one("#select-welcome-provider", Select)
         sel_prov.value = "gemini"
         await pilot.pause()
 
+        key_input = modal.query_one("#input-welcome-api-key", Input)
+        key_input.value = "AIzaSyCustomKey"
+        await pilot.pause()
+
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+        # Step 2: Custom model ID input
         custom_input = modal.query_one("#input-welcome-custom-model", Input)
         assert custom_input.styles.display == "none"
 
@@ -285,19 +314,20 @@ async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
         # Custom input should now be visible
         assert custom_input.styles.display == "block"
 
-        # Enter custom model ID and API key
+        # Enter custom model ID
         custom_input.value = "gemini-3.8-flash"
-        key_input = modal.query_one("#input-welcome-api-key", Input)
-        key_input.value = "AIzaSyCustomKey"
+        await pilot.pause()
 
-        # Save AI settings
-        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
-        btn_save.press()
+        # Save AI settings and advance to pantry
+        btn_save_model = modal.query_one("#btn-welcome-save-model", Button)
+        btn_save_model.press()
         await pilot.pause()
 
         ai_step = modal.query_one("#welcome-ai-step")
+        models_step = modal.query_one("#welcome-models-step")
         pantry_step = modal.query_one("#welcome-pantry-step")
         assert ai_step.styles.display == "none"
+        assert models_step.styles.display == "none"
         assert pantry_step.styles.display == "block"
 
     assert env_file.exists()
@@ -308,7 +338,7 @@ async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
 
 @pytest.mark.anyio
 async def test_welcome_modal_openrouter_setup(tmp_path, monkeypatch):
-    """Verify setting up OpenRouter provider with custom Claude model."""
+    """Verify setting up OpenRouter provider and advancing through Step 1 and Step 2."""
     env_file = tmp_path / ".env"
     monkeypatch.chdir(tmp_path)
 
@@ -323,14 +353,52 @@ async def test_welcome_modal_openrouter_setup(tmp_path, monkeypatch):
 
         key_input = modal.query_one("#input-welcome-api-key", Input)
         key_input.value = "sk-or-v1-abcdef12345"
+        await pilot.pause()
 
         btn_save = modal.query_one("#btn-welcome-save-ai", Button)
         btn_save.press()
+        await pilot.pause()
+
+        btn_save_model = modal.query_one("#btn-welcome-save-model", Button)
+        btn_save_model.press()
         await pilot.pause()
 
     assert env_file.exists()
     content = env_file.read_text(encoding="utf-8")
     assert 'BREADWINNER_LLM_PROVIDER="openrouter"' in content
     assert 'OPENROUTER_API_KEY="sk-or-v1-abcdef12345"' in content
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_back_to_keys(tmp_path, monkeypatch):
+    """Verify that clicking Back to Keys on Step 2 returns to Step 1."""
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        sel_prov = modal.query_one("#select-welcome-provider", Select)
+        sel_prov.value = "mock"
+        await pilot.pause()
+
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+        # On Step 2
+        models_step = modal.query_one("#welcome-models-step")
+        assert models_step.styles.display == "block"
+
+        # Click Back to Keys
+        btn_back = modal.query_one("#btn-welcome-back-to-keys", Button)
+        btn_back.press()
+        await pilot.pause()
+
+        ai_step = modal.query_one("#welcome-ai-step")
+        assert ai_step.styles.display == "block"
+        assert models_step.styles.display == "none"
+
 
 

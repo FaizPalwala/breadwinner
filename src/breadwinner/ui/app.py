@@ -757,9 +757,12 @@ class BreadwinnerApp(App):
         has_env_file = Path(".env").exists()
         has_env_key = bool(
             os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
             or os.environ.get("DEEPSEEK_API_KEY")
             or os.environ.get("GROQ_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("MISTRAL_API_KEY")
         )
         needs_ai_setup = not has_env_file and not has_env_key
         needs_pantry_setup = not self.pantry.is_initialized()
