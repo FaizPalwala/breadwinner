@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
+from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
@@ -16,6 +17,9 @@ from textual.widgets import (
 )
 from textual.screen import ModalScreen
 from textual.binding import Binding
+
+MIN_TERMINAL_WIDTH = 76
+MIN_TERMINAL_HEIGHT = 22
 
 from breadwinner.config import settings
 from breadwinner.db.repository import JobRepository, JobRecord
@@ -48,8 +52,10 @@ from breadwinner.ui.retro import (
 )
 from breadwinner.ui.welcome import BakeryWelcomeModal
 from breadwinner.ui.editor import DualPaneFineTuneModal
+from breadwinner.ui.screen_guard import ScreenGuardScreen
 from breadwinner.core.portfolio import JsonResumeAdapter
 from breadwinner.onboarding import STARTER_JSON_RESUME
+
 
 
 def get_persona_select_options() -> List[tuple]:
@@ -750,11 +756,36 @@ class BreadwinnerApp(App):
 
         yield Footer()
 
+    def on_resize(self, event: events.Resize) -> None:
+        """Enforce screen guard sentinel if terminal dimensions fall below minimum bounds."""
+        if event.size.width <= 0 or event.size.height <= 0:
+            return
+
+        is_too_small = event.size.width < MIN_TERMINAL_WIDTH or event.size.height < MIN_TERMINAL_HEIGHT
+        try:
+            is_guard_active = isinstance(self.screen, ScreenGuardScreen)
+        except Exception:
+            is_guard_active = False
+
+        if is_too_small:
+            if not is_guard_active:
+                self.push_screen(ScreenGuardScreen(min_cols=MIN_TERMINAL_WIDTH, min_rows=MIN_TERMINAL_HEIGHT))
+            else:
+                self.screen.update_dimensions(event.size.width, event.size.height)
+        elif is_guard_active:
+            self.pop_screen()
+
     def on_mount(self) -> None:
         self.load_pipeline_table()
         self.load_models_tab()
 
+        if self.size.width > 0 and self.size.height > 0:
+            if self.size.width < MIN_TERMINAL_WIDTH or self.size.height < MIN_TERMINAL_HEIGHT:
+                if not isinstance(self.screen, ScreenGuardScreen):
+                    self.push_screen(ScreenGuardScreen(min_cols=MIN_TERMINAL_WIDTH, min_rows=MIN_TERMINAL_HEIGHT))
+
         has_env_file = Path(".env").exists()
+
         has_env_key = bool(
             os.environ.get("GEMINI_API_KEY")
             or os.environ.get("OPENROUTER_API_KEY")

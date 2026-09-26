@@ -43,14 +43,44 @@ def get_repo() -> JobRepository:
     return JobRepository(settings.database_path)
 
 
+def try_expand_terminal(target_cols: int = 100, target_rows: int = 30) -> None:
+    """Best-effort terminal window resize attempt using standard ANSI escape sequences.
+
+    Checks if stdout is an interactive tty and not inside embedded terminals (like VS Code)
+    that explicitly reject or ignore terminal dimension resize codes.
+    """
+    import os
+    import shutil
+    import sys
+
+    if not sys.stdout.isatty():
+        return
+
+    term_prog = os.environ.get("TERM_PROGRAM", "").lower()
+    if "vscode" in term_prog or os.environ.get("VSCODE_PID"):
+        return
+
+    try:
+        cur_cols, cur_rows = shutil.get_terminal_size()
+        if cur_cols < target_cols or cur_rows < target_rows:
+            new_cols = max(cur_cols, target_cols)
+            new_rows = max(cur_rows, target_rows)
+            sys.stdout.write(f"\033[8;{new_rows};{new_cols}t")
+            sys.stdout.flush()
+    except Exception:
+        pass
+
+
 @click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx: click.Context):
     """Breadwinner: Anti-Hallucination Local Career Studio 🍞"""
     if ctx.invoked_subcommand is None:
+        try_expand_terminal()
         from breadwinner.ui.app import BreadwinnerApp
         app = BreadwinnerApp()
         app.run()
+
 
 
 
@@ -668,9 +698,11 @@ def bake_cmd(target: Optional[str], no_open: bool):
 @click.option("--url", "-u", default=None, help="Pre-load a target job URL into Tailor Studio")
 def ui_cmd(url: Optional[str]):
     """Launch the interactive terminal UI (TUI) studio."""
+    try_expand_terminal()
     from breadwinner.ui.app import BreadwinnerApp
     app = BreadwinnerApp(initial_url=url)
     app.run()
+
 
 
 # ==============================================================================
