@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from breadwinner.config import settings
 from breadwinner.providers.base import BaseLLMProvider
 from breadwinner.providers.openai_compatible import OpenAICompatibleProvider
+from breadwinner.providers.anthropic import AnthropicProvider
 
 
 class MockLLMProvider(BaseLLMProvider):
@@ -176,6 +177,26 @@ def get_llm_provider(
             base_url="https://api.deepseek.com",
             api_key=settings.deepseek_api_key or "missing-key",
             model=model_override or settings.deepseek_model
+        )
+
+    elif provider == "openrouter":
+        return OpenAICompatibleProvider(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=settings.openrouter_api_key or "missing-key",
+            model=model_override or settings.openrouter_model
+        )
+
+    elif provider == "anthropic":
+        return AnthropicProvider(
+            api_key=settings.anthropic_api_key or "missing-key",
+            model=model_override or settings.anthropic_model
+        )
+
+    elif provider == "mistral":
+        return OpenAICompatibleProvider(
+            base_url="https://api.mistral.ai/v1",
+            api_key=settings.mistral_api_key or "missing-key",
+            model=model_override or settings.mistral_model
         )
 
     elif provider == "mock":

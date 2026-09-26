@@ -258,3 +258,79 @@ async def test_welcome_modal_exit_button():
     # The app should have exited
     assert app.is_running is False
 
+
+@pytest.mark.anyio
+async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
+    """Verify Option C: user can choose Custom Model ID and enter custom model."""
+    env_file = tmp_path / ".env"
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        sel_prov = modal.query_one("#select-welcome-provider", Select)
+        sel_prov.value = "gemini"
+        await pilot.pause()
+
+        custom_input = modal.query_one("#input-welcome-custom-model", Input)
+        assert custom_input.styles.display == "none"
+
+        # Select custom in model dropdown
+        sel_model = modal.query_one("#select-welcome-model", Select)
+        sel_model.value = "custom"
+        await pilot.pause()
+
+        # Custom input should now be visible
+        assert custom_input.styles.display == "block"
+
+        # Enter custom model ID and API key
+        custom_input.value = "gemini-3.8-flash"
+        key_input = modal.query_one("#input-welcome-api-key", Input)
+        key_input.value = "AIzaSyCustomKey"
+
+        # Save AI settings
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+        ai_step = modal.query_one("#welcome-ai-step")
+        pantry_step = modal.query_one("#welcome-pantry-step")
+        assert ai_step.styles.display == "none"
+        assert pantry_step.styles.display == "block"
+
+    assert env_file.exists()
+    content = env_file.read_text(encoding="utf-8")
+    assert 'GEMINI_MODEL="gemini-3.8-flash"' in content
+    assert 'GEMINI_API_KEY="AIzaSyCustomKey"' in content
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_openrouter_setup(tmp_path, monkeypatch):
+    """Verify setting up OpenRouter provider with custom Claude model."""
+    env_file = tmp_path / ".env"
+    monkeypatch.chdir(tmp_path)
+
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        sel_prov = modal.query_one("#select-welcome-provider", Select)
+        sel_prov.value = "openrouter"
+        await pilot.pause()
+
+        key_input = modal.query_one("#input-welcome-api-key", Input)
+        key_input.value = "sk-or-v1-abcdef12345"
+
+        btn_save = modal.query_one("#btn-welcome-save-ai", Button)
+        btn_save.press()
+        await pilot.pause()
+
+    assert env_file.exists()
+    content = env_file.read_text(encoding="utf-8")
+    assert 'BREADWINNER_LLM_PROVIDER="openrouter"' in content
+    assert 'OPENROUTER_API_KEY="sk-or-v1-abcdef12345"' in content
+
+

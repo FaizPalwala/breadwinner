@@ -86,12 +86,17 @@ BakeryWelcomeModal {
     color: #fefae0;
 }
 
-#input-welcome-api-key {
+#input-welcome-api-key, #input-welcome-custom-model {
     height: 3;
     background: #0b0e17;
     border: round #d4a373;
     color: #fefae0;
     margin-bottom: 0;
+}
+
+#input-welcome-custom-model {
+    margin-bottom: 1;
+    display: none;
 }
 
 #label-welcome-ai-hint {
@@ -286,6 +291,25 @@ PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
         ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
         ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
     ],
+    "openrouter": [
+        ("Claude 3.7 Sonnet (Anthropic flagship via OpenRouter)", "anthropic/claude-3.7-sonnet"),
+        ("Claude 3.5 Sonnet (High intelligence via OpenRouter)", "anthropic/claude-3.5-sonnet"),
+        ("GPT-4o (OpenAI flagship via OpenRouter)", "openai/gpt-4o"),
+        ("Gemini 2.0 Flash (Google via OpenRouter)", "google/gemini-2.0-flash-001"),
+        ("DeepSeek R1 (Chain of thought logic via OpenRouter)", "deepseek/deepseek-r1"),
+        ("Llama 3.3 70B (Meta open weights via OpenRouter)", "meta-llama/llama-3.3-70b-instruct"),
+    ],
+    "anthropic": [
+        ("Claude 3.7 Sonnet (Hybrid fast/extended reasoning - Recommended)", "claude-3-7-sonnet-20250219"),
+        ("Claude 3.5 Sonnet (Gold standard prose & precision)", "claude-3-5-sonnet-20241022"),
+        ("Claude 3.5 Haiku (Fast & affordable lightweight model)", "claude-3-5-haiku-20241022"),
+    ],
+    "openai": [
+        ("GPT-4o (Flagship multimodal intelligence - Recommended)", "gpt-4o"),
+        ("GPT-4o Mini (High-speed & cost-efficient)", "gpt-4o-mini"),
+        ("o3-mini (High-speed STEM & logic reasoning)", "o3-mini"),
+        ("o1 (Deep analytical complex reasoning)", "o1"),
+    ],
     "deepseek": [
         ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
         ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
@@ -294,6 +318,11 @@ PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
         ("Llama 3.3 70B (High speed versatile - Default)", "llama-3.3-70b-versatile"),
         ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
         ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
+    ],
+    "mistral": [
+        ("Mistral Large (Premier frontier reasoning)", "mistral-large-latest"),
+        ("Codestral (State-of-the-art coding)", "codestral-latest"),
+        ("Mistral Small (Fast & responsive)", "mistral-small-latest"),
     ],
     "lmstudio": [
         ("local-model (Active loaded model in LM Studio)", "local-model"),
@@ -343,12 +372,16 @@ class BakeryWelcomeModal(ModalScreen):
                 )
 
                 provider_opts = [
-                    ("Google Gemini (Free 15 RPM Tier / BYOK - Recommended)", "gemini"),
-                    ("DeepSeek (BYOK • Ultra-low cost reasoning)", "deepseek"),
-                    ("Groq Cloud (Ultra-fast Llama 3.3 • Free / BYOK)", "groq"),
-                    ("LM Studio (100% Local / Offline • localhost:1234)", "lmstudio"),
-                    ("Ollama (100% Local / Offline • localhost:11434)", "ollama"),
-                    ("Offline Mock (Instant Test Drive • No key needed)", "mock"),
+                    ("Google Gemini", "gemini"),
+                    ("OpenRouter", "openrouter"),
+                    ("Anthropic Claude", "anthropic"),
+                    ("OpenAI", "openai"),
+                    ("DeepSeek", "deepseek"),
+                    ("Groq Cloud", "groq"),
+                    ("Mistral AI", "mistral"),
+                    ("LM Studio (Local)", "lmstudio"),
+                    ("Ollama (Local)", "ollama"),
+                    ("Offline Mock", "mock"),
                 ]
                 cur_prov = settings.breadwinner_llm_provider
                 valid_cur = cur_prov if any(v == cur_prov for _, v in provider_opts) else "gemini"
@@ -359,11 +392,17 @@ class BakeryWelcomeModal(ModalScreen):
                     id="select-welcome-provider"
                 )
 
-                initial_models = PROVIDER_MODELS.get(valid_cur, [("Default Model", "default")])
+                initial_models = list(PROVIDER_MODELS.get(valid_cur, [("Default Model", "default")]))
+                initial_models.append(("✎ Custom Model ID...", "custom"))
                 yield Select(
                     initial_models,
                     value=initial_models[0][1],
                     id="select-welcome-model"
+                )
+
+                yield Input(
+                    placeholder="Enter custom model ID (e.g. gemini-3.8-flash, claude-3-7-sonnet...)",
+                    id="input-welcome-custom-model"
                 )
 
                 yield Input(
@@ -437,18 +476,31 @@ class BakeryWelcomeModal(ModalScreen):
             )
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Dynamically update model options, key input and hint based on selected provider."""
+        """Dynamically update model options, key input and hint based on selected provider or custom model toggle."""
+        if event.select.id == "select-welcome-model":
+            custom_input = self.query_one("#input-welcome-custom-model", Input)
+            if str(event.value) == "custom":
+                custom_input.styles.display = "block"
+                custom_input.focus()
+            else:
+                custom_input.styles.display = "none"
+            return
+
         if event.select.id != "select-welcome-provider":
             return
+
         provider = str(event.value)
         key_input = self.query_one("#input-welcome-api-key", Input)
         hint = self.query_one("#label-welcome-ai-hint", Static)
         mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
         model_select = self.query_one("#select-welcome-model", Select)
+        custom_input = self.query_one("#input-welcome-custom-model", Input)
+        custom_input.styles.display = "none"
 
         # Update available models dropdown for selected provider
         api_key = key_input.value.strip() if key_input else ""
-        available_models = ProviderDiscovery.fetch_models_for_provider(provider, api_key=api_key)
+        available_models = list(ProviderDiscovery.fetch_models_for_provider(provider, api_key=api_key))
+        available_models.append(("✎ Custom Model ID...", "custom"))
         model_select.set_options(available_models)
         if available_models:
             model_select.value = available_models[0][1]
@@ -459,15 +511,35 @@ class BakeryWelcomeModal(ModalScreen):
                 "[dim]Free API key: [underline]https://aistudio.google.com/app/apikey[/underline] (Free 15 RPM)[/dim]",
                 "Google Gemini selected! Generous free tier and ultra-high quality."
             ),
+            "openrouter": (
+                "Enter OpenRouter API Key (sk-or-...)",
+                "[dim]Universal Gateway key: [underline]https://openrouter.ai/keys[/underline] (Access 300+ models)[/dim]",
+                "OpenRouter selected! Universal access to Claude, GPT, DeepSeek, and Llama."
+            ),
+            "anthropic": (
+                "Enter Anthropic Claude API Key (sk-ant-...)",
+                "[dim]Anthropic API key: [underline]https://console.anthropic.com/settings/keys[/underline][/dim]",
+                "Anthropic Claude selected! Gold standard career narrative reasoning."
+            ),
+            "openai": (
+                "Enter OpenAI API Key (sk-proj-...)",
+                "[dim]OpenAI API key: [underline]https://platform.openai.com/api-keys[/underline][/dim]",
+                "OpenAI selected! Flagship GPT-4o intelligence and reasoning models."
+            ),
             "deepseek": (
                 "Enter DeepSeek API Key (sk-...)",
                 "[dim]DeepSeek API key: [underline]https://platform.deepseek.com[/underline] (V3 & R1 models)[/dim]",
-                "DeepSeek selected! Ultra-low cost reasoning models."
+                "DeepSeek selected! Ultra-low cost frontier reasoning."
             ),
             "groq": (
                 "Enter Groq API Key (gsk_...)",
                 "[dim]Free Groq API key: [underline]https://console.groq.com/keys[/underline] (Llama 3.3)[/dim]",
                 "Groq Cloud selected! Ultra-fast inference speeds."
+            ),
+            "mistral": (
+                "Enter Mistral API Key (API key...)",
+                "[dim]Mistral API key: [underline]https://console.mistral.ai/api-keys[/underline][/dim]",
+                "Mistral AI selected! Premier open-weights frontier reasoning."
             ),
             "lmstudio": (
                 "No API key required for local server",
@@ -554,13 +626,26 @@ class BakeryWelcomeModal(ModalScreen):
         if bid == "btn-welcome-save-ai":
             provider = str(self.query_one("#select-welcome-provider", Select).value)
             model_val = str(self.query_one("#select-welcome-model", Select).value)
+            custom_model_val = self.query_one("#input-welcome-custom-model", Input).value.strip()
+
+            if model_val == "custom":
+                if not custom_model_val:
+                    self.app.notify("Please enter a custom model ID!", severity="warning")
+                    return
+                model_val = custom_model_val
+
             key_val = self.query_one("#input-welcome-api-key", Input).value.strip()
 
-            if provider in ("gemini", "deepseek", "groq") and not key_val:
+            required_key_providers = ("gemini", "openrouter", "anthropic", "openai", "deepseek", "groq", "mistral")
+            if provider in required_key_providers and not key_val:
                 env_key_map = {
                     "gemini": "GEMINI_API_KEY",
+                    "openrouter": "OPENROUTER_API_KEY",
+                    "anthropic": "ANTHROPIC_API_KEY",
+                    "openai": "OPENAI_API_KEY",
                     "deepseek": "DEEPSEEK_API_KEY",
                     "groq": "GROQ_API_KEY",
+                    "mistral": "MISTRAL_API_KEY",
                 }
                 existing_key = os.environ.get(env_key_map.get(provider, ""))
                 if not existing_key:
@@ -576,6 +661,18 @@ class BakeryWelcomeModal(ModalScreen):
                 if key_val:
                     env_vars["GEMINI_API_KEY"] = key_val
                 env_vars["GEMINI_MODEL"] = model_val or "gemini-2.0-flash"
+            elif provider == "openrouter":
+                if key_val:
+                    env_vars["OPENROUTER_API_KEY"] = key_val
+                env_vars["OPENROUTER_MODEL"] = model_val or "anthropic/claude-3.7-sonnet"
+            elif provider == "anthropic":
+                if key_val:
+                    env_vars["ANTHROPIC_API_KEY"] = key_val
+                env_vars["ANTHROPIC_MODEL"] = model_val or "claude-3-7-sonnet-20250219"
+            elif provider == "openai":
+                if key_val:
+                    env_vars["OPENAI_API_KEY"] = key_val
+                env_vars["OPENAI_MODEL"] = model_val or "gpt-4o"
             elif provider == "deepseek":
                 if key_val:
                     env_vars["DEEPSEEK_API_KEY"] = key_val
@@ -584,6 +681,10 @@ class BakeryWelcomeModal(ModalScreen):
                 if key_val:
                     env_vars["GROQ_API_KEY"] = key_val
                 env_vars["GROQ_MODEL"] = model_val or "llama-3.3-70b-versatile"
+            elif provider == "mistral":
+                if key_val:
+                    env_vars["MISTRAL_API_KEY"] = key_val
+                env_vars["MISTRAL_MODEL"] = model_val or "mistral-large-latest"
             elif provider == "lmstudio":
                 env_vars["LMSTUDIO_BASE_URL"] = "http://localhost:1234/v1"
                 env_vars["LMSTUDIO_MODEL"] = model_val or "local-model"

@@ -13,31 +13,45 @@ class Settings(BaseSettings):
     )
 
     # Provider
-    breadwinner_llm_provider: Literal["gemini", "lmstudio", "groq", "ollama", "openai", "deepseek", "mock"] = "gemini"
-
-    # DeepSeek (Reasoning & Chat)
-    deepseek_api_key: Optional[str] = None
-    deepseek_model: str = "deepseek-chat"
+    breadwinner_llm_provider: Literal[
+        "gemini", "openrouter", "anthropic", "openai", "deepseek", "groq", "mistral", "lmstudio", "ollama", "mock"
+    ] = "gemini"
 
     # Google Gemini
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-2.0-flash"
 
-    # LM Studio (Local M4 Pro / PC)
-    lmstudio_base_url: str = "http://localhost:1234/v1"
-    lmstudio_model: str = "local-model"
+    # OpenRouter (Multi-model aggregator)
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: str = "anthropic/claude-3.7-sonnet"
+
+    # Anthropic Claude
+    anthropic_api_key: Optional[str] = None
+    anthropic_model: str = "claude-3-7-sonnet-20250219"
+
+    # OpenAI
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o"
+
+    # DeepSeek (Reasoning & Chat)
+    deepseek_api_key: Optional[str] = None
+    deepseek_model: str = "deepseek-chat"
 
     # Groq Cloud
     groq_api_key: Optional[str] = None
     groq_model: str = "llama-3.3-70b-versatile"
 
+    # Mistral AI
+    mistral_api_key: Optional[str] = None
+    mistral_model: str = "mistral-large-latest"
+
+    # LM Studio (Local M4 Pro / PC)
+    lmstudio_base_url: str = "http://localhost:1234/v1"
+    lmstudio_model: str = "local-model"
+
     # Ollama (Local)
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = "llama3.2"
-
-    # OpenAI (Commercial fallback)
-    openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-4o-mini"
 
 
     # Portfolio & Sources
