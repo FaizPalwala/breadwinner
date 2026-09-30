@@ -43,7 +43,7 @@ def get_repo() -> JobRepository:
     return JobRepository(settings.database_path)
 
 
-def try_expand_terminal(target_cols: int = 104, target_rows: int = 38) -> None:
+def try_expand_terminal(target_cols: int = 120, target_rows: int = 38) -> None:
     """Best-effort terminal window resize attempt using standard ANSI escape sequences.
 
     Checks if stdout is an interactive tty and not inside embedded terminals (like VS Code)
