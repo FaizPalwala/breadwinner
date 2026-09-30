@@ -70,5 +70,9 @@ htmlcov/
 GEMINI.md
 CLAUDE.md
 .cursorrules
+*.html
+.prototypes/
+screenshots/
+
 
 

@@ -254,9 +254,15 @@ class XYZValidatorWidget(Static):
     """Real-time Google XYZ Formula multi-gauge telemetry display."""
 
     def __init__(self, id: Optional[str] = "xyz-validator-box"):
-        super().__init__("", id=id)
+        placeholder = (
+            "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
+            "[dim]Awaiting experience bullets... Enter or paste bullets above to calculate real-time impact scores.[/dim]"
+        )
+        super().__init__(placeholder, id=id)
+        self.latest_report: Optional[XYZMetricReport] = None
 
     def update_report(self, report: XYZMetricReport) -> None:
+        self.latest_report = report
         if report.total_bullets == 0:
             content = (
                 "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
