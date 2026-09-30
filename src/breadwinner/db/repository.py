@@ -13,7 +13,7 @@ class JobRecord(BaseModel):
     title: str
     url: Optional[str] = None
     location: Optional[str] = None
-    portal_type: str = "general"
+    portal_type: Optional[str] = "general"
     status: str = "target"  # target, tailored, applied, interviewing, offer, rejected, archived
     match_score: Optional[int] = None
     persona: Optional[str] = None
@@ -133,3 +133,10 @@ class JobRepository:
             cursor = conn.execute("UPDATE jobs SET flag = ? WHERE id = ?", (flag, job_id))
             conn.commit()
             return cursor.rowcount > 0
+
+    def update_notes(self, job_id: str, notes: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("UPDATE jobs SET notes = ? WHERE id = ?", (notes, job_id))
+            conn.commit()
+            return cursor.rowcount > 0
+

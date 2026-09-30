@@ -1,2 +1,5 @@
 ID,Company,Role,Status,Match Score,Date Added,Date Applied,URL,Notes,Flag
-acme-corp-software-engineer,Acme Corp,Software Engineer,target,88,2026-09-14,,https://example.com/careers/swe,Sample target role for engineering pipeline.,
+job_datadog_staff_infra,Datadog,Staff Distributed Systems Engineer,tailored,94,2026-09-28,,https://careers.datadoghq.com/detail/5839201,Referral from Alex. Emphasize Go concurrency and eBPF observability.,Review bullets before HM chat
+job_stripe_staff_infra,Stripe,Staff Infrastructure Engineer,interviewing,96,2026-09-24,2026-09-24,https://stripe.com/jobs/6102831,System Design interview on Thursday 2pm. Topics: Distributed consensus and ledger scale.,Interview on Thursday
+job_anthropic_systems,Anthropic,Systems & Inference Optimization Engineer,applied,92,2026-09-27,2026-09-27,https://jobs.lever.co/anthropic/inference-systems,Applied via Greenhouse. Highlighted Rust kernel dispatch and low-latency KV cache.,
+job_linear_core_systems,Linear,Founding Product & Core Systems Engineer,target,89,2026-09-29,,https://linear.app/careers/core-systems,Discuss local-first SQLite edge synchronization and offline CRDTs.,

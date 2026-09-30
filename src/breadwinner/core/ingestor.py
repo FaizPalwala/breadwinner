@@ -310,11 +310,24 @@ Respond ONLY in valid JSON matching this exact schema:
     @classmethod
     def ingest(
         cls,
-        source: str,
+        source: Any,
         provider: BaseLLMProvider
     ) -> CandidateProfile:
-        """Universal entry point: handles URLs, files, and text."""
-        source_clean = source.strip()
+        """Universal entry point: handles URLs, files, lists of sources, and text."""
+        if isinstance(source, list):
+            combined_texts = []
+            for s in source:
+                s_clean = str(s).strip()
+                if s_clean.startswith("http://") or s_clean.startswith("https://"):
+                    combined_texts.append(cls.extract_text_from_url(s_clean))
+                elif Path(s_clean).exists() and Path(s_clean).is_file():
+                    combined_texts.append(cls.extract_text_from_file(Path(s_clean)))
+                else:
+                    combined_texts.append(s_clean)
+            merged = "\n\n--- NEXT SOURCE ---\n\n".join(combined_texts)
+            return cls.parse_text_to_profile(merged, provider, source_label=f"Multi-Source ({len(source)} items)")
+
+        source_clean = str(source).strip()
         if source_clean.startswith("http://") or source_clean.startswith("https://"):
             raw_text = cls.extract_text_from_url(source_clean)
             return cls.parse_text_to_profile(raw_text, provider, source_label=source_clean)
@@ -326,3 +339,23 @@ Respond ONLY in valid JSON matching this exact schema:
 
         # Raw text / bio paste
         return cls.parse_text_to_profile(source_clean, provider, source_label="Manual Paste")
+
+
+def decompose_raw_input(raw: str) -> list[str]:
+    """Decompose comma/newline/space separated inputs into individual source items."""
+    if not raw:
+        return []
+    parts = re.split(r"[\n,;]+", raw)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def normalize_source(source: str) -> tuple[str, str]:
+    """Normalize a source string and return (display_label, kind)."""
+    s = str(source).strip()
+    if s.startswith("http://") or s.startswith("https://"):
+        return s, "url"
+    p = Path(s)
+    if p.exists() or p.suffix.lower() in (".pdf", ".docx", ".doc", ".md", ".json", ".txt"):
+        return p.name, "file"
+    return s, "text"
+

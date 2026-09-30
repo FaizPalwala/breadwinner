@@ -110,3 +110,9 @@ def save_env_config(env_vars: dict, env_path: Optional[Path] = None) -> None:
 
     global settings
     settings = Settings()
+
+
+def get_env_path() -> Path:
+    """Return the path to the local .env configuration file."""
+    return Path(".env").resolve()
+
