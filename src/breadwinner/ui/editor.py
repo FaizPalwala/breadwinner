@@ -112,14 +112,14 @@ def analyze_bullets_xyz(text: str, profile: Optional[CandidateProfile] = None) -
     bake_health_score = int(0.4 * quantified_score + 0.3 * action_verbs_score + 0.3 * groundedness_score)
 
     if quantified_score >= 80:
-        tip = "✓ [bold #50fa7b]Outstanding![/bold #50fa7b] Strong quantifiable metrics across your achievements."
+        tip = "[✓] [bold #50fa7b]Outstanding![/bold #50fa7b] Strong quantifiable metrics across your achievements."
     elif weak_bullet_index:
         tip = (
-            f"💡 [bold #f1fa8c]Coaching Tip:[/] Bullet {weak_bullet_index} lacks a measurable outcome. "
+            f"[!] [bold #f1fa8c]Coaching Tip:[/] Bullet {weak_bullet_index} lacks a measurable outcome. "
             "Add scale, throughput, or percentage impact (e.g. 'reducing latency by 35%')."
         )
     else:
-        tip = "💡 [bold #f1fa8c]Coaching Tip:[/] Aim for at least 80% quantified bullets (Google XYZ formula)."
+        tip = "[!] [bold #f1fa8c]Coaching Tip:[/] Aim for at least 80% quantified bullets (Google XYZ formula)."
 
     return XYZMetricReport(
         total_bullets=len(bullets),
@@ -328,7 +328,7 @@ class DualPaneFineTuneModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="finetune-studio-container"):
             with Horizontal(id="studio-title-bar"):
-                yield Label("🥖 BREADWINNER BULLET LABORATORY & LIVE ATS AUDIT")
+                yield Label("[·] BREADWINNER BULLET LABORATORY & LIVE ATS AUDIT")
 
             with Horizontal(id="studio-panes"):
                 # LEFT PANE: BULLET LABORATORY
@@ -339,14 +339,14 @@ class DualPaneFineTuneModal(ModalScreen):
 
                 # RIGHT PANE: LIVE ATS RESUME PREVIEW
                 with Vertical(classes="pane-half", id="right-preview-pane"):
-                    yield Label("[bold #50fa7b]📄 Live Jake's Resume ATS Preview (ats):[/bold #50fa7b]", classes="pane-header")
+                    yield Label("[bold #50fa7b][DOC] Live Jake's Resume ATS Preview (ats):[/bold #50fa7b]", classes="pane-header")
                     with VerticalScroll(id="live-preview-box"):
                         yield Markdown(self.build_preview_markdown(self.initial_text), id="live-preview-md")
 
             with Horizontal(id="studio-action-bar"):
                 yield Button("Apply & Re-Bake PDF (Enter)", variant="success", id="btn-save-finetune")
                 yield Button("Format All with XYZ", variant="warning", id="btn-format-xyz")
-                yield Button("🎙️ Dictate Bullet (Ctrl+R)", variant="primary", id="btn-dictate-bullet")
+                yield Button("[»] Dictate Bullet (Ctrl+R)", variant="primary", id="btn-dictate-bullet")
                 yield Button("Cancel (Esc)", variant="error", id="btn-cancel-finetune")
 
     def on_mount(self) -> None:

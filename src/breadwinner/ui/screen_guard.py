@@ -75,7 +75,7 @@ class ScreenGuardScreen(Screen):
 
         with Center():
             with Vertical(id="guard-container"):
-                yield Label("🍞 CRUMB'S HEARTH GUARD", classes="guard-title")
+                yield Label("[■] CRUMB'S HEARTH GUARD", classes="guard-title")
                 yield Label(
                     "( o . o )  \"The oven needs a bit more hearth room to bake!\n             Please expand your terminal window.\"",
                     classes="guard-dialogue"

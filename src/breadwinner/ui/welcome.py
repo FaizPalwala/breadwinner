@@ -464,11 +464,11 @@ class BakeryWelcomeModal(ModalScreen):
             is_local = spec.is_local if spec else False
             has_key = bool(self.provider_keys.get(slug, "").strip())
             if is_local:
-                opts.append((f"🟢 {name} (Ready)", slug))
+                opts.append((f"● {name} (Ready)", slug))
             elif has_key:
-                opts.append((f"🟢 {name} (Key set)", slug))
+                opts.append((f"● {name} (Key set)", slug))
             else:
-                opts.append((f"🟢 {name}", slug))
+                opts.append((f"○ {name}", slug))
         return opts
 
     def render_keys_summary(self) -> str:
@@ -490,7 +490,7 @@ class BakeryWelcomeModal(ModalScreen):
                 pill = self.query_one(f"#pill-prov-{spec.slug}", Button)
                 has_key = bool(self.provider_keys.get(spec.slug, "").strip())
                 is_ready = has_key or spec.is_local
-                status_icon = "🟢" if is_ready else "⚪"
+                status_icon = "●" if is_ready else "○"
                 pill.label = f"{status_icon} {spec.pill_label}"
 
                 pill.remove_class("active-pill")
@@ -552,12 +552,12 @@ class BakeryWelcomeModal(ModalScreen):
 
                 with Horizontal(classes="pills-row", id="welcome-provider-pills-row1"):
                     for spec in row1_specs:
-                        yield Button(f"⚪ {spec.pill_label}", id=f"pill-prov-{spec.slug}", classes="prov-pill")
+                        yield Button(f"○ {spec.pill_label}", id=f"pill-prov-{spec.slug}", classes="prov-pill")
 
                 # Row 2: Fast Inference, Local & Offline (5 pills)
                 with Horizontal(classes="pills-row", id="welcome-provider-pills-row2"):
                     for spec in row2_specs:
-                        yield Button(f"⚪ {spec.pill_label}", id=f"pill-prov-{spec.slug}", classes="prov-pill")
+                        yield Button(f"○ {spec.pill_label}", id=f"pill-prov-{spec.slug}", classes="prov-pill")
 
                 active_spec = get_provider_spec(self.active_provider) or PROVIDERS_REGISTRY[0]
                 initial_key = self.provider_keys.get(self.active_provider, "")
@@ -613,7 +613,7 @@ class BakeryWelcomeModal(ModalScreen):
                 )
 
                 initial_models = list(PROVIDER_MODELS.get(self.active_provider, [("Default Model", "default")]))
-                initial_models.append(("✎ Custom Model ID...", "custom"))
+                initial_models.append(("[*] Custom Model ID...", "custom"))
                 yield Select(
                     initial_models,
                     value=initial_models[0][1],
@@ -701,7 +701,7 @@ class BakeryWelcomeModal(ModalScreen):
 
         models, is_live = ProviderDiscovery.fetch_models_with_status(provider, api_key=key)
         models_with_custom = list(models)
-        models_with_custom.append(("✎ Custom Model ID...", "custom"))
+        models_with_custom.append(("[*] Custom Model ID...", "custom"))
         model_select.set_options(models_with_custom)
         if models_with_custom:
             model_select.value = models_with_custom[0][1]

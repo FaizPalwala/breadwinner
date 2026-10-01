@@ -85,6 +85,13 @@ from breadwinner.ui.geometry import (
     resize_terminal_window,
     get_display_resolution
 )
+from breadwinner.ui.visuals import (
+    DomedHearthPixelWidget,
+    SkillConstellationWidget,
+    CrustSpectrumWidget,
+    PipelineFunnelWidget,
+    PantryMaturityWidget,
+)
 
 
 class VerticalEngineBlade(Static):
@@ -315,7 +322,7 @@ class PersonaSynthesizerModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="persona-synth-dialog"):
             with Horizontal(classes="modal-header-bar"):
-                yield Label("[bold #d18f52]🌾 AI PERSONA SYNTHESIZER[/bold #d18f52]", classes="modal-header-title")
+                yield Label("[bold #d18f52][✦] AI PERSONA SYNTHESIZER[/bold #d18f52]", classes="modal-header-title")
                 yield Button("✕", id="btn-close-persona-synth", classes="modal-close-btn")
 
             # Step 1: Brain Dump
@@ -323,17 +330,17 @@ class PersonaSynthesizerModal(ModalScreen):
                 yield Label("[dim]Pour your stream-of-consciousness into the hopper: target market, visa constraints, notice period, location, salary floor, seniority archetype, key technologies, and any buzzwords you hate.[/dim]")
                 yield TextArea(id="persona-braindump-input")
                 with Horizontal(classes="action-bar"):
-                    yield Button("Synthesize Persona 🪄", variant="success", id="btn-run-synth-persona")
-                    yield Button("🎙️ Voice Dump (Ctrl+R)", variant="warning", id="btn-voice-dump-persona")
+                    yield Button("Synthesize Persona [✦]", variant="success", id="btn-run-synth-persona")
+                    yield Button("[»] Voice Dump (Ctrl+R)", variant="warning", id="btn-voice-dump-persona")
                     yield Button("Cancel", variant="error", id="btn-cancel-synth-persona")
 
             # Step 2: Verification & Review (hidden initially)
             with Vertical(id="step-verify-persona", classes="persona-synth-step"):
-                yield Label("[bold #50fa7b]✓ Application Class Persona Synthesized[/bold #50fa7b]")
+                yield Label("[bold #50fa7b][✓] Application Class Persona Synthesized[/bold #50fa7b]")
                 yield Label("[dim]Inspect, tune, and verify your new persona configuration below:[/dim]")
                 yield TextArea(id="persona-yaml-preview", language="yaml")
                 with Horizontal(classes="action-bar"):
-                    yield Button("Save & Activate Loaf 🥖", variant="success", id="btn-confirm-save-persona")
+                    yield Button("Save & Activate Persona [✓]", variant="success", id="btn-confirm-save-persona")
                     yield Button("← Back to Brain Dump", id="btn-back-to-dump")
 
     def on_mount(self) -> None:
@@ -374,7 +381,7 @@ class PersonaSynthesizerModal(ModalScreen):
                 self.app.notify(f"Synthesis failed: {e}", severity="error")
                 btn = self.query_one("#btn-run-synth-persona", Button)
                 btn.disabled = False
-                btn.label = "Synthesize Persona 🪄"
+                btn.label = "Synthesize Persona [✦]"
             self.app.call_from_thread(show_err)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -386,7 +393,7 @@ class PersonaSynthesizerModal(ModalScreen):
             self.query_one("#step-braindump").display = True
             btn = self.query_one("#btn-run-synth-persona", Button)
             btn.disabled = False
-            btn.label = "Synthesize Persona 🪄"
+            btn.label = "Synthesize Persona [✦]"
             self.query_one("#persona-braindump-input", TextArea).focus()
         elif bid == "btn-run-synth-persona":
             dump_text = self.query_one("#persona-braindump-input", TextArea).text.strip()
@@ -596,7 +603,7 @@ class FineTuneModal(ModalScreen):
     def compose(self) -> ComposeResult:
         yield Vertical(
             Horizontal(
-                Label("[bold yellow]🥖 Interactive Bullet Fine-Tuning Studio[/bold yellow]", classes="modal-header-title"),
+                Label("[bold yellow][§] Interactive Bullet Fine-Tuning Studio[/bold yellow]", classes="modal-header-title"),
                 Button("✕", id="btn-finetune-close", classes="modal-close-btn"),
                 classes="modal-header-bar"
             ),
@@ -740,14 +747,14 @@ class PantryInterviewModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         stt_status = (
-            f"[dim green]🎙️ Voice STT Engine: {self.backend_info.description}[/dim green]"
+            f"[dim green][»] Voice STT Engine: {self.backend_info.description}[/dim green]"
             if self.backend_info.available
-            else "[dim yellow]🎙️ Voice STT: Ready for BYOK Groq/OpenAI keys or local Whisper (Type answers directly)[/dim yellow]"
+            else "[dim yellow][»] Voice STT: Ready for BYOK Groq/OpenAI keys or local Whisper (Type answers directly)[/dim yellow]"
         )
 
         header_widgets = [
             Horizontal(
-                Label("[bold yellow]🥖 The Baker's Interview: Discovering Your Context[/bold yellow]", classes="modal-header-title"),
+                Label("[bold yellow][§] The Baker's Interview: Discovering Your Context[/bold yellow]", classes="modal-header-title"),
                 Button("✕", id="btn-interview-close", classes="modal-close-btn"),
                 classes="modal-header-bar"
             ),
@@ -771,7 +778,7 @@ class PantryInterviewModal(ModalScreen):
 
             if AudioRecorder.is_available() and self.backend_info.available:
                 q_widgets.append(Horizontal(
-                    Button("🎙️ Speak Answer (PTT)", variant="warning", id=f"btn-rec-{area_id}", classes="voice-btn"),
+                    Button("[»] Speak Answer (PTT)", variant="warning", id=f"btn-rec-{area_id}", classes="voice-btn"),
                     Label("[dim italic]Click to record via microphone or type directly[/dim italic]"),
                     classes="voice-bar"
                 ))
@@ -932,7 +939,7 @@ class PantryEditorModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="pantry-editor-dialog"):
             with Horizontal(classes="modal-header-bar"):
-                yield Label("[bold #f4a261]🥖 Career Pantry & Personal Context Diary Studio[/bold #f4a261]", classes="modal-header-title")
+                yield Label("[bold #f4a261][§] Career Pantry & Personal Context Diary Studio[/bold #f4a261]", classes="modal-header-title")
                 yield Button("✕", id="btn-editor-close", classes="modal-close-btn")
             yield Label("[dim]Edit your personal career diary, directives, or structured facts. Saving updates the pantry and creates an automated snapshot.[/dim]")
             with TabbedContent(initial="tab-edit-context", id="pantry-editor-tabs"):
@@ -1158,7 +1165,7 @@ class ModelQuickSwitcherModal(ModalScreen):
             with Horizontal(id="switcher-header-row"):
                 yield Label("[bold #ffb86c]✦ AI ENGINE & MODEL PALETTE[/bold #ffb86c]", id="switcher-title")
                 yield Button("✕", id="btn-switcher-close")
-            yield PaletteSearchInput(placeholder="🔍 Search model or provider (or press 1-9 to pick)...", id="switcher-search")
+            yield PaletteSearchInput(placeholder="[?] Search model or provider (or press 1-9 to pick)...", id="switcher-search")
             yield OptionList(id="switcher-list")
             yield Label("[dim]↑/↓ Navigate • Enter Select • 1-9 Quick Pick • Esc Close[/dim]", id="switcher-footer-hint")
             # Backward compatibility stub
@@ -1419,7 +1426,7 @@ class BakerySettingsModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="settings-dialog"):
             with Horizontal(classes="modal-header-bar"):
-                yield Label("[bold #ffb86c]⚙ BREADWINNER SETTINGS[/bold #ffb86c] [dim]• Studio Invariants[/dim]", classes="modal-header-title")
+                yield Label("[bold #ffb86c][§] BREADWINNER SETTINGS[/bold #ffb86c] [dim]• Studio Invariants[/dim]", classes="modal-header-title")
                 yield Button("✕", id="btn-settings-close", classes="modal-close-btn")
 
             prov = (getattr(settings, "breadwinner_llm_provider", None) or "gemini").upper()
@@ -1444,7 +1451,7 @@ class BakerySettingsModal(ModalScreen):
                 with Vertical(classes="settings-col"):
                     yield Label("[bold #ffb86c]Default Narrative Persona:[/bold #ffb86c]", classes="settings-sec-header")
                     yield Select(persona_opts, value=cur_persona, id="settings-select-persona")
-                    yield Button("+ Synthesize Persona 🪄", id="btn-settings-synth-persona", classes="settings-mini-btn")
+                    yield Button("+ Synthesize Persona [✦]", id="btn-settings-synth-persona", classes="settings-mini-btn")
 
             nav_opts = [
                 ("Auto-Adaptive (<100 cols)", "auto"),
@@ -2459,6 +2466,32 @@ class BreadwinnerApp(App):
         color: #F8F8F2;
         margin: 0 1;
     }
+    #pipeline-funnel-widget {
+        height: auto;
+        margin-bottom: 1;
+    }
+    #studio-skill-constellation {
+        height: auto;
+        margin-top: 1;
+        margin-bottom: 1;
+        padding: 0 1;
+        background: #141926;
+        border: round #334155;
+    }
+    #lab-crust-spectrum {
+        height: auto;
+        margin-top: 1;
+        padding: 0 1;
+        background: #141926;
+        border: round #334155;
+    }
+    #pantry-maturity-widget {
+        height: auto;
+        margin-bottom: 1;
+        padding: 0 1;
+        background: #1a1e2d;
+        border: round #334155;
+    }
     """ + RETRO_THEME_CSS
 
     BINDINGS = [
@@ -2525,11 +2558,12 @@ class BreadwinnerApp(App):
                 with Vertical(id="sidebar-bottom"):
                     yield Button(self.get_active_model_chip_text(), id="btn-sidebar-model", classes="sidebar-bottom-btn")
                     yield VerticalEngineBlade(provider=self.get_active_provider_name(), id="blade-sidebar-engine")
-                    yield Button("⚙ Settings", id="btn-sidebar-settings", classes="sidebar-bottom-btn")
+                    yield Button("[§] Settings", id="btn-sidebar-settings", classes="sidebar-bottom-btn")
 
             with TabbedContent(initial="tab-pipeline", id="main-tabs"):
                     # TAB 1: PIPELINE TRACKER
                     with TabPane("Pipeline (Breadbox)", id="tab-pipeline"):
+                        yield PipelineFunnelWidget(id="pipeline-funnel-widget")
                         with Horizontal(id="pipeline-container"):
                             with Vertical(id="pipeline-table-col"):
                                 yield DataTable(id="pipeline-table", cursor_type="row")
@@ -2568,7 +2602,7 @@ class BreadwinnerApp(App):
                                         id="studio-banner-desc"
                                     )
                                     yield Label(
-                                        '[bold #8be9fd]💬 Crumb:[/] [italic #f1fa8c]"Select a target job and persona to proof your verified bullets."[/italic #f1fa8c]',
+                                        '[bold #8be9fd][·] Crumb:[/] [italic #f1fa8c]"Select a target job and persona to proof your verified bullets."[/italic #f1fa8c]',
                                         id="studio-mascot-speech"
                                     )
                                     # Hidden stubs for test compatibility
@@ -2582,6 +2616,7 @@ class BreadwinnerApp(App):
                                     value=self.initial_url or "",
                                     id="input-job-url"
                                 )
+                                yield SkillConstellationWidget(id="studio-skill-constellation")
                                 
                                 persona_opts = get_persona_select_options()
                                 default_persona_val = settings.default_persona if any(v == settings.default_persona for _, v in persona_opts) else persona_opts[0][1]
@@ -2590,7 +2625,7 @@ class BreadwinnerApp(App):
                                     Vertical(
                                         Horizontal(
                                             Label("Target Narrative Persona:", classes="input-label"),
-                                            Button("+ Brain Dump 🪄", id="btn-synth-persona-studio", classes="studio-mini-btn"),
+                                            Button("+ Brain Dump [✦]", id="btn-synth-persona-studio", classes="studio-mini-btn"),
                                             classes="persona-header-row"
                                         ),
                                         Select(
@@ -2637,6 +2672,7 @@ class BreadwinnerApp(App):
                                         yield Button("✓ Apply to Resume", id="btn-lab-apply-bullets")
                                     yield TextArea("", id="lab-bullet-editor")
                                     yield XYZValidatorWidget(id="lab-xyz-validator")
+                                    yield CrustSpectrumWidget(id="lab-crust-spectrum")
 
                                 with Vertical(id="lab-right-col"):
                                     with TabbedContent(id="preview-tabs"):
@@ -2676,9 +2712,10 @@ class BreadwinnerApp(App):
                     with TabPane("Context Pantry", id="tab-profile"):
                         with Horizontal(id="pantry-ide-split"):
                             with VerticalScroll(id="pantry-ide-nav"):
+                                yield PantryMaturityWidget(id="pantry-maturity-widget")
                                 yield Label("[bold #A89F91]CANONICAL LEDGERS[/bold #A89F91]", classes="pantry-nav-sec-label")
                                 yield Button("▤ profile.yaml (Facts)", id="btn-nav-profile", classes="pantry-nav-btn")
-                                yield Button("✎ context.md (Diary)", id="btn-nav-context", classes="pantry-nav-btn")
+                                yield Button("§ context.md (Diary)", id="btn-nav-context", classes="pantry-nav-btn")
                                 yield Label("[bold #A89F91]DEEP DOSSIER[/bold #A89F91]", classes="pantry-nav-sec-label")
                                 yield Vertical(id="pantry-dossier-list")
                                 yield Label("[bold #A89F91]PERSONAS[/bold #A89F91]", classes="pantry-nav-sec-label")
@@ -2970,6 +3007,21 @@ class BreadwinnerApp(App):
         table.add_columns("ID", "Company", "Role", "Status", "Match", "Date Added", "Flag")
 
         jobs = self.repo.list_jobs()
+
+        drafts = sum(1 for j in jobs if j.status.lower() in ("target", "tailored", "draft"))
+        applied = sum(1 for j in jobs if j.status.lower() == "applied")
+        interview = sum(1 for j in jobs if j.status.lower() == "interviewing")
+        offer = sum(1 for j in jobs if j.status.lower() == "offer")
+        try:
+            self.query_one("#pipeline-funnel-widget", PipelineFunnelWidget).update_pipeline(
+                draft_count=drafts,
+                applied_count=applied,
+                interview_count=interview,
+                offer_count=offer
+            )
+        except Exception:
+            pass
+
         if not jobs:
             table.add_row(
                 "—",
@@ -2995,7 +3047,7 @@ class BreadwinnerApp(App):
             }.get(j.status.lower(), j.status.upper())
 
             match_str = f"{j.match_score}%" if j.match_score is not None else "-"
-            flag_str = f"⚠️ {j.flag}" if j.flag else ""
+            flag_str = f"[!] {j.flag}" if j.flag else ""
 
             table.add_row(
                 j.id,
@@ -3063,7 +3115,7 @@ class BreadwinnerApp(App):
             if p.models:
                 lines.append("- **Models:**")
                 for m in p.models:
-                    marker = "  * 👉 **" if m.is_active else "  * "
+                    marker = "  * [►] **" if m.is_active else "  * "
                     suffix = "** (Active)" if m.is_active else ""
                     lines.append(f"{marker}`{m.id}`{suffix}")
             else:
@@ -3181,7 +3233,7 @@ class BreadwinnerApp(App):
                 btn_mod.styles.display = "none"
                 blade.styles.display = "block"
                 blade.update_provider(self.get_active_provider_name())
-                btn_set.label = "⚙"
+                btn_set.label = "[§]"
             else:
                 sidebar.remove_class("-collapsed")
                 toggle_btn.label = "◄"
@@ -3190,7 +3242,7 @@ class BreadwinnerApp(App):
                 btn_pa.label = "▤ Pantry (3)"
                 btn_mod.styles.display = "block"
                 blade.styles.display = "none"
-                btn_set.label = "⚙ Settings"
+                btn_set.label = "[§] Settings"
         except Exception:
             pass
 
@@ -3392,12 +3444,46 @@ class BreadwinnerApp(App):
         except Exception:
             pass
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "input-job-url":
+            self.refresh_skill_constellation(event.value.strip())
+
+    def refresh_skill_constellation(self, url_or_text: str) -> None:
+        try:
+            widget = self.query_one("#studio-skill-constellation", SkillConstellationWidget)
+            if not url_or_text:
+                widget.update_constellation(set(), [])
+                return
+            cand_skills = set(self.current_profile.skills) if self.current_profile else set()
+            p_source = Path(url_or_text)
+            if p_source.is_file():
+                content = p_source.read_text(encoding="utf-8")
+                job = JobScraper.ingest_from_text(content, "Target", "Role")
+                demanded = job.requirements or job.keywords or []
+                widget.update_constellation(cand_skills, demanded[:8])
+            elif url_or_text.startswith("http://") or url_or_text.startswith("https://"):
+                widget.update("[dim #94A3B8]· Remote URL detected — Constellation calculates upon baking ·[/dim #94A3B8]")
+            else:
+                job = JobScraper.ingest_from_text(url_or_text, "Target", "Role")
+                demanded = job.requirements or job.keywords or []
+                widget.update_constellation(cand_skills, demanded[:8])
+        except Exception:
+            pass
+
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if event.text_area.id == "lab-bullet-editor":
             try:
                 report = analyze_bullets_xyz(event.text_area.text, self.current_profile)
                 prov = self.current_app_result.provenance_report if hasattr(self, "current_app_result") and self.current_app_result else None
                 self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report, provenance_info=prov)
+                try:
+                    self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                        quantified_pct=report.quantified_score,
+                        action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                        provenance_verified=(prov is None or getattr(prov, "is_clean", True))
+                    )
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -3569,11 +3655,11 @@ class BreadwinnerApp(App):
                 md_view.update(r_editor.text)
                 md_view.styles.display = "block"
                 r_editor.styles.display = "none"
-                btn.label = "✏ Edit"
+                btn.label = "[·] Edit"
             else:
                 md_view.styles.display = "none"
                 r_editor.styles.display = "block"
-                btn.label = "👁 Preview"
+                btn.label = "[·] Preview"
         except Exception:
             pass
 
@@ -3589,6 +3675,16 @@ class BreadwinnerApp(App):
 
     def load_pantry_ide(self) -> None:
         try:
+            try:
+                prof = self.pantry.load_profile()
+                self.query_one("#pantry-maturity-widget", PantryMaturityWidget).update_maturity(
+                    exp_count=len(prof.experience),
+                    proj_count=len(prof.projects),
+                    facts_count=len(prof.skills)
+                )
+            except Exception:
+                pass
+
             summary = self.query_one("#pantry-snapshots-summary", Static)
             snaps = self.pantry.list_snapshots()
             if snaps:
@@ -4377,6 +4473,14 @@ class BreadwinnerApp(App):
                 report = analyze_bullets_xyz(bullet_text, self.current_profile)
                 prov = self.current_app_result.provenance_report if hasattr(self, "current_app_result") and self.current_app_result else None
                 self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report, provenance_info=prov)
+                try:
+                    self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                        quantified_pct=report.quantified_score,
+                        action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                        provenance_verified=(prov is None or getattr(prov, "is_clean", True))
+                    )
+                except Exception:
+                    pass
                 if job:
                     self.query_one("#lab-active-job-label", Label).update(f"[bold white]{job.company} — {job.title}[/bold white]")
                 prov_tag = " • [bold #8be9fd]100% Grounded[/]" if prov and prov.get("is_valid", False) else ""

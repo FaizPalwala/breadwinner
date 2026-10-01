@@ -54,7 +54,7 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  [#f59e0b]░░[/] [bold #f59e0b]🍞[/] [#f59e0b]░░[/]   \\ [/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  [#f59e0b]░░[/] [bold #f59e0b]( · · )[/] [#f59e0b]░░[/]   \\ [/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
         "   [#ffb86c]450°F HEARTH • STONE PEEL[/]",
@@ -66,7 +66,7 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  [#ffb86c]░░[/] [bold #ffb86c]~🍞~[/] [#ffb86c]░░[/]  \\ [/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  [#ffb86c]░░[/] [bold #ffb86c]( 彡 彡 )[/] [#ffb86c]░░[/]  \\ [/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
         "   [#ffb86c]450°F HEARTH • CRACKLING[/]",
@@ -78,7 +78,7 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  *  [bold #ffb86c]🍞[/]  *   \\ [/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  *  [bold #ffb86c]( ◉ ◉ )[/]  *   \\ [/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
         "  [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]",
@@ -90,7 +90,7 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  ★  [bold #50fa7b]🍞[/]  ★   \\ [/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  ★  [bold #50fa7b]( ★ ★ )[/]  ★   \\ [/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
         "  [#ffb86c]450°F HEARTH • CARAMELIZING[/]",
@@ -104,7 +104,7 @@ OVEN_CELEBRATION_FRAME = _pad_frame([
     "  [#50fa7b]╔═════════════════════════╗[/]",
     "  [#50fa7b]║[/]  [bold #50fa7b]* MASTERPIECE BAKED *[/]  [#50fa7b]║[/]",
     "  [#50fa7b]║[/]     [#f1fa8c].─────────────.[/]     [#50fa7b]║[/]",
-    r"  [#50fa7b]║[/]    [#f1fa8c]/  ★ [bold #f59e0b]🍞 GOLDEN[/] ★  \\ [/]   [#50fa7b]║[/]",
+    r"  [#50fa7b]║[/]    [#f1fa8c]/  ★ [bold #f59e0b]GOLDEN BOULE[/] ★  \\ [/]   [#50fa7b]║[/]",
     "  [#50fa7b]║[/]   [#f1fa8c]|  READY TO SERVE   |[/]   [#50fa7b]║[/]",
     "  [#50fa7b]╚═════════════════════════╝[/]",
     "  [bold #50fa7b]CRUST: *CRUNCH* • 100% DONE[/]",
@@ -330,7 +330,7 @@ class AnimatedMascot(Static):
             if self.app:
                 from textual.widgets import Label
                 speech_label = self.app.query_one("#studio-mascot-speech", Label)
-                speech_label.update(f'[bold #8be9fd]💬 Crumb:[/] [italic #f1fa8c]"{message}"[/italic #f1fa8c]')
+                speech_label.update(f'[bold #8be9fd][·] Crumb:[/] [italic #f1fa8c]"{message}"[/italic #f1fa8c]')
         except Exception:
             pass
 
@@ -391,8 +391,8 @@ class PokemonBakeryCounter(Static):
     ):
         super().__init__("", id=id, classes=classes)
         self.current_message = initial_message
-        self.badge_title = "💬 BAKER CRUMB [dim](Lv. 100 Master Baker)[/]"
-        self.status_line = "Verified Ingredients Only ♪ ▼"
+        self.badge_title = "[·] BAKER CRUMB [dim](Lv. 100 Master Baker)[/]"
+        self.status_line = "Verified Ingredients Only [·] ▼"
         self.frame_idx = 0
         self._timer = None
 
@@ -433,11 +433,11 @@ class BakeryStepper(Static):
     """Retro 8-bit breadcrumb stage tracker for the tailoring lifecycle."""
 
     STAGES = [
-        ("🌾", "PANTRY"),
-        ("🥣", "KNEAD"),
-        ("🥖", "PROOF"),
-        ("♨️", "OVEN"),
-        ("🍞", "GOLDEN LOAF")
+        ("[·]", "PANTRY"),
+        ("[~]", "KNEAD"),
+        ("[≡]", "PROOF"),
+        ("[▲]", "OVEN"),
+        ("[★]", "GOLDEN LOAF")
     ]
 
     def __init__(self, current_stage: int = 0, id: Optional[str] = None, classes: Optional[str] = "retro-stepper"):
@@ -508,9 +508,9 @@ class BakingModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="baking-modal-container"):
             header_title = (
-                "🥖 BREADWINNER ARCADE BAKERY 🥖"
+                "[✦] BREADWINNER ARCADE BAKERY [✦]"
                 if self.task_type == "tailor"
-                else "♨️ HEADLESS OVEN PDF BAKE ♨️"
+                else "[▲] HEADLESS OVEN PDF BAKE [▲]"
             )
             yield Label(f"[bold #ffb86c]{header_title}[/bold #ffb86c]", id="baking-title")
             yield BakeryStepper(current_stage=0, id="modal-stepper")
@@ -559,7 +559,7 @@ class BakingModal(ModalScreen):
             # STAGE 0: PANTRY & JD INGESTION
             self.app.call_from_thread(stepper.set_stage, 0)
             self.app.call_from_thread(gauge.update_progress, 15)
-            self.app.call_from_thread(status_lbl.update, "[bold #8be9fd]🌾 Gathering verified pantry facts & parsing JD...[/bold #8be9fd]")
+            self.app.call_from_thread(status_lbl.update, "[bold #8be9fd][·] Gathering verified pantry facts & parsing JD...[/bold #8be9fd]")
             time.sleep(0.3)
 
             url_input = self.target_info.get("url_input", "")
@@ -588,7 +588,7 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(gauge.update_progress, 35)
             self.app.call_from_thread(
                 status_lbl.update,
-                f"[bold #ffb86c]🥣 Kneading narrative persona ({persona.name[:25]})...[/bold #ffb86c]"
+                f"[bold #ffb86c][~] Kneading narrative persona ({persona.name[:25]})...[/bold #ffb86c]"
             )
             time.sleep(0.4)
 
@@ -599,7 +599,7 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(gauge.update_progress, 60)
             self.app.call_from_thread(
                 status_lbl.update,
-                "[bold #f1fa8c]🥖 Proofing XYZ formulas & verifiable metrics...[/bold #f1fa8c]"
+                "[bold #f1fa8c][≡] Proofing XYZ formulas & verifiable metrics...[/bold #f1fa8c]"
             )
 
             engine = TailoringEngine(provider)
@@ -610,7 +610,7 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(gauge.update_progress, 80)
             self.app.call_from_thread(
                 status_lbl.update,
-                f"[bold #ff79c6]♨️ Preheating stone peel for {template_name.upper()} template...[/bold #ff79c6]"
+                f"[bold #ff79c6][▲] Preheating stone peel for {template_name.upper()} template...[/bold #ff79c6]"
             )
             time.sleep(0.3)
 
@@ -636,7 +636,7 @@ class BakingModal(ModalScreen):
             # STAGE 4: GOLDEN LOAF (PDF BAKE)
             self.app.call_from_thread(stepper.set_stage, 4)
             self.app.call_from_thread(gauge.update_progress, 95)
-            self.app.call_from_thread(status_lbl.update, "[bold #50fa7b]🍞 Caramelizing crust into print-ready PDF...[/bold #50fa7b]")
+            self.app.call_from_thread(status_lbl.update, "[bold #50fa7b][★] Caramelizing crust into print-ready PDF...[/bold #50fa7b]")
 
             pdf_baked = False
             pdf_path = app_dir / "resume.pdf"
@@ -706,12 +706,12 @@ class BakingModal(ModalScreen):
 
             self.app.call_from_thread(stepper.set_stage, 3)
             self.app.call_from_thread(gauge.update_progress, 40)
-            self.app.call_from_thread(status_lbl.update, "[bold #ffb86c]♨️ Launching headless Chromium bakery oven...[/bold #ffb86c]")
+            self.app.call_from_thread(status_lbl.update, "[bold #ffb86c][▲] Launching headless Chromium bakery oven...[/bold #ffb86c]")
             time.sleep(0.4)
 
             self.app.call_from_thread(stepper.set_stage, 4)
             self.app.call_from_thread(gauge.update_progress, 75)
-            self.app.call_from_thread(status_lbl.update, "[bold #50fa7b]🍞 Rendering crisp vector PDF typography...[/bold #50fa7b]")
+            self.app.call_from_thread(status_lbl.update, "[bold #50fa7b][★] Rendering crisp vector PDF typography...[/bold #50fa7b]")
 
             render_html_to_pdf(html_path, pdf_path, open_after=False)
             size_kb = round(pdf_path.stat().st_size / 1024, 1)
@@ -742,15 +742,15 @@ class BakingModal(ModalScreen):
         gauge.update_progress(100)
 
         status_lbl = self.query_one("#baking-status-text", Label)
-        status_lbl.update("[bold #50fa7b]✨ DING! GOLDEN LOAF CERTIFIED OUT OF THE OVEN! ✨[/bold #50fa7b]")
+        status_lbl.update("[bold #50fa7b][★] DING! GOLDEN LOAF CERTIFIED OUT OF THE OVEN! [★][/bold #50fa7b]")
 
         score_card = self.query_one("#baking-score-card", Vertical)
         score_card.display = True
 
         score_title = self.query_one("#score-card-title", Label)
-        score_title.update(f"[bold #f1fa8c]🏆 HIGH SCORE: {score}% ATS MATCH[/bold #f1fa8c] | [bold #50fa7b]{company} — {title}[/bold #50fa7b]")
+        score_title.update(f"[bold #f1fa8c][★] HIGH SCORE: {score}% ATS MATCH[/bold #f1fa8c] | [bold #50fa7b]{company} — {title}[/bold #50fa7b]")
 
-        pdf_status = "Baked ✓ (resume.pdf)" if pdf_baked else "Not baked (press 'b')"
+        pdf_status = "Baked [✓] (resume.pdf)" if pdf_baked else "Not baked (press 'b')"
         score_details = self.query_one("#score-card-details", Label)
         score_details.update(
             f"[dim]Saved Package:[/] [cyan]{app_dir.name}[/cyan]\n"
@@ -772,13 +772,13 @@ class BakingModal(ModalScreen):
         gauge.update_progress(100)
 
         status_lbl = self.query_one("#baking-status-text", Label)
-        status_lbl.update("[bold #50fa7b]✨ DING! FRESH PRINT-READY PDF BAKED! ✨[/bold #50fa7b]")
+        status_lbl.update("[bold #50fa7b][★] DING! FRESH PRINT-READY PDF BAKED! [★][/bold #50fa7b]")
 
         score_card = self.query_one("#baking-score-card", Vertical)
         score_card.display = True
 
         score_title = self.query_one("#score-card-title", Label)
-        score_title.update(f"[bold #f1fa8c]📄 ATS PDF READY[/bold #f1fa8c] | [bold #50fa7b]{size_kb} KB[/bold #50fa7b]")
+        score_title.update(f"[bold #f1fa8c][DOC] ATS PDF READY[/bold #f1fa8c] | [bold #50fa7b]{size_kb} KB[/bold #50fa7b]")
 
         score_details = self.query_one("#score-card-details", Label)
         score_details.update(f"[dim]Location:[/] [cyan]{app_dir / 'resume.pdf'}[/cyan]")

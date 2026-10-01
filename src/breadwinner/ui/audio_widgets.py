@@ -227,7 +227,7 @@ class AudioDictationModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dictation-container"):
-            yield Label(f"🎙️ {self.prompt_title.upper()}", id="dictation-header-title")
+            yield Label(f"[REC] {self.prompt_title.upper()}", id="dictation-header-title")
             
             badge_color = "#50fa7b" if self.backend_info.kind in ["local", "cloud"] else "#ffb86c"
             yield Label(f"[{badge_color}]● STT Engine: {self.backend_info.description}[/{badge_color}]", id="dictation-backend-badge")
@@ -288,7 +288,7 @@ class AudioDictationModal(ModalScreen[Optional[str]]):
         btn.add_class("recording")
 
         status = self.query_one("#dictation-status-box", Label)
-        status.update("[bold #ff5555]🔴 RECORDING AUDIO... (Speak clearly into microphone)[/bold #ff5555]")
+        status.update("[bold #ff5555]● RECORDING AUDIO... (Speak clearly into microphone)[/bold #ff5555]")
 
         wf = self.query_one("#dictation-waveform", AudioWaveformWidget)
         wf.set_state("recording")
