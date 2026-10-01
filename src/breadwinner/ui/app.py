@@ -73,6 +73,11 @@ from breadwinner.ui.editor import (
     STRONG_ACTION_VERBS,
 )
 from breadwinner.ui.screen_guard import ScreenGuardScreen
+from breadwinner.ui.audio_widgets import (
+    AudioDictationModal,
+    AudioWaveformWidget,
+    AudioVUMeterWidget
+)
 from breadwinner.core.portfolio import JsonResumeAdapter
 from breadwinner.onboarding import STARTER_JSON_RESUME
 from breadwinner.ui.geometry import (
@@ -299,6 +304,10 @@ class PersonaSynthesizerModal(ModalScreen):
     }
     """
 
+    BINDINGS = [
+        ("ctrl+r", "trigger_voice_dump", "Voice Dump"),
+    ]
+
     def __init__(self):
         super().__init__()
         self.synthesized_persona: Optional[Persona] = None
@@ -315,6 +324,7 @@ class PersonaSynthesizerModal(ModalScreen):
                 yield TextArea(id="persona-braindump-input")
                 with Horizontal(classes="action-bar"):
                     yield Button("Synthesize Persona 🪄", variant="success", id="btn-run-synth-persona")
+                    yield Button("🎙️ Voice Dump (Ctrl+R)", variant="warning", id="btn-voice-dump-persona")
                     yield Button("Cancel", variant="error", id="btn-cancel-synth-persona")
 
             # Step 2: Verification & Review (hidden initially)
@@ -386,6 +396,8 @@ class PersonaSynthesizerModal(ModalScreen):
             event.button.disabled = True
             event.button.label = "Synthesizing..."
             self._run_synthesis(dump_text)
+        elif bid == "btn-voice-dump-persona":
+            self.action_trigger_voice_dump()
         elif bid == "btn-confirm-save-persona":
             try:
                 raw_yaml = self.query_one("#persona-yaml-preview", TextArea).text
@@ -396,6 +408,20 @@ class PersonaSynthesizerModal(ModalScreen):
                 self.dismiss(p.slug)
             except Exception as e:
                 self.app.notify(f"Error saving persona: {e}", severity="error")
+
+    def action_trigger_voice_dump(self) -> None:
+        """Open universal voice dictation modal to capture and append thoughts to brain dump."""
+        def on_recorded(text: Optional[str]):
+            if text:
+                ta = self.query_one("#persona-braindump-input", TextArea)
+                existing = ta.text.strip()
+                if existing:
+                    ta.text = f"{existing}\n{text}"
+                else:
+                    ta.text = text
+                ta.focus()
+                self.app.notify("✓ Voice brain dump captured!", title="Audio Dictation")
+        self.app.push_screen(AudioDictationModal(prompt_title="Persona Brain Dump Voice Dictation"), on_recorded)
 
 
 class StatusModal(ModalScreen):
@@ -745,7 +771,7 @@ class PantryInterviewModal(ModalScreen):
 
             if AudioRecorder.is_available() and self.backend_info.available:
                 q_widgets.append(Horizontal(
-                    Button("🎤 Speak Answer (10s)", variant="warning", id=f"btn-rec-{area_id}", classes="voice-btn"),
+                    Button("🎙️ Speak Answer (PTT)", variant="warning", id=f"btn-rec-{area_id}", classes="voice-btn"),
                     Label("[dim italic]Click to record via microphone or type directly[/dim italic]"),
                     classes="voice-bar"
                 ))
@@ -778,31 +804,8 @@ class PantryInterviewModal(ModalScreen):
             self.dismiss(ans)
         elif btn_id.startswith("btn-rec-"):
             target_area_id = btn_id.replace("btn-rec-", "")
-            self._start_voice_recording(target_area_id, event.button)
-
-    @work(thread=True)
-    def _start_voice_recording(self, target_area_id: str, btn: Button) -> None:
-        import tempfile
-        from pathlib import Path
-
-        def set_btn(text: str, disabled: bool):
-            btn.label = text
-            btn.disabled = disabled
-
-        self.app.call_from_thread(set_btn, "🔴 Recording (Speak now)...", True)
-        temp_wav = Path(tempfile.gettempdir()) / f"breadwinner_voice_{target_area_id}.wav"
-
-        success = AudioRecorder.record_to_file(temp_wav, duration_seconds=10)
-        if not success:
-            self.app.call_from_thread(set_btn, "🎤 Speak Answer (10s)", False)
-            self.notify("Could not capture audio from microphone. Please type your response.", severity="error")
-            return
-
-        self.app.call_from_thread(set_btn, "⏳ Transcribing...", True)
-        try:
-            transcription = AudioTranscriber.transcribe(temp_wav)
-            if transcription:
-                def update_text():
+            def on_captured(transcription: Optional[str]):
+                if transcription:
                     try:
                         area = self.query_one(f"#{target_area_id}", TextArea)
                         existing = area.text.strip()
@@ -810,18 +813,7 @@ class PantryInterviewModal(ModalScreen):
                         self.notify(f"✓ Transcribed: '{transcription[:40]}...'", title="Speech Captured")
                     except Exception:
                         pass
-                self.app.call_from_thread(update_text)
-            else:
-                self.notify("No speech detected in audio.", severity="warning")
-        except Exception as e:
-            self.notify(f"Transcription failed: {e}", severity="error")
-        finally:
-            self.app.call_from_thread(set_btn, "🎤 Speak Again (10s)", False)
-            try:
-                if temp_wav.exists():
-                    temp_wav.unlink()
-            except Exception:
-                pass
+            self.app.push_screen(AudioDictationModal(prompt_title="Speak Interview Answer"), on_captured)
 
 
 class PantryHistoryModal(ModalScreen):

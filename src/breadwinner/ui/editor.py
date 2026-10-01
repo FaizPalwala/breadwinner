@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 
 from breadwinner.core.models import CandidateProfile, TailoredApplication, WorkExperience
 from breadwinner.core.renderer import TemplateRenderer
+from breadwinner.ui.audio_widgets import AudioDictationModal
 
 
 STRONG_ACTION_VERBS = {
@@ -306,6 +307,10 @@ class DualPaneFineTuneModal(ModalScreen):
 
     DEFAULT_CSS = STUDIO_CSS
 
+    BINDINGS = [
+        ("ctrl+r", "dictate_bullet", "Dictate Bullet"),
+    ]
+
     def __init__(
         self,
         initial_text: str,
@@ -341,6 +346,7 @@ class DualPaneFineTuneModal(ModalScreen):
             with Horizontal(id="studio-action-bar"):
                 yield Button("Apply & Re-Bake PDF (Enter)", variant="success", id="btn-save-finetune")
                 yield Button("Format All with XYZ", variant="warning", id="btn-format-xyz")
+                yield Button("🎙️ Dictate Bullet (Ctrl+R)", variant="primary", id="btn-dictate-bullet")
                 yield Button("Cancel (Esc)", variant="error", id="btn-cancel-finetune")
 
     def on_mount(self) -> None:
@@ -429,5 +435,22 @@ class DualPaneFineTuneModal(ModalScreen):
                     lines.append(l)
             editor.text = "\n".join(lines)
             self.app.notify("Added Google XYZ metric placeholders to unquantified bullets!", title="XYZ Formatted")
+        elif bid == "btn-dictate-bullet":
+            self.action_dictate_bullet()
         else:
             self.dismiss(None)
+
+    def action_dictate_bullet(self) -> None:
+        """Open universal voice dictation modal to capture and append a new bullet."""
+        def on_dictated(text: Optional[str]):
+            if text:
+                editor = self.query_one("#finetune-editor", TextArea)
+                clean_bullet = f"- {text.strip().lstrip('-*• ')}"
+                existing = editor.text.strip()
+                if existing:
+                    editor.text = f"{existing}\n{clean_bullet}\n"
+                else:
+                    editor.text = f"{clean_bullet}\n"
+                editor.focus()
+                self.app.notify("✓ Dictated bullet added to laboratory!", title="Speech Captured")
+        self.app.push_screen(AudioDictationModal(prompt_title="Dictate Experience Bullet"), on_dictated)
