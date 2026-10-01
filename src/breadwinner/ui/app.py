@@ -1359,7 +1359,7 @@ class BreadwinnerApp(App):
     }
     #app-top-bar {
         dock: top;
-        height: 3;
+        height: 4;
         background: #10141f;
         border-bottom: heavy #2A2E3D;
         padding: 0 1;
@@ -1683,13 +1683,11 @@ class BreadwinnerApp(App):
         margin-bottom: 1;
     }
     #details-body {
-        height: 6;
-        min-height: 6;
+        height: auto;
+        min-height: 3;
         border: round #2A2E3D;
         background: #0C0E14;
         color: #F8F8F2;
-        content-align: center middle;
-        text-align: center;
         padding: 0 1;
         margin-bottom: 1;
     }
@@ -2251,8 +2249,7 @@ class BreadwinnerApp(App):
                             with VerticalScroll(id="job-details-pane"):
                                 yield Label("[bold #FFB86C]APPLICATION INSPECTOR[/bold #FFB86C]", id="details-header")
                                 yield Static(
-                                    "[bold #A89F91]◈ NO APPLICATION SELECTED[/bold #A89F91]\n"
-                                    "[dim]Select a job row from the table\nto inspect details & notes[/dim]",
+                                    "[dim]Select a job row from the table to inspect details.[/dim]",
                                     id="details-body"
                                 )
                                 yield Label("[bold #A89F91]JOB ACTIONS[/bold #A89F91]", classes="inspector-sec-label")
@@ -2698,7 +2695,7 @@ class BreadwinnerApp(App):
     def update_details_pane(self) -> None:
         details_body = self.query_one("#details-body", Static)
         if not self.selected_job:
-            details_body.update("[bold #A89F91]◈ No application selected[/bold #A89F91]\n[dim]Select a job row from the table to inspect details.[/dim]")
+            details_body.update("[dim]Select a job row from the table to inspect details.[/dim]")
             try:
                 self.query_one("#input-job-notes", TextArea).text = ""
             except Exception:
