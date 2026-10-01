@@ -1359,16 +1359,16 @@ class BreadwinnerApp(App):
     }
     #app-top-bar {
         dock: top;
-        height: 4;
+        height: 3;
         background: #10141f;
         border-bottom: heavy #2A2E3D;
         padding: 0 1;
         layout: horizontal;
-        align-vertical: middle;
     }
     #top-bar-left {
-        width: 34;
-        height: 100%;
+        width: auto;
+        height: 1;
+        margin-top: 1;
         align: left middle;
     }
     .icon-toggle-btn {
@@ -1389,7 +1389,8 @@ class BreadwinnerApp(App):
     }
     #top-bar-center {
         width: 1fr;
-        height: 100%;
+        height: 1;
+        margin-top: 1;
         align: center middle;
         content-align: center middle;
     }
@@ -1407,7 +1408,7 @@ class BreadwinnerApp(App):
     #top-bar-nav-pills {
         display: none;
         width: auto;
-        height: 100%;
+        height: 1;
         align: left middle;
     }
     .top-nav-btn {
@@ -1430,8 +1431,9 @@ class BreadwinnerApp(App):
         text-style: bold;
     }
     #top-bar-right {
-        width: 34;
-        height: 100%;
+        width: auto;
+        height: 1;
+        margin-top: 1;
         align: right middle;
     }
     #btn-active-model-chip {
@@ -1451,7 +1453,7 @@ class BreadwinnerApp(App):
     }
     #btn-app-cycle-preset {
         height: 1;
-        min-width: 18;
+        min-width: 16;
         padding: 0 1;
         margin-right: 1;
         border: none;
@@ -1465,7 +1467,8 @@ class BreadwinnerApp(App):
     }
     #btn-app-quit {
         height: 1;
-        min-width: 12;
+        min-width: 13;
+        width: auto;
         padding: 0 1;
         border: none;
         background: #E04050;
@@ -1490,8 +1493,8 @@ class BreadwinnerApp(App):
         overflow: hidden;
     }
     #app-sidebar.-collapsed {
-        width: 7;
-        padding: 1 0 1 1;
+        width: 8;
+        padding: 1 1;
         overflow: hidden;
     }
     .sidebar-flow-btn {
@@ -2888,9 +2891,11 @@ class BreadwinnerApp(App):
         try:
             cycle_btn = self.query_one("#btn-app-cycle-preset", Button)
             if self.layout_preset == "split":
-                cycle_btn.label = "⛶ Split (F11)"
+                cycle_btn.label = "⛶ View: Split (F11)"
+            elif self.layout_preset == "fullscreen":
+                cycle_btn.label = "⛶ View: Full (F11)"
             else:
-                cycle_btn.label = f"⛶ View: {self.layout_preset.capitalize()} (F11)"
+                cycle_btn.label = "⛶ View: Normal (F11)"
         except Exception:
             pass
 
