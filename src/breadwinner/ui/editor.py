@@ -182,7 +182,9 @@ DualPaneFineTuneModal {
 }
 
 #xyz-validator-box {
-    height: 7;
+    height: auto;
+    min-height: 7;
+    max-height: 9;
     margin-top: 1;
     padding: 0 1;
     background: #212330;
@@ -251,41 +253,49 @@ def make_gauge_bar(score: int, width: int = 12) -> str:
 
 
 class XYZValidatorWidget(Static):
-    """Real-time Google XYZ Formula multi-gauge telemetry display."""
+    """Real-time Google XYZ Formula multi-gauge telemetry display and anti-hallucination provenance seal."""
 
     def __init__(self, id: Optional[str] = "xyz-validator-box"):
         placeholder = (
-            "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
+            "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Provenance Telemetry[/dim]\n"
             "[dim]Awaiting experience bullets... Enter or paste bullets above to calculate real-time impact scores.[/dim]"
         )
         super().__init__(placeholder, id=id)
         self.latest_report: Optional[XYZMetricReport] = None
+        self.latest_provenance: Optional[Dict[str, Any]] = None
 
-    def update_report(self, report: XYZMetricReport) -> None:
+    def update_report(self, report: XYZMetricReport, provenance_info: Optional[Dict[str, Any]] = None) -> None:
         self.latest_report = report
+        if provenance_info is not None:
+            self.latest_provenance = provenance_info
+
         if report.total_bullets == 0:
             content = (
-                "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
+                "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Provenance Telemetry[/dim]\n"
                 f"[dim]{report.coaching_tip}[/dim]"
             )
             self.update(content)
             return
 
-        g_xyz = make_gauge_bar(report.quantified_score, width=24)
-        g_verb = make_gauge_bar(report.action_verbs_score, width=24)
-        g_ground = make_gauge_bar(report.groundedness_score, width=24)
-        g_bake = make_gauge_bar(report.bake_health_score, width=24)
+        g_xyz = make_gauge_bar(report.quantified_score, width=20)
+        g_verb = make_gauge_bar(report.action_verbs_score, width=20)
+        g_ground = make_gauge_bar(report.groundedness_score, width=20)
+        g_bake = make_gauge_bar(report.bake_health_score, width=20)
+
+        prov_line = ""
+        if self.latest_provenance:
+            summary = self.latest_provenance.get("summary", "100% Grounded • 0 Hallucinations")
+            prov_line = f"\n [bold #50fa7b]PROVENANCE SEAL:[/] [dim]{summary}[/dim]"
+            healed = self.latest_provenance.get("hallucinations_healed", 0)
+            if healed > 0:
+                prov_line += f" [bold #8be9fd]({healed} healed)[/]"
 
         content = (
-            f"[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
-            f" [#c9b5a2]• Google XYZ Compliance[/] [dim]({report.quantified_bullets}/{report.total_bullets} Quantified)[/dim]\n"
-            f"   {g_xyz}\n"
-            f" [#c9b5a2]• Action Verb Velocity[/] [dim]({report.action_verbs_count}/{report.total_bullets} Action Verbs)[/dim]\n"
-            f"   {g_verb}\n"
-            f" [#c9b5a2]• Pantry Fact Grounding[/] [dim](Verified Facts)[/dim]\n"
-            f"   {g_ground}\n"
-            f" [#c9b5a2]• Bake Health Index[/] [dim](Hearth Readiness)[/dim]\n"
-            f"   {g_bake}\n"
+            f"[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Anti-Hallucination Studio[/dim]{prov_line}\n"
+            f" [#c9b5a2]• Google XYZ Compliance[/] [dim]({report.quantified_bullets}/{report.total_bullets})[/dim]  {g_xyz}\n"
+            f" [#c9b5a2]• Action Verb Velocity[/]  [dim]({report.action_verbs_count}/{report.total_bullets})[/dim]  {g_verb}\n"
+            f" [#c9b5a2]• Pantry Fact Grounding[/]  [dim](Facts)[/dim]  {g_ground}\n"
+            f" [#c9b5a2]• Bake Health Index[/]     [dim](Hearth)[/dim] {g_bake}\n"
             f"{report.coaching_tip}"
         )
         self.update(content)
@@ -334,9 +344,10 @@ class DualPaneFineTuneModal(ModalScreen):
                 yield Button("Cancel (Esc)", variant="error", id="btn-cancel-finetune")
 
     def on_mount(self) -> None:
-        # Initial XYZ analysis
+        # Initial XYZ analysis with provenance
         report = analyze_bullets_xyz(self.initial_text, self.profile)
-        self.query_one("#xyz-validator-box", XYZValidatorWidget).update_report(report)
+        prov = self.app_result.provenance_report if self.app_result else None
+        self.query_one("#xyz-validator-box", XYZValidatorWidget).update_report(report, provenance_info=prov)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Reactive live preview and metric checker update on every keystroke."""

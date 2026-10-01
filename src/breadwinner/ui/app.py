@@ -2332,7 +2332,8 @@ class BreadwinnerApp(App):
     }
     #lab-xyz-validator {
         height: auto;
-        max-height: 8;
+        min-height: 7;
+        max-height: 9;
         margin-top: 1;
         background: #212330;
         border: round #2A2E3D;
@@ -3403,7 +3404,8 @@ class BreadwinnerApp(App):
         if event.text_area.id == "lab-bullet-editor":
             try:
                 report = analyze_bullets_xyz(event.text_area.text, self.current_profile)
-                self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
+                prov = self.current_app_result.provenance_report if hasattr(self, "current_app_result") and self.current_app_result else None
+                self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report, provenance_info=prov)
             except Exception:
                 pass
 
@@ -4381,10 +4383,12 @@ class BreadwinnerApp(App):
                 editor = self.query_one("#lab-bullet-editor", TextArea)
                 editor.text = bullet_text
                 report = analyze_bullets_xyz(bullet_text, self.current_profile)
-                self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
+                prov = self.current_app_result.provenance_report if hasattr(self, "current_app_result") and self.current_app_result else None
+                self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report, provenance_info=prov)
                 if job:
                     self.query_one("#lab-active-job-label", Label).update(f"[bold white]{job.company} — {job.title}[/bold white]")
-                self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% ATS Match[/bold #50FA7B]")
+                prov_tag = " • [bold #8be9fd]100% Grounded[/]" if prov and prov.get("is_valid", False) else ""
+                self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% ATS Match[/bold #50FA7B]{prov_tag}")
                 self.action_view_lab()
             except Exception:
                 pass

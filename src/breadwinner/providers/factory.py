@@ -77,6 +77,29 @@ class MockLLMProvider(BaseLLMProvider):
                 ]
             }
 
+        if "deconstructor" in system_prompt.lower() or "job description deconstructor" in system_prompt.lower() or "technical entity extraction" in system_prompt.lower():
+            return {
+                "job_title": "Senior Platform Engineer",
+                "company": "Cloud Corp",
+                "domain": "Platform & Distributed Systems",
+                "hard_must_haves": [
+                    "5+ years backend engineering in Go or Python",
+                    "Production Kubernetes and container orchestration experience",
+                    "High-throughput event streaming with Kafka or RabbitMQ"
+                ],
+                "nice_to_haves": [
+                    "Experience with eBPF or low-level Linux profiling",
+                    "Terraform and multi-cloud infrastructure"
+                ],
+                "technical_stack": ["Go", "Python", "Kubernetes", "Docker", "Kafka", "AWS", "Redis"],
+                "scale_constraints": ["1M QPS", "sub-10ms latency", "petabyte-scale data"],
+                "core_responsibilities": [
+                    "Architect and scale distributed event pipelines",
+                    "Optimize platform latency and infrastructure resilience"
+                ],
+                "keywords": ["Go", "Kubernetes", "Kafka", "Docker", "Distributed Systems", "AWS"]
+            }
+
         if "reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()) or "persona architect" in system_prompt.lower():
             return {
                 "name": "Target Role Strategist",
