@@ -38,6 +38,7 @@ from breadwinner.core.persona import (
     generate_job_strategy_questions,
     synthesize_job_directives,
     synthesize_job_persona,
+    synthesize_persona_from_braindump,
 )
 from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
@@ -260,6 +261,141 @@ class JobStrategyModal(ModalScreen):
             })
         else:
             self.dismiss(None)
+
+
+class PersonaSynthesizerModal(ModalScreen):
+    """Modal to synthesize a personalized Application Class Persona from a raw brain-dump or voice notes."""
+
+    DEFAULT_CSS = """
+    PersonaSynthesizerModal {
+        align: center middle;
+    }
+    #persona-synth-dialog {
+        padding: 1 2;
+        background: #10141f;
+        border: heavy #d4a373;
+        width: 80;
+        max-width: 86;
+        min-width: 68;
+        height: auto;
+        max-height: 38;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+    #persona-braindump-input {
+        height: 7;
+        margin: 1 0;
+        border: solid #d4a373;
+        background: #16161e;
+    }
+    #persona-yaml-preview {
+        height: 12;
+        margin: 1 0;
+        border: solid #50fa7b;
+        background: #16161e;
+    }
+    .persona-synth-step {
+        width: 100%;
+    }
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.synthesized_persona: Optional[Persona] = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="persona-synth-dialog"):
+            with Horizontal(classes="modal-header-bar"):
+                yield Label("[bold #d18f52]🌾 AI PERSONA SYNTHESIZER[/bold #d18f52]", classes="modal-header-title")
+                yield Button("✕", id="btn-close-persona-synth", classes="modal-close-btn")
+
+            # Step 1: Brain Dump
+            with Vertical(id="step-braindump", classes="persona-synth-step"):
+                yield Label("[dim]Pour your stream-of-consciousness into the hopper: target market, visa constraints, notice period, location, salary floor, seniority archetype, key technologies, and any buzzwords you hate.[/dim]")
+                yield TextArea(id="persona-braindump-input")
+                with Horizontal(classes="action-bar"):
+                    yield Button("Synthesize Persona 🪄", variant="success", id="btn-run-synth-persona")
+                    yield Button("Cancel", variant="error", id="btn-cancel-synth-persona")
+
+            # Step 2: Verification & Review (hidden initially)
+            with Vertical(id="step-verify-persona", classes="persona-synth-step"):
+                yield Label("[bold #50fa7b]✓ Application Class Persona Synthesized[/bold #50fa7b]")
+                yield Label("[dim]Inspect, tune, and verify your new persona configuration below:[/dim]")
+                yield TextArea(id="persona-yaml-preview", language="yaml")
+                with Horizontal(classes="action-bar"):
+                    yield Button("Save & Activate Loaf 🥖", variant="success", id="btn-confirm-save-persona")
+                    yield Button("← Back to Brain Dump", id="btn-back-to-dump")
+
+    def on_mount(self) -> None:
+        try:
+            self.query_one("#step-verify-persona").display = False
+            ta = self.query_one("#persona-braindump-input", TextArea)
+            ta.text = (
+                "Senior platform engineer targeting London hybrid or remote UK roles. "
+                "British citizen, no visa sponsorship needed. Notice period is 3 months, £115k base floor. "
+                "Authoritative, systems-first tone with hard metrics on Go, Kubernetes, and high-throughput streaming. "
+                "Ban corporate fluff like spearheaded or synergy."
+            )
+            ta.focus()
+        except Exception:
+            pass
+
+    @work(thread=True)
+    def _run_synthesis(self, braindump: str) -> None:
+        try:
+            provider = self.app.llm_provider
+            p = synthesize_persona_from_braindump(braindump=braindump, provider=provider)
+            self.synthesized_persona = p
+
+            # Format to clean YAML
+            data = p.model_dump()
+            yaml_text = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+
+            def update_ui():
+                self.query_one("#step-braindump").display = False
+                self.query_one("#step-verify-persona").display = True
+                pv = self.query_one("#persona-yaml-preview", TextArea)
+                pv.text = yaml_text
+                pv.focus()
+
+            self.app.call_from_thread(update_ui)
+        except Exception as e:
+            def show_err():
+                self.app.notify(f"Synthesis failed: {e}", severity="error")
+                btn = self.query_one("#btn-run-synth-persona", Button)
+                btn.disabled = False
+                btn.label = "Synthesize Persona 🪄"
+            self.app.call_from_thread(show_err)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid in ("btn-close-persona-synth", "btn-cancel-synth-persona"):
+            self.dismiss(None)
+        elif bid == "btn-back-to-dump":
+            self.query_one("#step-verify-persona").display = False
+            self.query_one("#step-braindump").display = True
+            btn = self.query_one("#btn-run-synth-persona", Button)
+            btn.disabled = False
+            btn.label = "Synthesize Persona 🪄"
+            self.query_one("#persona-braindump-input", TextArea).focus()
+        elif bid == "btn-run-synth-persona":
+            dump_text = self.query_one("#persona-braindump-input", TextArea).text.strip()
+            if not dump_text:
+                self.app.notify("Please enter a brain-dump first.", severity="warning")
+                return
+            event.button.disabled = True
+            event.button.label = "Synthesizing..."
+            self._run_synthesis(dump_text)
+        elif bid == "btn-confirm-save-persona":
+            try:
+                raw_yaml = self.query_one("#persona-yaml-preview", TextArea).text
+                data = yaml.safe_load(raw_yaml)
+                p = Persona(**data)
+                saved_path = PersonaManager.save_persona(p)
+                self.app.notify(f"✓ Persona '{p.slug}' saved to {saved_path.name}!", severity="information")
+                self.dismiss(p.slug)
+            except Exception as e:
+                self.app.notify(f"Error saving persona: {e}", severity="error")
 
 
 class StatusModal(ModalScreen):
@@ -1316,6 +1452,7 @@ class BakerySettingsModal(ModalScreen):
                 with Vertical(classes="settings-col"):
                     yield Label("[bold #ffb86c]Default Narrative Persona:[/bold #ffb86c]", classes="settings-sec-header")
                     yield Select(persona_opts, value=cur_persona, id="settings-select-persona")
+                    yield Button("+ Synthesize Persona 🪄", id="btn-settings-synth-persona", classes="settings-mini-btn")
 
             nav_opts = [
                 ("Auto-Adaptive (<100 cols)", "auto"),
@@ -1376,6 +1513,21 @@ class BakerySettingsModal(ModalScreen):
 
         if bid == "btn-settings-switch-engine":
             self.dismiss({"action": "switch_model"})
+            return
+
+        if bid == "btn-settings-synth-persona":
+            def on_synth_done(slug: Optional[str]):
+                if slug:
+                    try:
+                        sel = self.query_one("#settings-select-persona", Select)
+                        opts = get_persona_select_options()
+                        sel.set_options(opts)
+                        sel.value = slug
+                    except Exception:
+                        pass
+                    if hasattr(self.app, "_refresh_persona_select"):
+                        self.app._refresh_persona_select(slug)
+            self.app.push_screen(PersonaSynthesizerModal(), on_synth_done)
             return
 
         if bid == "btn-settings-save":
@@ -1988,6 +2140,37 @@ class BreadwinnerApp(App):
         background: #3A3F55;
         color: #FFFFFF;
     }
+    .persona-header-row {
+        height: 1;
+        width: 100%;
+        align: left middle;
+        margin-bottom: 0;
+    }
+    .studio-mini-btn {
+        height: 1;
+        min-width: 14;
+        padding: 0 1;
+        margin-left: 1;
+        background: #212330;
+        color: #ffb86c;
+        border: none;
+        text-style: bold;
+    }
+    .studio-mini-btn:hover {
+        background: #ffb86c;
+        color: #16161e;
+    }
+    .settings-mini-btn {
+        height: 1;
+        margin-top: 1;
+        background: #212330;
+        color: #50fa7b;
+        border: none;
+    }
+    .settings-mini-btn:hover {
+        background: #50fa7b;
+        color: #16161e;
+    }
     #lab-active-job-label {
         width: 1fr;
         text-style: bold;
@@ -2412,7 +2595,11 @@ class BreadwinnerApp(App):
 
                                 yield Horizontal(
                                     Vertical(
-                                        Label("Target Narrative Persona:", classes="input-label"),
+                                        Horizontal(
+                                            Label("Target Narrative Persona:", classes="input-label"),
+                                            Button("+ Brain Dump 🪄", id="btn-synth-persona-studio", classes="studio-mini-btn"),
+                                            classes="persona-header-row"
+                                        ),
                                         Select(
                                             persona_opts,
                                             value=default_persona_val,
@@ -3936,6 +4123,11 @@ class BreadwinnerApp(App):
             self.run_tailoring_flow()
         elif bid == "btn-strategy-loop":
             self.run_strategy_loop_flow()
+        elif bid == "btn-synth-persona-studio":
+            def on_studio_synth_done(slug: Optional[str]):
+                if slug:
+                    self._refresh_persona_select(slug)
+            self.push_screen(PersonaSynthesizerModal(), on_studio_synth_done)
         elif bid == "btn-view-lab":
             self.action_view_lab()
         elif bid == "btn-lab-back":

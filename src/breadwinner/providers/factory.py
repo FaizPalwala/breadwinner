@@ -77,14 +77,22 @@ class MockLLMProvider(BaseLLMProvider):
                 ]
             }
 
-        if "reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()):
+        if "reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()) or "persona architect" in system_prompt.lower():
             return {
                 "name": "Target Role Strategist",
                 "slug": "target_role_strategist",
                 "description": "Synthesized strategy for high-impact technical roles.",
+                "market": "UK/EU",
+                "logistics": {
+                    "visa_status": "Citizen (No visa needed)",
+                    "notice_period": "1 month",
+                    "location": "London hybrid or Remote"
+                },
+                "archetype": "Senior Platform Engineer",
                 "tone": "Authoritative, systems-first, quantitative.",
                 "system_directives": "Focus on high throughput and reliable systems architecture.\nPRESERVE HARD METRICS.",
-                "cover_letter_directives": "Lead with the engineering hook, provide two hard metrics, and close cleanly."
+                "cover_letter_directives": "Lead with the engineering hook, provide two hard metrics, and close cleanly.",
+                "banned_words": ["spearheaded", "synergy"]
             }
 
         if "data extractor" in system_prompt.lower() or "candidate portfolio" in system_prompt.lower() or "full_name" in user_prompt:

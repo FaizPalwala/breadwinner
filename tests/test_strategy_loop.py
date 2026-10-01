@@ -112,7 +112,16 @@ def test_synthesize_job_directives_provider(sample_job):
 
 
 def test_generate_job_strategy_questions_with_profile_and_persona(sample_job, sample_profile):
-    persona = PersonaManager.load_persona("uk")
+    persona = Persona(
+        name="UK Systems Lead",
+        slug="uk_systems_lead",
+        description="UK Stance",
+        tone="Authoritative",
+        system_directives="Directives",
+        cover_letter_directives="CL Directives",
+        market="UK/EU",
+        logistics={"visa": "UK Citizen / No sponsorship needed"}
+    )
     questions = generate_job_strategy_questions(
         job=sample_job,
         profile=sample_profile,
@@ -127,7 +136,16 @@ def test_generate_job_strategy_questions_with_profile_and_persona(sample_job, sa
 
 
 def test_synthesize_job_directives_with_application_class(sample_job, sample_profile):
-    persona = PersonaManager.load_persona("uk")
+    persona = Persona(
+        name="UK Systems Lead",
+        slug="uk_systems_lead",
+        description="UK Stance",
+        tone="Authoritative",
+        system_directives="Directives",
+        cover_letter_directives="CL Directives",
+        market="UK/EU",
+        logistics={"visa": "Right-to-Work verified"}
+    )
     answers = {
         "hook": "Passionate about financial rails reliability.",
         "proof": "RaftKV store achieves 5ms latency.",

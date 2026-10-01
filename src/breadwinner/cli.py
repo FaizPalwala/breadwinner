@@ -22,6 +22,7 @@ from breadwinner.core.persona import (
     generate_job_strategy_questions,
     synthesize_job_directives,
     synthesize_job_persona,
+    synthesize_persona_from_braindump,
 )
 from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
@@ -523,6 +524,46 @@ def personas_create_cmd(name: str, slug: str, tone: str, description: str):
     )
     saved_path = PersonaManager.save_persona(p)
     console.print(f"[bold green]✓ Created and saved persona '{clean_slug}' to {saved_path}![/bold green]")
+
+
+@personas_cmd.command(name="synthesize")
+@click.option("--dump", "-d", default=None, help="Raw text stream-of-consciousness / brain-dump")
+@click.option("--name", "-n", default=None, help="Optional name hint for the persona")
+@click.option("--provider", default=None, help="LLM provider override")
+def personas_synthesize_cmd(dump: Optional[str], name: Optional[str], provider: Optional[str]):
+    """Synthesize a new custom persona from an unstructured brain-dump or voice notes."""
+    llm = get_llm_provider(provider) if provider else None
+    if not dump:
+        console.print("[bold yellow]🌾 Persona Brain-Dump Studio[/bold yellow]")
+        console.print("[dim]Type or paste your unstructured stream-of-consciousness (market, visa, notice period, location, salary, archetype, tone, or slop words you hate):[/dim]\n")
+        dump = Prompt.ask("[bold cyan]Brain-Dump[/bold cyan]")
+
+    if not dump.strip():
+        console.print("[red]Aborted: Empty brain-dump.[/red]")
+        return
+
+    console.print("[cyan]Deconstructing brain-dump into Application Class Persona...[/cyan]")
+    p = synthesize_persona_from_braindump(dump, name_hint=name, provider=llm)
+
+    console.print(Panel(
+        f"[bold cyan]Name:[/bold cyan] {p.name}\n"
+        f"[bold cyan]Slug:[/bold cyan] {p.slug}\n"
+        f"[bold cyan]Market:[/bold cyan] {p.market}\n"
+        f"[bold cyan]Archetype:[/bold cyan] {p.archetype}\n"
+        f"[bold cyan]Logistics:[/bold cyan] {p.logistics}\n"
+        f"[bold cyan]Tone:[/bold cyan] {p.tone}\n\n"
+        f"[bold yellow]System Directives:[/bold yellow]\n{p.system_directives}\n\n"
+        f"[bold green]Cover Letter Directives:[/bold green]\n{p.cover_letter_directives}\n\n"
+        f"[bold magenta]Banned Words:[/bold magenta] {', '.join(p.banned_words)}",
+        title=f"Synthesized Persona: {p.name}",
+        border_style="green"
+    ))
+
+    if Confirm.ask(f"Save as user_personas/{p.slug}.yaml?", default=True):
+        saved_path = PersonaManager.save_persona(p)
+        console.print(f"[bold green]✓ Created and saved persona '{p.slug}' to {saved_path}![/bold green]")
+    else:
+        console.print("[dim]Discarded synthesized persona.[/dim]")
 
 
 @personas_cmd.command(name="view")

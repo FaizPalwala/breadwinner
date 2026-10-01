@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import json
+import re
 import yaml
 from pydantic import BaseModel
 
@@ -58,30 +59,16 @@ class PersonaManager:
 
         # Fallback aliases
         alias_map = {
+            "starter": "tech_ai",
+            "default": "tech_ai",
             "tech": "tech_ai",
             "ai": "tech_ai",
             "sde": "tech_ai",
-            "uk": "uk_eu_tech",
-            "uk_tech": "uk_eu_tech",
-            "eu": "uk_eu_tech",
-            "india": "india_tech",
-            "in": "india_tech",
-            "c2c": "us_remote_c2c",
-            "us_remote": "us_remote_c2c",
-            "contractor": "us_remote_c2c",
-            "staff": "staff_architect",
-            "architect": "staff_architect",
-            "principal": "staff_architect",
-            "founding": "founding_engineer",
-            "startup": "founding_engineer",
-            "admin": "bridging_admin",
-            "parttime": "bridging_admin",
-            "service": "hospitality"
         }
         if persona_name in alias_map:
             return cls.load_persona(alias_map[persona_name], custom_dir)
 
-        available = ", ".join(sorted(cls.list_personas().keys())) or "tech_ai, bridging_admin, hospitality"
+        available = ", ".join(sorted(cls.list_personas().keys())) or "tech_ai (Starter Template)"
         raise ValueError(f"Persona '{persona_name}' not found. Available: {available}")
 
     @classmethod
@@ -351,5 +338,143 @@ def synthesize_job_persona(
         logistics=logistics,
         archetype=archetype,
         banned_words=banned_words
+    )
+
+
+def synthesize_persona_from_braindump(
+    braindump: str,
+    name_hint: Optional[str] = None,
+    provider: Optional[BaseLLMProvider] = None
+) -> Persona:
+    """Take unstructured text or transcribed voice word-vomit and synthesize a state-of-the-art Application Class Persona."""
+    clean_dump = braindump.strip()
+    if not clean_dump:
+        raise ValueError("Cannot synthesize persona from empty brain dump.")
+
+    default_banned = [
+        "spearheaded", "orchestrated", "championed", "leveraged", "pioneered",
+        "seamlessly", "passionate", "synergy", "delve", "tapestry", "testament to", "elevate"
+    ]
+
+    if provider:
+        try:
+            sys_prompt = (
+                "You are Breadwinner's Lead Career Architect and Persona Engineer. "
+                "Your mission is to take an unstructured stream-of-consciousness brain dump (written thoughts, raw constraints, or transcribed speech) from a candidate and synthesize a battle-tested, high-impact Application Class Persona.\n\n"
+                "The candidate's dump may contain target geographies, visa realities, notice periods, hybrid/remote stances, target roles or seniority, salary floors, key technologies, tone preferences, or pet peeves/slop words they hate.\n\n"
+                "DECONSTRUCTION INVARIANTS:\n"
+                "1. NAME & SLUG: Generate a crisp, authoritative title (e.g. 'London Senior Platform Engineer') and an alphanumeric snake_case slug (e.g. 'london_senior_platform'). Respect any name hint provided.\n"
+                "2. APPLICATION CLASS & MARKET: Identify the geographical or operational market (e.g., 'UK/EU', 'US Remote / C2C', 'India', 'Germany', 'Global').\n"
+                "3. LOGISTICS MAP: Extract concrete boundaries:\n"
+                "   - 'visa_status': Explicit work authorization (e.g., 'Citizen (No visa needed)', 'Requires Sponsorship').\n"
+                "   - 'notice_period': Explicit notice period (e.g., '3 months', 'Immediate', '30 days').\n"
+                "   - 'location': Commute bounds, hybrid radius, or remote policy.\n"
+                "   - 'target_compensation': Base salary floor or contractor rates if mentioned.\n"
+                "4. SENIORITY ARCHETYPE: Pinpoint the career archetype (e.g., 'Staff / Principal Systems Architect', '0-to-1 Founding Engineer', 'Senior Platform Engineer').\n"
+                "5. TONE: 3-5 word tone descriptor (e.g., 'Authoritative, highly quantitative, systems-first').\n"
+                "6. SYSTEM DIRECTIVES (RESUME):\n"
+                "   - Enforce Google XYZ Formula ('Accomplished [X] as measured by [Y], by doing [Z]').\n"
+                "   - Set bullet length limit (1.2 to 1.8 lines, max 2 lines for recruiter scanning).\n"
+                "   - ATS keyword alignment and top-third impact rules tailored to this candidate's specific archetype and tech stack.\n"
+                "7. COVER LETTER DIRECTIVES:\n"
+                "   - Word budget <180 words, exactly 3 paragraphs.\n"
+                "   - Paragraph 1: Direct technical hook aligning to target company challenges (zero pleasantry fluff).\n"
+                "   - Paragraph 2: Exactly two verified technical proof points citing architecture, scale, and hard metrics.\n"
+                "   - Paragraph 3: Direct logistical stance (visa status, notice period, location) and call to action.\n"
+                "8. BANNED SLOP WORDS: Extract any specific words the candidate banned in their brain dump, PLUS standard AI buzzwords:\n"
+                "   ['spearheaded', 'orchestrated', 'championed', 'leveraged', 'pioneered', 'seamlessly', 'passionate', 'synergy', 'delve', 'tapestry', 'testament to', 'elevate'].\n\n"
+                "Respond ONLY in valid JSON matching this schema:\n"
+                "{\n"
+                "  \"name\": \"...\",\n"
+                "  \"slug\": \"...\",\n"
+                "  \"description\": \"...\",\n"
+                "  \"market\": \"...\",\n"
+                "  \"logistics\": {\"visa_status\": \"...\", \"notice_period\": \"...\", \"location\": \"...\"},\n"
+                "  \"archetype\": \"...\",\n"
+                "  \"tone\": \"...\",\n"
+                "  \"system_directives\": \"...\",\n"
+                "  \"cover_letter_directives\": \"...\",\n"
+                "  \"banned_words\": [\"...\"]\n"
+                "}"
+            )
+
+            user_prompt = f"CANDIDATE BRAIN DUMP:\n{clean_dump}"
+            if name_hint:
+                user_prompt += f"\n\nNAME HINT: {name_hint}"
+
+            res = provider.generate_json(sys_prompt, user_prompt)
+            if all(k in res for k in ["name", "slug", "description", "tone", "system_directives", "cover_letter_directives"]):
+                clean_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in res["slug"].lower().strip()).strip("_")
+                banned = list(set(default_banned + [w.lower().strip() for w in res.get("banned_words", []) if w]))
+                return Persona(
+                    name=name_hint or res["name"],
+                    slug=clean_slug or "custom_persona",
+                    description=res.get("description", "Synthesized persona from candidate brain dump."),
+                    tone=res.get("tone", "Authoritative, highly quantitative, systems-first."),
+                    system_directives=res.get("system_directives", ""),
+                    cover_letter_directives=res.get("cover_letter_directives", ""),
+                    market=res.get("market", "Global"),
+                    logistics=res.get("logistics", {}),
+                    archetype=res.get("archetype", "Technical Specialist"),
+                    banned_words=banned
+                )
+        except Exception:
+            pass
+
+    # Heuristic Fallback Synthesizer
+    title = name_hint or "Synthesized Career Stance"
+    clean_slug = "".join(c if c.isalnum() or c == "_" else "_" for c in title.lower().strip()).strip("_")
+    if not clean_slug:
+        clean_slug = "custom_persona"
+
+    # Detect market clues
+    market = "Global"
+    dump_lower = clean_dump.lower()
+    if any(k in dump_lower for k in ["uk", "london", "europe", "eu", "british"]):
+        market = "UK/EU"
+    elif any(k in dump_lower for k in ["us", "remote us", "c2c", "w2", "america", "est", "pst"]):
+        market = "US Remote / C2C"
+    elif any(k in dump_lower for k in ["india", "bangalore", "bengaluru", "hyderabad", "pune", "ncr", "ctc"]):
+        market = "India"
+    elif any(k in dump_lower for k in ["germany", "berlin", "munich"]):
+        market = "Germany / EU"
+
+    logistics = {
+        "raw_dump_snippet": clean_dump[:200]
+    }
+    if "notice" in dump_lower:
+        match_np = re.search(r"(\d+\s*(?:month|week|day)s? notice|immediate)", dump_lower)
+        if match_np:
+            logistics["notice_period"] = match_np.group(1)
+    if "visa" in dump_lower or "citizen" in dump_lower or "sponsorship" in dump_lower:
+        logistics["visa_status"] = "Specified in personal constraints"
+
+    sys_dir = (
+        f"CORE INVARIANTS & DIRECTIVES FOR {title.upper()}:\n"
+        "1. STRICT GOOGLE XYZ FORMULA: Structure all bullet points as 'Accomplished [X] as measured by [Y], by doing [Z]'.\n"
+        "2. RECRUITER SCANNING: Keep every bullet strictly 1.2 to 1.8 lines (maximum 2 lines).\n"
+        "3. PRESERVE HARD METRICS: Never dilute, round down, or fabricate metrics.\n"
+        f"4. CANDIDATE RAW GUARDRAILS: {clean_dump[:500]}\n"
+        "5. ZERO SLOP: Strictly ban weak action verbs and empty buzzwords."
+    )
+
+    cl_dir = (
+        "Write a concise 3-paragraph letter (<180 words total):\n"
+        "- Paragraph 1: Direct technical hook aligning candidate experience with the company's platform challenges.\n"
+        "- Paragraph 2: Exactly two verified engineering achievements with hard metrics.\n"
+        "- Paragraph 3: Direct statement of logistics (location, notice period, work authorization) and call to action."
+    )
+
+    return Persona(
+        name=title,
+        slug=clean_slug,
+        description=f"AI-Synthesized persona based on candidate directives: {clean_dump[:100]}...",
+        tone="Authoritative, highly quantitative, systems-first.",
+        system_directives=sys_dir,
+        cover_letter_directives=cl_dir,
+        market=market,
+        logistics=logistics,
+        archetype="Specialist Engineer",
+        banned_words=default_banned
     )
 

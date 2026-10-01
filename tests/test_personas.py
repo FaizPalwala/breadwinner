@@ -1,27 +1,37 @@
-"""Unit tests for persona management."""
+"""Unit tests for Persona management, starter template, and AI brain-dump synthesis."""
 
 import pytest
-from breadwinner.core.persona import PersonaManager
+from breadwinner.core.persona import (
+    Persona,
+    PersonaManager,
+    synthesize_persona_from_braindump
+)
+from breadwinner.providers.factory import MockLLMProvider
 
 
-def test_built_in_personas():
+def test_base_starter_persona():
     personas = PersonaManager.list_personas()
     assert "tech_ai" in personas
-    assert "bridging_admin" in personas
-    assert "hospitality" in personas
 
+    # Built-in starter template
+    starter_path = PersonaManager.get_built_in_dir() / "tech_ai.yaml"
+    assert starter_path.is_file()
+    p_builtin = PersonaManager._load_file(starter_path)
+    assert p_builtin.slug == "tech_ai"
+    assert "XYZ" in p_builtin.system_directives or "hard metrics" in p_builtin.system_directives.lower()
+    assert p_builtin.market == "Global"
+    assert len(p_builtin.banned_words) > 0
 
-def test_persona_loading():
+    # Test load_persona resolution
     p_tech = PersonaManager.load_persona("tech_ai")
     assert p_tech.slug == "tech_ai"
-    assert "XYZ" in p_tech.system_directives or "hard metrics" in p_tech.system_directives.lower()
 
-    # Aliases
-    p_admin = PersonaManager.load_persona("admin")
-    assert p_admin.slug == "bridging_admin"
+    # Test starter / default aliases
+    p_starter = PersonaManager.load_persona("starter")
+    assert p_starter.slug == "tech_ai"
 
-    p_serv = PersonaManager.load_persona("service")
-    assert p_serv.slug == "hospitality"
+    p_default = PersonaManager.load_persona("default")
+    assert p_default.slug == "tech_ai"
 
 
 def test_invalid_persona():
@@ -30,7 +40,6 @@ def test_invalid_persona():
 
 
 def test_user_persona_override_or_built_in(tmp_path):
-    # Test that custom directory overrides built-in persona
     custom_dir = tmp_path / "custom_personas"
     custom_dir.mkdir()
     custom_file = custom_dir / "tech_ai.yaml"
@@ -44,35 +53,60 @@ def test_user_persona_override_or_built_in(tmp_path):
     assert loaded.system_directives == "Custom directives"
 
 
-def test_application_class_personas():
-    personas = PersonaManager.list_personas()
-    assert "uk_eu_tech" in personas
-    assert "india_tech" in personas
-    assert "us_remote_c2c" in personas
-    assert "staff_architect" in personas
-    assert "founding_engineer" in personas
-
-    p_uk = PersonaManager.load_persona("uk")
-    assert p_uk.slug == "uk_eu_tech"
-    assert p_uk.market == "UK/EU"
-    assert "Right-to-Work" in str(p_uk.logistics)
-    assert len(p_uk.banned_words) > 0
-
-    p_in = PersonaManager.load_persona("india")
-    assert p_in.slug == "india_tech"
-    assert p_in.market == "India"
-    assert "notice_period" in p_in.logistics
-
-    p_c2c = PersonaManager.load_persona("c2c")
-    assert p_c2c.slug == "us_remote_c2c"
-    assert p_c2c.market == "US Remote / C2C"
-
-    p_staff = PersonaManager.load_persona("staff")
-    assert p_staff.slug == "staff_architect"
-    assert p_staff.archetype == "Staff / Principal Systems Architect"
-
-    p_founding = PersonaManager.load_persona("founding")
-    assert p_founding.slug == "founding_engineer"
-    assert "0-to-1" in p_founding.archetype
+def test_synthesize_persona_from_braindump_mock_provider():
+    mock = MockLLMProvider()
+    braindump = (
+        "Looking for high-scale backend platform roles in London or remote UK. "
+        "British citizen, no visa sponsorship needed. Notice period is 1 month. "
+        "Want authoritative systems-first tone emphasizing 1M QPS and zero downtime. "
+        "Ban corporate fluff like spearheaded or synergy."
+    )
+    p = synthesize_persona_from_braindump(braindump, name_hint="London Platform Lead", provider=mock)
+    assert isinstance(p, Persona)
+    assert p.name == "London Platform Lead"
+    assert p.market == "UK/EU"
+    assert "visa_status" in p.logistics
+    assert "notice_period" in p.logistics
+    assert "spearheaded" in p.banned_words
 
 
+def test_synthesize_persona_from_braindump_fallback_heuristic():
+    braindump = (
+        "Targeting senior platform engineer roles in London or remote UK. "
+        "British citizen, no visa needed. 3 months notice. Minimum £115k base. "
+        "Emphasize Go, Kubernetes, and high-throughput streaming."
+    )
+    p = synthesize_persona_from_braindump(braindump, name_hint="UK Senior Platform", provider=None)
+    assert isinstance(p, Persona)
+    assert p.slug == "uk_senior_platform"
+    assert p.market == "UK/EU"
+    assert "notice_period" in p.logistics
+    assert "3 months" in p.logistics["notice_period"]
+    assert "GOOGLE XYZ FORMULA" in p.system_directives
+
+
+def test_save_and_load_synthesized_persona(tmp_path):
+    p = Persona(
+        name="Fintech Quant Lead",
+        slug="fintech_quant_lead",
+        description="For HFT and algorithmic trading",
+        tone="Precise, quantitative",
+        system_directives="XYZ formula",
+        cover_letter_directives="3 paragraphs",
+        market="UK/EU",
+        logistics={"notice_period": "3 months"},
+        archetype="Lead Systems Architect",
+        banned_words=["spearheaded"]
+    )
+    saved = PersonaManager.save_persona(p, custom_dir=tmp_path)
+    assert saved.exists()
+
+    loaded = PersonaManager.load_persona("fintech_quant_lead", custom_dir=tmp_path)
+    assert loaded.name == "Fintech Quant Lead"
+    assert loaded.market == "UK/EU"
+    assert loaded.logistics["notice_period"] == "3 months"
+
+    # Delete
+    deleted = PersonaManager.delete_persona("fintech_quant_lead", custom_dir=tmp_path)
+    assert deleted is True
+    assert not saved.exists()
