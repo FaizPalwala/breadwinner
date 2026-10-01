@@ -890,7 +890,7 @@ class ModelQuickSwitcherModal(ModalScreen):
         max-width: 80;
         min-width: 68;
         height: auto;
-        max-height: 16;
+        max-height: 20;
         overflow: hidden;
     }
     #switcher-header-row {
@@ -930,8 +930,8 @@ class ModelQuickSwitcherModal(ModalScreen):
         border: round #ffb86c;
     }
     #switcher-list {
-        height: 8;
-        max-height: 8;
+        height: 12;
+        max-height: 12;
         background: #10141f;
         border: none;
         padding: 0;
@@ -982,14 +982,15 @@ class ModelQuickSwitcherModal(ModalScreen):
         self.status_map = {s.slug: s for s in self.statuses}
         self.all_items: List[PaletteModelItem] = self._build_all_items()
         self._filtered_items: List[PaletteModelItem] = list(self.all_items)
+        self._selectable_items: List[PaletteModelItem] = []
+        self._option_item_map: Dict[str, PaletteModelItem] = {}
 
     def action_dismiss_modal(self) -> None:
         self.dismiss(None)
 
     def _build_all_items(self) -> List[PaletteModelItem]:
         prov_order = ["gemini", "anthropic", "deepseek", "groq", "openai", "openrouter", "mistral", "ollama", "lmstudio", "mock"]
-        flagship_items: List[PaletteModelItem] = []
-        secondary_items: List[PaletteModelItem] = []
+        grouped_items: List[PaletteModelItem] = []
 
         for slug in prov_order:
             st = self.status_map.get(slug)
@@ -1002,7 +1003,7 @@ class ModelQuickSwitcherModal(ModalScreen):
                 models = PROVIDER_MODELS.get(slug, [])
 
             pref_model_id = getattr(settings, f"{slug}_model", models[0][1] if models else "")
-            flagship_found = False
+            current_prov_items: List[PaletteModelItem] = []
 
             for idx, (disp, mid) in enumerate(models):
                 clean_disp = disp.split("(")[0].strip()
@@ -1015,15 +1016,14 @@ class ModelQuickSwitcherModal(ModalScreen):
                     is_available=is_avail,
                     is_active=is_act,
                 )
-                if (mid == pref_model_id or (not flagship_found and idx == 0)) and not flagship_found:
-                    flagship_items.append(item)
-                    flagship_found = True
+                if mid == pref_model_id or (idx == 0 and not current_prov_items):
+                    current_prov_items.insert(0, item)
                 else:
-                    secondary_items.append(item)
+                    current_prov_items.append(item)
 
-        # Flagships: active first, then ready/available first
-        flagship_items.sort(key=lambda x: (not x.is_active, not x.is_available))
-        return flagship_items + secondary_items
+            grouped_items.extend(current_prov_items)
+
+        return grouped_items
 
     def compose(self) -> ComposeResult:
         with Vertical(id="switcher-dialog"):
@@ -1066,17 +1066,17 @@ class ModelQuickSwitcherModal(ModalScreen):
     def _refresh_list(self, query: str) -> None:
         q = query.strip().lower()
         if not q:
-            self._filtered_items = list(self.all_items)
+            matching_items = list(self.all_items)
         else:
-            self._filtered_items = [
+            matching_items = [
                 it for it in self.all_items
                 if q in it.model_id.lower()
                 or q in it.display_name.lower()
                 or q in it.provider_slug.lower()
                 or q in it.provider_name.lower()
             ]
-            if not self._filtered_items:
-                self._filtered_items = [
+            if not matching_items:
+                matching_items = [
                     PaletteModelItem(
                         provider_slug=self.active_prov,
                         provider_name="Custom",
@@ -1087,14 +1087,42 @@ class ModelQuickSwitcherModal(ModalScreen):
                     )
                 ]
 
+        self._filtered_items = matching_items
+        self._selectable_items = []
+        self._option_item_map = {}
+
         opt_list = self.query_one("#switcher-list", OptionList)
         opt_list.clear_options()
-        for idx, item in enumerate(self._filtered_items, start=1):
-            prompt = self._format_option_text(item, idx)
-            opt_list.add_option(Option(prompt, id=f"opt-{idx}"))
+
+        prov_order = ["gemini", "anthropic", "deepseek", "groq", "openai", "openrouter", "mistral", "ollama", "lmstudio", "mock"]
+        # Include custom provider slug if present
+        seen_slugs = set(prov_order)
+        for it in matching_items:
+            if it.provider_slug not in seen_slugs:
+                prov_order.append(it.provider_slug)
+                seen_slugs.add(it.provider_slug)
+
+        global_idx = 1
+        for slug in prov_order:
+            group_items = [it for it in matching_items if it.provider_slug == slug]
+            if not group_items:
+                continue
+            color = self.PROVIDER_COLORS.get(slug, "#8be9fd")
+            prov_display_name = group_items[0].provider_name.upper()
+            header_text = Text.from_markup(f"[bold {color}]── ◈ {prov_display_name} ({len(group_items)}) ──────────────────────────────[/]")
+            opt_list.add_option(Option(header_text, id=f"hdr-{slug}", disabled=True))
+
+            for item in group_items:
+                hotkey_idx = global_idx if 1 <= global_idx <= 9 else 0
+                prompt = self._format_option_text(item, hotkey_idx)
+                opt_id = f"opt-{global_idx}"
+                opt_list.add_option(Option(prompt, id=opt_id))
+                self._option_item_map[opt_id] = item
+                self._selectable_items.append(item)
+                global_idx += 1
 
         if opt_list.option_count > 0:
-            opt_list.highlighted = 0
+            opt_list.highlighted = 1 if opt_list.option_count > 1 else 0
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "switcher-search":
@@ -1119,19 +1147,27 @@ class ModelQuickSwitcherModal(ModalScreen):
             lst.highlighted = max(0, lst.highlighted - 1)
 
     def activate_quick_index(self, idx: int) -> None:
-        if 0 <= idx < len(self._filtered_items):
-            self._activate_item(self._filtered_items[idx])
+        if 0 <= idx < len(self._selectable_items):
+            self._activate_item(self._selectable_items[idx])
 
     def activate_highlighted(self) -> None:
         lst = self.query_one("#switcher-list", OptionList)
-        if lst.highlighted is not None and 0 <= lst.highlighted < len(self._filtered_items):
-            self._activate_item(self._filtered_items[lst.highlighted])
-        elif len(self._filtered_items) > 0:
-            self._activate_item(self._filtered_items[0])
+        if lst.highlighted is not None:
+            try:
+                opt = lst.get_option_at_index(lst.highlighted)
+                if opt and opt.id in self._option_item_map:
+                    self._activate_item(self._option_item_map[opt.id])
+                    return
+            except Exception:
+                pass
+        if self._selectable_items:
+            self._activate_item(self._selectable_items[0])
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        if 0 <= event.option_index < len(self._filtered_items):
-            self._activate_item(self._filtered_items[event.option_index])
+        if event.option.id in self._option_item_map:
+            self._activate_item(self._option_item_map[event.option.id])
+        elif 0 <= event.option_index < len(self._selectable_items):
+            self._activate_item(self._selectable_items[event.option_index])
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ("btn-switcher-close", "switcher-close-btn"):
@@ -1175,24 +1211,25 @@ class BakerySettingsModal(ModalScreen):
         align: center middle;
     }
     #settings-dialog {
-        padding: 1 2;
+        padding: 0 2;
         background: #10141f;
         border: heavy #d18f52;
-        width: 78;
-        max-width: 84;
-        min-width: 70;
+        width: 82;
+        max-width: 86;
+        min-width: 72;
         height: auto;
-        max-height: 28;
+        max-height: 30;
     }
     .settings-sec-header {
         text-style: bold;
         color: #ffb86c;
-        margin-top: 1;
+        margin-top: 0;
         margin-bottom: 0;
     }
     .settings-select-row {
         height: auto;
         layout: horizontal;
+        margin-bottom: 0;
     }
     .settings-col {
         width: 1fr;
@@ -1202,11 +1239,12 @@ class BakerySettingsModal(ModalScreen):
     .settings-col:last-of-type {
         margin-right: 0;
     }
-    #settings-select-template, #settings-select-persona {
+    #settings-select-template, #settings-select-persona,
+    #settings-select-nav-style, #settings-select-preset,
+    #settings-select-lab-mode, #settings-select-voice-engine {
+        height: 3;
         margin-bottom: 0;
-        background: #0c0e14;
-        border: round #2a2e3d;
-        color: #f8f8f2;
+        border: none;
     }
     .settings-info-box {
         background: #0c0e14;
@@ -1214,12 +1252,14 @@ class BakerySettingsModal(ModalScreen):
         color: #8be9fd;
         padding: 0 1;
         height: auto;
-        margin-top: 1;
-        margin-bottom: 1;
+        margin-top: 0;
+        margin-bottom: 0;
     }
     #settings-engine-row {
         align: left middle;
         height: 3;
+        margin-top: 1;
+        margin-bottom: 0;
     }
     #lbl-settings-engine {
         width: 1fr;
@@ -1232,7 +1272,7 @@ class BakerySettingsModal(ModalScreen):
     }
     #settings-action-bar {
         height: 3;
-        margin-top: 1;
+        margin-top: 0;
         align: left middle;
     }
     #settings-action-bar Button {
@@ -1277,6 +1317,49 @@ class BakerySettingsModal(ModalScreen):
                     yield Label("[bold #ffb86c]Default Narrative Persona:[/bold #ffb86c]", classes="settings-sec-header")
                     yield Select(persona_opts, value=cur_persona, id="settings-select-persona")
 
+            nav_opts = [
+                ("Auto-Adaptive (<100 cols)", "auto"),
+                ("Sidebar Rail (Classic)", "sidebar"),
+                ("Tiered Top Deck (Ribbon)", "top_deck"),
+            ]
+            cur_nav = getattr(settings, "navigation_style", "auto")
+            preset_opts = [
+                ("Normal (120×36 Balanced)", "normal"),
+                ("Split View (88×38 Tiered)", "split"),
+                ("Panoramic Fullscreen", "fullscreen"),
+            ]
+            cur_preset = getattr(settings, "default_preset", "normal")
+
+            with Horizontal(classes="settings-select-row"):
+                with Vertical(classes="settings-col"):
+                    yield Label("[bold #ffb86c]Navigation Ribbon Style:[/bold #ffb86c]", classes="settings-sec-header")
+                    yield Select(nav_opts, value=cur_nav, id="settings-select-nav-style")
+                with Vertical(classes="settings-col"):
+                    yield Label("[bold #ffb86c]Default Launch Geometry:[/bold #ffb86c]", classes="settings-sec-header")
+                    yield Select(preset_opts, value=cur_preset, id="settings-select-preset")
+
+            lab_opts = [
+                ("Side-by-Side (Comparative)", "side_by_side"),
+                ("Stacked Columns (Vertical)", "stacked"),
+            ]
+            cur_lab = getattr(settings, "studio_lab_layout", "side_by_side")
+            voice_engine_opts = [
+                ("Auto-detect (Fastest Available)", "auto"),
+                ("Apple MLX Whisper (Apple Silicon)", "mlx-whisper"),
+                ("Groq Whisper (Ultra-low latency)", "groq-whisper"),
+                ("OpenAI Whisper API", "openai-whisper"),
+                ("Faster-Whisper (Local CPU/CUDA)", "faster-whisper"),
+            ]
+            cur_voice_eng = getattr(settings, "voice_stt_engine", "auto")
+
+            with Horizontal(classes="settings-select-row"):
+                with Vertical(classes="settings-col"):
+                    yield Label("[bold #ffb86c]Bullet Lab Layout Mode:[/bold #ffb86c]", classes="settings-sec-header")
+                    yield Select(lab_opts, value=cur_lab, id="settings-select-lab-mode")
+                with Vertical(classes="settings-col"):
+                    yield Label("[bold #ffb86c]Voice STT Speech Engine:[/bold #ffb86c]", classes="settings-sec-header")
+                    yield Select(voice_engine_opts, value=cur_voice_eng, id="settings-select-voice-engine")
+
             with Vertical(classes="settings-info-box"):
                 yield Label(f"[dim]Pantry:[/] [white]{settings.pantry_dir.name}[/]  •  [dim]DB:[/] [white]{settings.database_path.name}[/]  •  [dim]CSV:[/] [white]{settings.csv_tracker_path.name if settings.csv_tracker_path else 'Disabled'}[/]")
                 yield Label("[bold #50fa7b]● ANTI-HALLUCINATION INVARIANT: ENFORCED[/bold #50fa7b] [dim](Zero Cloud Telemetry • BYOK)[/dim]")
@@ -1298,19 +1381,35 @@ class BakerySettingsModal(ModalScreen):
         if bid == "btn-settings-save":
             tmpl_val = str(self.query_one("#settings-select-template", Select).value)
             pers_val = str(self.query_one("#settings-select-persona", Select).value)
+            nav_val = str(self.query_one("#settings-select-nav-style", Select).value)
+            preset_val = str(self.query_one("#settings-select-preset", Select).value)
+            lab_val = str(self.query_one("#settings-select-lab-mode", Select).value)
+            voice_eng_val = str(self.query_one("#settings-select-voice-engine", Select).value)
 
             settings.default_template = tmpl_val
             settings.default_persona = pers_val
+            settings.navigation_style = nav_val
+            settings.default_preset = preset_val
+            settings.studio_lab_layout = lab_val
+            settings.voice_stt_engine = voice_eng_val
 
             save_env_config({
                 "DEFAULT_TEMPLATE": tmpl_val,
                 "DEFAULT_PERSONA": pers_val,
+                "NAVIGATION_STYLE": nav_val,
+                "DEFAULT_PRESET": preset_val,
+                "STUDIO_LAB_LAYOUT": lab_val,
+                "VOICE_STT_ENGINE": voice_eng_val,
             })
 
             self.dismiss({
                 "saved": True,
                 "template": tmpl_val,
-                "persona": pers_val
+                "persona": pers_val,
+                "navigation_style": nav_val,
+                "default_preset": preset_val,
+                "studio_lab_layout": lab_val,
+                "voice_stt_engine": voice_eng_val,
             })
 
 
@@ -1357,8 +1456,11 @@ class BreadwinnerApp(App):
     ScrollBarCorner {
         background: #16161E;
     }
-    #app-top-bar {
+    #app-header-deck {
         dock: top;
+        height: auto;
+    }
+    #app-top-bar {
         height: 3;
         background: #10141f;
         border-bottom: heavy #2A2E3D;
@@ -1405,31 +1507,6 @@ class BreadwinnerApp(App):
         margin: 0;
         padding: 0;
     }
-    #top-bar-nav-pills {
-        display: none;
-        width: auto;
-        height: 1;
-        align: left middle;
-    }
-    .top-nav-btn {
-        height: 1;
-        min-width: 0;
-        padding: 0 1;
-        margin-right: 1;
-        border: none;
-        background: #16161E;
-        color: #A89F91;
-        text-style: bold;
-    }
-    .top-nav-btn:hover {
-        background: #212330;
-        color: #FFFFFF;
-    }
-    .top-nav-btn.-active {
-        background: #2A2E3D;
-        color: #FFB86C;
-        text-style: bold;
-    }
     #top-bar-right {
         width: auto;
         height: 1;
@@ -1439,7 +1516,7 @@ class BreadwinnerApp(App):
     #btn-active-model-chip {
         display: none;
         height: 1;
-        min-width: 16;
+        min-width: 12;
         padding: 0 1;
         margin-right: 1;
         border: none;
@@ -1453,7 +1530,7 @@ class BreadwinnerApp(App):
     }
     #btn-app-cycle-preset {
         height: 1;
-        min-width: 16;
+        min-width: 10;
         padding: 0 1;
         margin-right: 1;
         border: none;
@@ -1467,7 +1544,7 @@ class BreadwinnerApp(App):
     }
     #btn-app-quit {
         height: 1;
-        min-width: 13;
+        min-width: 7;
         width: auto;
         padding: 0 1;
         border: none;
@@ -1478,6 +1555,36 @@ class BreadwinnerApp(App):
     #btn-app-quit:hover {
         background: #FF5566;
         color: #FFFFFF;
+    }
+    #top-bar-nav-pills {
+        display: none;
+        height: 3;
+        background: #12131A;
+        border-bottom: heavy #2A2E3D;
+        padding: 0 1;
+        layout: horizontal;
+    }
+    .top-nav-btn {
+        width: 1fr;
+        height: 1;
+        margin: 1 1 0 0;
+        border: none;
+        background: #16161E;
+        color: #A89F91;
+        text-style: bold;
+        content-align: center middle;
+    }
+    .top-nav-btn:last-of-type {
+        margin: 1 0 0 0;
+    }
+    .top-nav-btn:hover {
+        background: #212330;
+        color: #FFFFFF;
+    }
+    .top-nav-btn.-active {
+        background: #2A2E3D;
+        color: #FFB86C;
+        text-style: bold;
     }
     #app-workspace-split {
         height: 1fr;
@@ -2213,29 +2320,31 @@ class BreadwinnerApp(App):
         self.proposed_bullet_edit: Optional[str] = None
         self.layout_preset: str = "normal"
         self.sidebar_collapsed: bool = False
+        self._last_width: Optional[int] = None
 
     def compose(self) -> ComposeResult:
-        with Horizontal(id="app-top-bar"):
-            with Horizontal(id="top-bar-left"):
-                yield Button("«", id="btn-sidebar-toggle", classes="icon-toggle-btn")
-                with Horizontal(id="top-bar-nav-pills"):
-                    yield Button("◈ Breadbox", id="btn-tab-breadbox", classes="top-nav-btn -active")
-                    yield Button("✦ Studio", id="btn-tab-studio", classes="top-nav-btn")
-                    yield Button("≣ Pantry", id="btn-tab-pantry", classes="top-nav-btn")
-            with Horizontal(id="top-bar-center"):
-                yield Label("[bold #FFB86C]◈ BREADWINNER[/]", id="top-bar-brand")
-                yield Label(" [dim]/[/] [bold white]BREADBOX[/]", id="top-bar-screen-title")
-            with Horizontal(id="top-bar-right"):
-                yield Button(self.get_active_model_chip_text(), id="btn-active-model-chip")
-                yield Button("⛶ View: Normal (F11)", id="btn-app-cycle-preset")
-                yield Button("✕ Quit (q)", id="btn-app-quit")
+        with Vertical(id="app-header-deck"):
+            with Horizontal(id="app-top-bar"):
+                with Horizontal(id="top-bar-left"):
+                    yield Button("◄", id="btn-sidebar-toggle", classes="icon-toggle-btn")
+                    yield Button(self.get_active_model_chip_text(), id="btn-active-model-chip")
+                with Horizontal(id="top-bar-center"):
+                    yield Label("[bold #FFB86C]◈ BREADWINNER[/]", id="top-bar-brand")
+                    yield Label(" [dim]/[/] [bold white]BREADBOX[/]", id="top-bar-screen-title")
+                with Horizontal(id="top-bar-right"):
+                    yield Button("⛶ View: Normal (F11)", id="btn-app-cycle-preset")
+                    yield Button("✕ Quit (q)", id="btn-app-quit")
+            with Horizontal(id="top-bar-nav-pills"):
+                yield Button("▣ Breadbox (1)", id="btn-tab-breadbox", classes="top-nav-btn -active")
+                yield Button("♨ Studio (2)", id="btn-tab-studio", classes="top-nav-btn")
+                yield Button("▤ Pantry (3)", id="btn-tab-pantry", classes="top-nav-btn")
 
         with Horizontal(id="app-workspace-split"):
             with Vertical(id="app-sidebar"):
                 with Vertical(id="sidebar-flows"):
-                    yield Button("◈ Breadbox (1)", id="btn-sidebar-breadbox", classes="sidebar-flow-btn -active")
-                    yield Button("✦ Studio (2)", id="btn-sidebar-studio", classes="sidebar-flow-btn")
-                    yield Button("≣ Pantry (3)", id="btn-sidebar-pantry", classes="sidebar-flow-btn")
+                    yield Button("▣ Breadbox (1)", id="btn-sidebar-breadbox", classes="sidebar-flow-btn -active")
+                    yield Button("♨ Studio (2)", id="btn-sidebar-studio", classes="sidebar-flow-btn")
+                    yield Button("▤ Pantry (3)", id="btn-sidebar-pantry", classes="sidebar-flow-btn")
                 yield Vertical(classes="sidebar-spacer")
                 with Vertical(id="sidebar-bottom"):
                     yield Button(self.get_active_model_chip_text(), id="btn-sidebar-model", classes="sidebar-bottom-btn")
@@ -2416,7 +2525,7 @@ class BreadwinnerApp(App):
         yield Footer()
 
     def on_resize(self, event: events.Resize) -> None:
-        """Enforce screen guard sentinel if terminal dimensions fall below minimum bounds."""
+        """Enforce screen guard sentinel and auto-responsive layout adapting."""
         if event.size.width <= 0 or event.size.height <= 0:
             return
 
@@ -2431,11 +2540,22 @@ class BreadwinnerApp(App):
                 self.push_screen(ScreenGuardScreen(min_cols=MIN_TERMINAL_WIDTH, min_rows=MIN_TERMINAL_HEIGHT))
             else:
                 self.screen.update_dimensions(event.size.width, event.size.height)
+            return
         elif is_guard_active:
             self.pop_screen()
 
+        # Responsive layout adapting when terminal width is resized dynamically
+        nav_style = getattr(settings, "navigation_style", "auto")
+        if nav_style == "auto" and self._last_width is not None and event.size.width != self._last_width:
+            self._last_width = event.size.width
+            if event.size.width < 100 and self.layout_preset != "split":
+                self.apply_layout_preset("split", resize_window=False)
+            elif event.size.width >= 100 and self.layout_preset == "split":
+                self.apply_layout_preset("normal", resize_window=False)
+
     def on_mount(self) -> None:
         self.apply_layout_preset("normal")
+        self._last_width = self.size.width
         self._update_active_top_nav("tab-pipeline")
         self.load_pipeline_table()
         self.load_models_tab()
@@ -2631,7 +2751,7 @@ class BreadwinnerApp(App):
             return
         if result.get("saved"):
             self.notify(
-                f"Saved: Template={result.get('template')}, Persona={result.get('persona')}",
+                f"Saved: Template={result.get('template')}, Persona={result.get('persona')}, Nav={result.get('navigation_style')}",
                 title="Settings Saved",
                 severity="information"
             )
@@ -2643,6 +2763,24 @@ class BreadwinnerApp(App):
                 self.query_one("#select-persona", Select).value = result.get("persona")
             except Exception:
                 pass
+            nav_style = result.get("navigation_style")
+            if nav_style == "top_deck":
+                self.apply_layout_preset("split", resize_window=False)
+            elif nav_style == "sidebar":
+                self.apply_layout_preset("normal", resize_window=False)
+            lab_mode = result.get("studio_lab_layout")
+            if lab_mode:
+                try:
+                    lab_split = self.query_one("#studio-lab-split")
+                    btn_lab_stack = self.query_one("#btn-lab-toggle-stack", Button)
+                    if lab_mode == "stacked":
+                        lab_split.add_class("-vertical-stack")
+                        btn_lab_stack.label = "⇋ Side-by-Side"
+                    else:
+                        lab_split.remove_class("-vertical-stack")
+                        btn_lab_stack.label = "⇋ Stack Columns"
+                except Exception:
+                    pass
 
     def load_pipeline_table(self) -> None:
         table = self.query_one("#pipeline-table", DataTable)
@@ -2854,20 +2992,20 @@ class BreadwinnerApp(App):
 
             if self.sidebar_collapsed:
                 sidebar.add_class("-collapsed")
-                toggle_btn.label = "»"
-                btn_bb.label = "◈"
-                btn_st.label = "✦"
-                btn_pa.label = "≣"
+                toggle_btn.label = "►"
+                btn_bb.label = "▣"
+                btn_st.label = "♨"
+                btn_pa.label = "▤"
                 btn_mod.styles.display = "none"
                 blade.styles.display = "block"
                 blade.update_provider(self.get_active_provider_name())
                 btn_set.label = "⚙"
             else:
                 sidebar.remove_class("-collapsed")
-                toggle_btn.label = "«"
-                btn_bb.label = "◈ Breadbox (1)"
-                btn_st.label = "✦ Studio (2)"
-                btn_pa.label = "≣ Pantry (3)"
+                toggle_btn.label = "◄"
+                btn_bb.label = "▣ Breadbox (1)"
+                btn_st.label = "♨ Studio (2)"
+                btn_pa.label = "▤ Pantry (3)"
                 btn_mod.styles.display = "block"
                 blade.styles.display = "none"
                 btn_set.label = "⚙ Settings"
@@ -2883,19 +3021,21 @@ class BreadwinnerApp(App):
         next_preset = order[(curr_idx + 1) % len(order)]
         self.apply_layout_preset(next_preset)
 
-    def apply_layout_preset(self, preset: str) -> None:
+    def apply_layout_preset(self, preset: str, resize_window: bool = True) -> None:
         self.layout_preset = preset.lower()
         cols, rows = get_preset_geometry(self.layout_preset)
-        resize_terminal_window(cols, rows)
+        self._last_width = cols
+        if resize_window:
+            resize_terminal_window(cols, rows)
 
         try:
             cycle_btn = self.query_one("#btn-app-cycle-preset", Button)
             if self.layout_preset == "split":
-                cycle_btn.label = "⛶ View: Split (F11)"
+                cycle_btn.label = "⛶ Split"
             elif self.layout_preset == "fullscreen":
-                cycle_btn.label = "⛶ View: Full (F11)"
+                cycle_btn.label = "⛶ Full"
             else:
-                cycle_btn.label = "⛶ View: Normal (F11)"
+                cycle_btn.label = "⛶ Normal"
         except Exception:
             pass
 
@@ -2919,7 +3059,7 @@ class BreadwinnerApp(App):
                 model_chip.styles.display = "block"
                 model_chip.label = f"● {self.get_active_provider_name()} ▾"
                 quit_btn.label = "✕ (q)"
-                brand.update("[bold #FFB86C]◈ BW[/]")
+                brand.update("[bold #FFB86C]◈ BREADWINNER[/]")
                 pipeline_box.add_class("-vertical-stack")
                 lab_split.add_class("-vertical-stack")
                 toggle_stack_btn.label = "⇋ Side-by-Side"
@@ -2938,7 +3078,8 @@ class BreadwinnerApp(App):
         except Exception:
             pass
 
-        self.notify(f"Layout adapted to {self.layout_preset.upper()} ({cols}×{rows})", title="Terminal Geometry")
+        if resize_window:
+            self.notify(f"Layout adapted to {self.layout_preset.upper()} ({cols}×{rows})", title="Terminal Geometry")
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Reactive stage sync and top nav active state when switching tabs."""

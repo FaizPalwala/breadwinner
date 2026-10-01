@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     browser_path: Optional[str] = None
     auto_generate_pdf: bool = True
 
+    # UI & Layout Preferences
+    navigation_style: str = "auto"  # 'auto', 'sidebar', 'top_deck'
+    studio_lab_layout: str = "side_by_side"  # 'side_by_side', 'stacked'
+    default_preset: str = "normal"  # 'normal', 'split', 'fullscreen'
+
+    # Voice STT Configuration
+    voice_stt_engine: str = "auto"  # 'auto', 'mlx-whisper', 'groq-whisper', 'openai-whisper', 'faster-whisper'
+    voice_stt_model: str = "whisper-large-v3-turbo"
+
 
 settings = Settings()
 
