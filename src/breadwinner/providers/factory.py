@@ -29,7 +29,31 @@ class MockLLMProvider(BaseLLMProvider):
 
 
     def generate_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
-        if "strategy question" in system_prompt.lower() or "discovery question" in system_prompt.lower():
+        if "ingestion auditor" in system_prompt.lower() or "gap-filling" in system_prompt.lower() or "gap interview" in system_prompt.lower():
+            return {
+                "questions": [
+                    {
+                        "id": "gap_metric_scale",
+                        "title": "Quantifying High-Throughput System Scale",
+                        "prompt": "In your recent backend role, what were the peak QPS, data volumes, or latency metrics achieved?",
+                        "placeholder": "e.g., Scaled ingest pipeline to 150k events/sec with sub-25ms p99 latency."
+                    },
+                    {
+                        "id": "gap_architecture_tradeoffs",
+                        "title": "Architectural Tradeoffs & System Decisions",
+                        "prompt": "For your primary distributed project, what trade-offs were made between consistency, availability, and latency?",
+                        "placeholder": "e.g., Chose Raft over Paxos for operational simplicity; accepted eventual consistency on read replicas."
+                    },
+                    {
+                        "id": "gap_market_logistics",
+                        "title": "Market Logistics & Work Boundaries",
+                        "prompt": "What are your exact work authorization, notice period, and hybrid/remote constraints?",
+                        "placeholder": "e.g., UK citizen, no sponsorship needed, 1-month notice period, remote or London hybrid."
+                    }
+                ]
+            }
+
+        if "strategy question" in system_prompt.lower() or "discovery question" in system_prompt.lower() or "tailoring problem-solver" in system_prompt.lower():
             return {
                 "questions": [
                     {

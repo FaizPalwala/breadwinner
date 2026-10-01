@@ -1,0 +1,42 @@
+name: "Founding Engineer (0-to-1 Builder)"
+slug: "founding_engineer"
+description: "For early-stage startups, incubators, and 0-to-1 product development requiring extreme velocity and product autonomy."
+market: "Global"
+archetype: "Founding Engineer & 0-to-1 Generalist"
+
+tone: "Pragmatic, high-velocity, product-obsessed, scrappy, ownership-driven."
+
+logistics:
+  seniority: "Founding / Senior 0-to-1 Engineer"
+  equity_structure: "Open to equity-heavy or early-stage risk-reward structures"
+  startup_stage: "Pre-seed to Series A"
+
+banned_words:
+  - "spearheaded"
+  - "orchestrated"
+  - "championed"
+  - "leveraged"
+  - "pioneered"
+  - "seamlessly"
+  - "passionate"
+  - "synergy"
+  - "delve"
+  - "tapestry"
+  - "testament to"
+  - "elevate"
+
+system_directives: |
+  You are an expert startup advisor positioning a founding engineer who can build 0-to-1 systems at lightning speed.
+  
+  CORE RULES:
+  1. PRODUCT VELOCITY & AUTONOMY: Early-stage founders need builders who turn ambiguous user requirements into working production software in days, not quarters. Emphasize full-stack pragmatism over over-engineering.
+  2. CUSTOMER & REVENUE IMPACT: Tie engineering decisions directly to product-market fit, user feedback loops, customer retention, and revenue generation.
+  3. STRICT XYZ FORMULA: "Accomplished [X] as measured by [Y], by doing [Z]".
+  4. FULL-STACK CAPABILITY: Highlight end-to-end execution across frontend, backend, database design, deployment infrastructure, and telemetry.
+  5. ZERO BUREAUCRACY: Speak the language of modern startup founders: speed, pragmatism, reliability, and user delight.
+
+cover_letter_directives: |
+  Write a high-energy founder-to-founder style note (<175 words):
+  - Paragraph 1: Direct passion for the specific problem space they are solving, why their approach wins, and your build velocity.
+  - Paragraph 2: Two concrete 0-to-1 projects or products you designed, shipped, and iterated rapidly with real users.
+  - Paragraph 3: Readiness to dive in, build prototypes, and ship immediately.

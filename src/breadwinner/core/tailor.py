@@ -1,7 +1,7 @@
 """Tailoring and match analysis orchestrator."""
 
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from breadwinner.core.models import (
     CandidateProfile,
     JobPosting,
@@ -14,6 +14,7 @@ from breadwinner.core.models import (
 from breadwinner.core.persona import Persona
 from breadwinner.providers.base import BaseLLMProvider
 from breadwinner.core.curator import CareerCurator
+from breadwinner.core.provenance import ProvenanceValidator, DEFAULT_BANNED_WORDS
 
 
 class TailoringEngine:
@@ -76,9 +77,12 @@ class TailoringEngine:
         guardrails_block = f"\nCANDIDATE PERSONAL DIRECTIVES & GUARDRAILS (HIGH PRIORITY):\n{personal_guardrails}\n" if personal_guardrails else ""
         job_directives_block = f"\nJOB-SPECIFIC STRATEGY DIRECTIVES (TOP PRIORITY OVERRIDE):\n{job_directives}\n" if job_directives else ""
 
+        banned_words_list = sorted(list(set(DEFAULT_BANNED_WORDS + (persona.banned_words or []))))
+        banned_words_str = ", ".join(f'"{w}"' for w in banned_words_list)
+
         # Prompt for JSON match & tailoring
-        system_prompt = f"""You are Breadwinner, an automated job application tailoring engine.
-NARRATIVE PERSONA: {persona.name}
+        system_prompt = f"""You are Breadwinner, an automated career engineering studio and anti-hallucination resume tailoring engine.
+NARRATIVE PERSONA: {persona.name} (Market: {persona.market}, Archetype: {persona.archetype})
 TONE: {persona.tone}
 
 PERSONA DIRECTIVES:
@@ -89,13 +93,21 @@ JOB TITLE: {job.title}
 COMPANY: {job.company}
 LOCATION: {job.location or 'Unspecified'}
 
+CORE TAILORING INVARIANTS:
+1. STRICT GOOGLE XYZ FORMULA: Structure all bullet points strictly as "Accomplished [X] as measured by [Y], by doing [Z]".
+2. ACTION VERBS ONLY: Every bullet must lead with an authoritative, technical past-tense action verb (e.g., "Architected", "Engineered", "Implemented", "Scaled", "Automated"). NEVER use passive or weak verbs ("assisted", "helped", "worked on", "participated in", "responsible for").
+3. ANTI-HALLUCINATION & METRIC IMMUTABILITY: NEVER invent, fabricate, inflate, or round up metrics, scale, throughput, or percentages. Every number, percentage, or dollar amount MUST be directly verifiable in the Candidate Source of Truth. If an experience lacks a verified metric, describe the concrete technical mechanism, concurrency model, or architecture instead of inventing a number.
+4. FORBIDDEN AI SLOP BLACKLIST: Strictly DO NOT use any of the following banned AI buzzwords or fluff phrases:
+   {banned_words_str}
+5. RECRUITER SCANNING BOUNDS: Keep every bullet strictly 1.2 to 1.8 lines (maximum 2 lines). High density, zero fluff.
+6. ATS ALIGNMENT: Accurately match verified skills against the job description requirements.
+
 TASK:
 1. Analyze the match between candidate verified facts and the job description.
 2. Produce an ATS Match Score (0-100) based on realistic keyword and semantic overlap.
 3. Identify matched skills and missing skill gaps.
 4. Tailor a compelling 2-3 sentence professional summary.
-5. Tailor the candidate's work experience bullets adhering strictly to the XYZ formula ("Accomplished [X] as measured by [Y], by doing [Z]") without inventing false facts. Keep verified numbers, scale metrics, throughput, and award achievements intact.
-
+5. Tailor the candidate's work experience bullets adhering strictly to the invariants above.
 6. Select the top 2-3 most relevant projects from candidate's portfolio.
 7. Generate portal Q&A answers for standard questions ("Why this company?", "Key technical challenge solved").
 """
@@ -188,7 +200,7 @@ Respond ONLY in valid JSON with this exact schema:
         # Generate targeted cover letter
         cover_letter = self._generate_cover_letter(profile, job, persona, match_analysis, job_directives=job_directives)
 
-        return TailoredApplication(
+        app = TailoredApplication(
             job=job,
             persona=persona.slug,
             match_analysis=match_analysis,
@@ -200,6 +212,12 @@ Respond ONLY in valid JSON with this exact schema:
             portal_answers=res.get("portal_answers", {})
         )
 
+        # Run post-flight Provenance & Anti-Hallucination validation
+        provenance_report = ProvenanceValidator.validate(app, profile, persona)
+        app.provenance_report = provenance_report.to_dict()
+
+        return app
+
     def _generate_cover_letter(
         self,
         profile: CandidateProfile,
@@ -208,15 +226,23 @@ Respond ONLY in valid JSON with this exact schema:
         match: MatchAnalysis,
         job_directives: Optional[str] = None
     ) -> str:
-        """Generate targeted 3-paragraph cover letter."""
+        """Generate targeted 3-paragraph cover letter adhering to word budgets and zero fluff."""
         directives_block = f"\nJOB-SPECIFIC DIRECTIVES (TOP PRIORITY):\n{job_directives}\n" if job_directives else ""
-        sys_prompt = f"""You are an expert cover letter copywriter for {profile.full_name}.
-PERSONA: {persona.name}
+        sys_prompt = f"""You are an expert technical cover letter copywriter for {profile.full_name}.
+PERSONA: {persona.name} (Market: {persona.market}, Archetype: {persona.archetype})
 {persona.cover_letter_directives}
 {directives_block}
 COMPANY: {job.company}
 ROLE: {job.title}
 MATCHED STRENGTHS: {', '.join(match.matched_skills)}
+
+INVARIANTS:
+1. STRICT WORD BUDGET: Maximum 180 words total across exactly 3 paragraphs.
+2. ZERO FILLER PLEASANTRIES: Absolutely no generic openers ("I am writing to express my enthusiastic interest...").
+3. PARAGRAPH 1 (HOOK): Immediate technical hook aligning candidate experience with company's platform or stated engineering challenge.
+4. PARAGRAPH 2 (PROOF): Exactly two verified technical accomplishments citing architecture, scale, and exact metrics.
+5. PARAGRAPH 3 (LOGISTICS & CLOSE): State work authorization, notice period availability, and a direct interview call to action.
+6. ZERO AI SLOP: Strictly avoid words like "spearheaded", "orchestrated", "championed", "passionate", "tapestry".
 """
 
         # Dynamically compile verified proof points from candidate profile
@@ -227,7 +253,7 @@ MATCHED STRENGTHS: {', '.join(match.matched_skills)}
         for edu in profile.education[:1]:
             proof_points.append(f"- {edu.degree} @ {edu.institution}")
 
-        user_prompt = f"""Write a tailored 3-paragraph cover letter (<220 words) for {profile.full_name} applying to {job.company} as {job.title}.
+        user_prompt = f"""Write a tailored 3-paragraph cover letter (<180 words) for {profile.full_name} applying to {job.company} as {job.title}.
 
 CANDIDATE VERIFIED FACTS:
 {chr(10).join(proof_points)}
@@ -236,4 +262,4 @@ JOB CONTEXT:
 {job.raw_text[:2000]}
 """
 
-        return self.provider.generate_text(sys_prompt, user_prompt, temperature=0.3).strip()
+        return self.provider.generate_text(sys_prompt, user_prompt, temperature=0.1).strip()

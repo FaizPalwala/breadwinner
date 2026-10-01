@@ -111,6 +111,40 @@ def test_synthesize_job_directives_provider(sample_job):
     assert "- STRATEGIC HOOK" in directives or "- CORE PROOF POINT" in directives
 
 
+def test_generate_job_strategy_questions_with_profile_and_persona(sample_job, sample_profile):
+    persona = PersonaManager.load_persona("uk")
+    questions = generate_job_strategy_questions(
+        job=sample_job,
+        profile=sample_profile,
+        persona=persona,
+        provider=None,
+        personal_context="Must be remote or London hybrid."
+    )
+    assert len(questions) == 3
+    # Top project RaftKV should be referenced in proof question
+    assert any("RaftKV" in q["question"] for q in questions)
+    assert any("Stripe" in q["question"] for q in questions)
+
+
+def test_synthesize_job_directives_with_application_class(sample_job, sample_profile):
+    persona = PersonaManager.load_persona("uk")
+    answers = {
+        "hook": "Passionate about financial rails reliability.",
+        "proof": "RaftKV store achieves 5ms latency.",
+        "tactics": "Bridge Go and Kafka experience."
+    }
+    directives = synthesize_job_directives(
+        job=sample_job,
+        answers=answers,
+        profile=sample_profile,
+        persona=persona,
+        provider=None
+    )
+    assert "MARKET STANCE (UK/EU)" in directives
+    assert "LOGISTICAL BOUNDS" in directives
+    assert "Right-to-Work" in directives
+
+
 def test_synthesize_and_save_new_persona(tmp_path, sample_job):
     mock = MockLLMProvider()
     answers = {

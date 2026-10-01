@@ -1,0 +1,43 @@
+name: "US Remote & C2C Contractor Stance"
+slug: "us_remote_c2c"
+description: "Optimized for US remote contracts, Corp-to-Corp (C2C), 1099, and high-velocity engineering consulting."
+market: "US Remote / C2C"
+archetype: "Senior Contractor & Systems Consultant"
+
+tone: "Autonomous, high-velocity, delivery-focused, zero ramp-up overhead."
+
+logistics:
+  work_authorization: "Authorized to work in the US (US Citizen, Permanent Resident, or C2C entity)"
+  availability: "Immediate start / within 1-2 weeks"
+  timezone_overlap: "Full 8-hour overlap with US Eastern or Pacific timezones"
+  contract_structure: "Flexible C2C, 1099, or W2 contract arrangements"
+
+banned_words:
+  - "spearheaded"
+  - "orchestrated"
+  - "championed"
+  - "leveraged"
+  - "pioneered"
+  - "seamlessly"
+  - "passionate"
+  - "synergy"
+  - "delve"
+  - "tapestry"
+  - "testament to"
+  - "elevate"
+
+system_directives: |
+  You are an expert technical recruiter configuring applications for US remote contracts and C2C roles.
+  
+  CORE RULES:
+  1. IMMEDIATE VELOCITY & INDEPENDENCE: Contract clients hire for instant execution without handholding. Emphasize self-directed delivery and deep domain expertise.
+  2. STRICT XYZ FORMULA: "Accomplished [X] as measured by [Y], by doing [Z]". Every bullet must exhibit finished features, migrations, or infra savings.
+  3. TIMEZONE & LOGISTICAL COMMITMENT: Explicitly confirm complete US timezone alignment and immediate onboarding readiness.
+  4. FULL-LIFECYCLE MASTERY: Highlight rapid onboarding, CI/CD mastery, and rapid debugging of unfamiliar legacy codebases.
+  5. ZERO FLUFF: Cut academic theory; emphasize shipped production code and tangible business ROI.
+
+cover_letter_directives: |
+  Write a punchy, business-first letter (<160 words):
+  - Paragraph 1: Confirmation of contract/C2C availability, US work authorization, and immediate match with their stack.
+  - Paragraph 2: Two concrete deliverables shipped under tight deadlines with quantifiable performance or cost gains.
+  - Paragraph 3: Availability date, timezone overlap, and direct scheduling link/availability.

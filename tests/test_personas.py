@@ -44,3 +44,35 @@ def test_user_persona_override_or_built_in(tmp_path):
     assert loaded.system_directives == "Custom directives"
 
 
+def test_application_class_personas():
+    personas = PersonaManager.list_personas()
+    assert "uk_eu_tech" in personas
+    assert "india_tech" in personas
+    assert "us_remote_c2c" in personas
+    assert "staff_architect" in personas
+    assert "founding_engineer" in personas
+
+    p_uk = PersonaManager.load_persona("uk")
+    assert p_uk.slug == "uk_eu_tech"
+    assert p_uk.market == "UK/EU"
+    assert "Right-to-Work" in str(p_uk.logistics)
+    assert len(p_uk.banned_words) > 0
+
+    p_in = PersonaManager.load_persona("india")
+    assert p_in.slug == "india_tech"
+    assert p_in.market == "India"
+    assert "notice_period" in p_in.logistics
+
+    p_c2c = PersonaManager.load_persona("c2c")
+    assert p_c2c.slug == "us_remote_c2c"
+    assert p_c2c.market == "US Remote / C2C"
+
+    p_staff = PersonaManager.load_persona("staff")
+    assert p_staff.slug == "staff_architect"
+    assert p_staff.archetype == "Staff / Principal Systems Architect"
+
+    p_founding = PersonaManager.load_persona("founding")
+    assert p_founding.slug == "founding_engineer"
+    assert "0-to-1" in p_founding.archetype
+
+

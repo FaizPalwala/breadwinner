@@ -172,3 +172,4 @@ class TailoredApplication(BaseModel):
     tailored_skills: List[SkillCategory] = Field(default_factory=list)
     cover_letter: str = ""
     portal_answers: Dict[str, str] = Field(default_factory=dict)
+    provenance_report: Optional[Dict[str, Any]] = None
