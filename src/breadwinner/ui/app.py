@@ -2496,9 +2496,11 @@ class BreadwinnerApp(App):
                     with TabPane("Context Pantry", id="tab-profile"):
                         with Horizontal(id="pantry-ide-split"):
                             with VerticalScroll(id="pantry-ide-nav"):
-                                yield Label("[bold #A89F91]CANONICAL LEDGER[/bold #A89F91]", classes="pantry-nav-sec-label")
-                                yield Button("▤ profile.json (Facts)", id="btn-nav-profile", classes="pantry-nav-btn")
+                                yield Label("[bold #A89F91]CANONICAL LEDGERS[/bold #A89F91]", classes="pantry-nav-sec-label")
+                                yield Button("▤ profile.yaml (Facts)", id="btn-nav-profile", classes="pantry-nav-btn")
                                 yield Button("✎ context.md (Diary)", id="btn-nav-context", classes="pantry-nav-btn")
+                                yield Label("[bold #A89F91]DEEP DOSSIER[/bold #A89F91]", classes="pantry-nav-sec-label")
+                                yield Vertical(id="pantry-dossier-list")
                                 yield Label("[bold #A89F91]PERSONAS[/bold #A89F91]", classes="pantry-nav-sec-label")
                                 yield Vertical(id="pantry-personas-list")
                                 yield Button("+ New Persona", id="btn-nav-new-persona", classes="pantry-nav-btn")
@@ -2506,13 +2508,13 @@ class BreadwinnerApp(App):
                                 yield Static("", id="pantry-snapshots-summary")
                                 yield Button("Inspect History (h)", id="btn-pantry-history", classes="pantry-nav-btn")
                                 yield Label("[bold #A89F91]QUICK ACTIONS[/bold #A89F91]", classes="pantry-nav-sec-label")
-                                yield Button("+ Ingest (i)", id="btn-pantry-ingest", classes="pantry-nav-btn")
+                                yield Button("+ Ingest Source (i)", id="btn-pantry-ingest", classes="pantry-nav-btn")
                                 yield Button("§ Interview (m)", id="btn-pantry-interview", classes="pantry-nav-btn")
                                 yield Button("Sync Portfolio (y)", id="btn-pantry-sync", classes="pantry-nav-btn")
-                                yield Button("Edit Pantry & Diary (e)", id="btn-pantry-edit", classes="pantry-nav-btn")
+                                yield Button("Edit Form (e)", id="btn-pantry-edit", classes="pantry-nav-btn")
                             with Vertical(id="pantry-ide-main"):
                                 with Horizontal(id="pantry-editor-header"):
-                                    yield Label("[bold white]profile.json[/bold white] [dim]• Canonical Facts[/dim]", id="pantry-editor-filename")
+                                    yield Label("[bold white]profile.yaml[/bold white] [dim]• Canonical Facts[/dim]", id="pantry-editor-filename")
                                     yield Label("[bold #50FA7B]● Validated & Snapshot Protected[/bold #50FA7B]", id="pantry-editor-status")
                                     yield Button("✓ Save File (Ctrl+S)", variant="success", id="btn-pantry-save")
                                 yield TextArea("", id="pantry-editor-textarea")
@@ -3416,6 +3418,24 @@ class BreadwinnerApp(App):
             else:
                 summary.update("[dim]No snapshots yet[/dim]")
 
+            dossier_list = self.query_one("#pantry-dossier-list", Vertical)
+            existing_d_ids = {c.id for c in dossier_list.children if c.id}
+            dossier_files = self.pantry.list_dossier_files()
+            if not dossier_files and not existing_d_ids:
+                dossier_list.mount(Label("[dim italic]No dossier docs yet[/dim italic]", id="lbl-empty-dossier"))
+            else:
+                for df in dossier_files:
+                    rel = df["rel_path"]
+                    safe_id = f"btn-dossier-{rel.replace('/', '__').replace('.', '_')}"
+                    if safe_id not in existing_d_ids:
+                        try:
+                            self.query_one("#lbl-empty-dossier").remove()
+                        except Exception:
+                            pass
+                        btn = Button(f"▣ {df['name']}", id=safe_id, classes="pantry-nav-btn")
+                        btn._dossier_rel = rel
+                        dossier_list.mount(btn)
+
             personas_list = self.query_one("#pantry-personas-list", Vertical)
             existing_ids = {c.id for c in personas_list.children if c.id}
             personas = PersonaManager.list_personas()
@@ -3435,22 +3455,23 @@ class BreadwinnerApp(App):
         fn_lbl = self.query_one("#pantry-editor-filename", Label)
 
         if file_id == "profile":
-            fn_lbl.update("[bold white]profile.json[/bold white] [dim]• Canonical Facts[/dim]")
+            fn_lbl.update("[bold white]profile.yaml[/bold white] [dim]• Canonical Facts[/dim]")
             try:
-                if self.pantry.profile_path.exists():
-                    editor.text = self.pantry.profile_path.read_text(encoding="utf-8")
-                else:
-                    try:
-                        editor.text = json.dumps(self.pantry.load_profile().to_json_resume(), indent=2)
-                    except Exception:
-                        from breadwinner.onboarding import STARTER_JSON_RESUME
-                        editor.text = json.dumps(STARTER_JSON_RESUME, indent=2)
+                editor.text = self.pantry.load_profile_yaml()
             except Exception:
-                editor.text = "{}"
-            editor.language = "json"
+                editor.text = ""
+            editor.language = "yaml"
         elif file_id == "context":
             fn_lbl.update("[bold white]context.md[/bold white] [dim]• Directives Diary[/dim]")
             editor.text = self.pantry.load_context()
+            editor.language = "markdown"
+        elif file_id.startswith("dossier:"):
+            rel = file_id.split(":", 1)[1]
+            fn_lbl.update(f"[bold white]{Path(rel).name}[/bold white] [dim]• Deep Dossier[/dim]")
+            try:
+                editor.text = self.pantry.load_dossier_file(rel)
+            except Exception:
+                editor.text = ""
             editor.language = "markdown"
         elif file_id.startswith("persona:"):
             slug = file_id.split(":", 1)[1]
@@ -3470,14 +3491,11 @@ class BreadwinnerApp(App):
         text = editor.text
         if self.active_pantry_file == "profile":
             try:
-                parsed = json.loads(text)
-                adapter = JsonResumeAdapter(parsed)
-                new_profile = adapter.load_profile()
-                self.pantry.save_pantry(new_profile, trigger="pantry_ide_save")
+                new_profile = self.pantry.save_profile_yaml(text, trigger="pantry_ide_save")
                 self.query_one("#profile-md", Markdown).update(self.get_profile_markdown())
-                self.notify("✓ Validated & saved profile.json! Created snapshot.", title="Pantry Saved")
+                self.notify("✓ Validated & saved profile.yaml and synced profile.json! Created snapshot.", title="Pantry Saved")
             except Exception as e:
-                self.notify(f"Invalid profile JSON: {e}", severity="error")
+                self.notify(f"Invalid profile YAML: {e}", severity="error")
         elif self.active_pantry_file == "context":
             try:
                 curr_profile = self.pantry.load_profile()
@@ -3486,6 +3504,14 @@ class BreadwinnerApp(App):
                 self.notify("✓ Saved context.md diary! Created snapshot.", title="Pantry Saved")
             except Exception as e:
                 self.notify(f"Failed to save context: {e}", severity="error")
+        elif self.active_pantry_file.startswith("dossier:"):
+            rel = self.active_pantry_file.split(":", 1)[1]
+            try:
+                self.pantry.save_dossier_file(rel, text, trigger=f"dossier_ide_save_{Path(rel).stem}")
+                self.refresh_pantry_ide()
+                self.notify(f"✓ Saved {Path(rel).name}! Created snapshot.", title="Dossier Saved")
+            except Exception as e:
+                self.notify(f"Failed to save dossier file: {e}", severity="error")
         elif self.active_pantry_file.startswith("persona:"):
             slug = self.active_pantry_file.split(":", 1)[1]
             try:
@@ -3497,6 +3523,41 @@ class BreadwinnerApp(App):
                 self.notify(f"✓ Saved persona '{slug}'!", title="Persona Saved")
             except Exception as e:
                 self.notify(f"Invalid persona YAML: {e}", severity="error")
+
+    @work(thread=True)
+    def action_pantry_ai_refine(self) -> None:
+        p_prompt = self.query_one("#pantry-ai-prompt", Input).value.strip()
+        if not p_prompt:
+            self.notify("Please enter an instruction in the prompt box.", severity="warning")
+            return
+        editor = self.query_one("#pantry-editor-textarea", TextArea)
+        current_text = editor.text
+        active_file = self.active_pantry_file
+
+        self.notify(f"Refining {active_file} with AI...", title="AI Refinement")
+        try:
+            provider = get_llm_provider()
+            sys_prompt = (
+                "You are Breadwinner's Career Strategy Refiner. "
+                "The user wants to refine their career document according to their instruction. "
+                "RULES:\n"
+                "1. Strictly preserve all existing verified metrics, company names, dates, and titles.\n"
+                "2. Apply the Google XYZ formula for work bullets.\n"
+                "3. Return ONLY the complete updated file content in its exact format (YAML or Markdown). Do NOT wrap in markdown code blocks."
+            )
+            user_prompt = f"DOCUMENT ({active_file}):\n{current_text}\n\nUSER INSTRUCTION:\n{p_prompt}"
+            refined = provider.generate_text(sys_prompt, user_prompt, temperature=0.0).strip()
+            if refined.startswith("```yaml") or refined.startswith("```markdown") or refined.startswith("```"):
+                refined = re.sub(r"^```[a-zA-Z]*\n", "", refined)
+                refined = re.sub(r"\n```$", "", refined)
+
+            def apply_refinement():
+                editor.text = refined
+                self.notify(f"✓ AI Refinement applied to {active_file}! Press Ctrl+S to save.", title="Refinement Applied")
+
+            self.app.call_from_thread(apply_refinement)
+        except Exception as e:
+            self.notify(f"Refinement error: {e}", severity="error")
 
     def action_toggle_flag(self) -> None:
         if self.selected_job:
@@ -3928,14 +3989,20 @@ class BreadwinnerApp(App):
         elif bid == "btn-pantry-save":
             self.action_save_pantry_ide_file()
         elif bid == "btn-pantry-ai-refine":
-            p_prompt = self.query_one("#pantry-ai-prompt", Input).value.strip()
-            if p_prompt:
-                self.notify(f"Refining pantry context: '{p_prompt[:30]}...'", title="AI Refinement")
-            else:
-                self.notify("Please enter an instruction in the prompt box.", severity="warning")
+            self.action_pantry_ai_refine()
         elif bid.startswith("btn-persona-"):
             p_slug = bid.replace("btn-persona-", "")
             self.load_pantry_file(f"persona:{p_slug}")
+        elif bid.startswith("btn-dossier-"):
+            btn = event.button
+            rel = getattr(btn, "_dossier_rel", None)
+            if not rel:
+                raw_slug = bid.replace("btn-dossier-", "")
+                rel = raw_slug.replace("__", "/")
+                if not rel.endswith(".md"):
+                    parts = rel.rsplit("_", 1)
+                    rel = f"{parts[0]}.{parts[1]}" if len(parts) == 2 else f"{rel}.md"
+            self.load_pantry_file(f"dossier:{rel}")
         elif bid == "btn-pantry-edit":
             self.action_pantry_edit()
         elif bid == "btn-pantry-sync":

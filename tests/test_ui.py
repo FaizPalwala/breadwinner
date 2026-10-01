@@ -385,7 +385,7 @@ async def test_breadwinner_app_pantry_ide_file_navigation(tmp_path, monkeypatch)
 
         # Check default profile file
         editor = app.query_one("#pantry-editor-textarea", TextArea)
-        assert editor.language in ("json", "markdown")
+        assert editor.language in ("yaml", "json", "markdown")
 
         # Load context
         app.load_pantry_file("context")
@@ -395,7 +395,7 @@ async def test_breadwinner_app_pantry_ide_file_navigation(tmp_path, monkeypatch)
         # Load profile
         app.load_pantry_file("profile")
         await pilot.pause()
-        assert editor.language == "json"
+        assert editor.language in ("yaml", "json")
 
 
 @pytest.mark.anyio

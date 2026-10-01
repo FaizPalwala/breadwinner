@@ -25,6 +25,171 @@ class IngestionError(Exception):
     pass
 
 
+def classify_document(text: str, source_label: str = "") -> str:
+    """Classifies input into: 'project_readme', 'academic', 'portfolio', 'resume', or 'general'."""
+    lower_src = source_label.lower()
+    lower_text = text.lower()[:5000]
+
+    # Check for project README
+    if "readme" in lower_src or "project" in lower_src:
+        return "project_readme"
+    if ("# " in text or "## " in text) and any(
+        k in lower_text for k in ["installation", "usage", "getting started", "architecture", "license", "contributing", "quickstart"]
+    ):
+        return "project_readme"
+
+    # Check for academic dissertation / thesis / research paper / whitepaper
+    academic_keywords = [
+        "dissertation", "thesis", "doctor of philosophy", "ph.d.", "phd thesis",
+        "master's thesis", "doctoral dissertation", "advisor:", "adviser:", "committee members",
+        "whitepaper", "arxiv:", "doi:"
+    ]
+    if any(k in lower_src or k in lower_text for k in academic_keywords):
+        return "academic"
+    if "abstract" in lower_text and any(k in lower_text for k in ["methodology", "literature review", "bibliography", "references", "conclusions"]):
+        return "academic"
+
+    # Check for portfolio or personal site
+    if lower_src.startswith("http://") or lower_src.startswith("https://") or any(
+        k in lower_text for k in ["about me", "my portfolio", "personal blog", "who i am", "get in touch"]
+    ):
+        return "portfolio"
+
+    # Check for resume / CV
+    if any(k in lower_text for k in ["work experience", "professional experience", "employment history", "curriculum vitae", "education", "technical skills"]):
+        return "resume"
+
+    return "general"
+
+
+def chunk_text(text: str, chunk_size: int = 4000, overlap: int = 400) -> list[str]:
+    """Splits long text into overlapping sliding-window chunks along line or paragraph boundaries."""
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks: list[str] = []
+    start = 0
+    total_len = len(text)
+
+    while start < total_len:
+        end = min(start + chunk_size, total_len)
+        if end < total_len:
+            nl_pos = text.rfind("\n\n", start, end)
+            if nl_pos != -1 and nl_pos > start + (chunk_size // 2):
+                end = nl_pos
+            else:
+                line_pos = text.rfind("\n", start, end)
+                if line_pos != -1 and line_pos > start + (chunk_size // 2):
+                    end = line_pos
+
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        if end >= total_len:
+            break
+        start = max(start + 1, end - overlap)
+
+    return chunks
+
+
+def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> CandidateProfile:
+    """Merges incoming profile facts into base profile without clobbering existing verified bullets."""
+    full_name = base.full_name if base.full_name and base.full_name != "Candidate" else incoming.full_name
+    title = base.title if base.title and base.title != "Professional" else incoming.title
+    email = base.email or incoming.email
+    phone = base.phone or incoming.phone
+    location = base.location or incoming.location
+    linkedin_url = base.linkedin_url or incoming.linkedin_url
+    github_url = base.github_url or incoming.github_url
+    portfolio_url = base.portfolio_url or incoming.portfolio_url
+    summary = base.summary if len(base.summary) > len(incoming.summary) else (incoming.summary or base.summary)
+
+    # Merge experiences
+    merged_exps = list(base.experiences)
+    for inc_exp in incoming.experiences:
+        match = next((e for e in merged_exps if e.company.lower() == inc_exp.company.lower()), None)
+        if match:
+            existing_set = {b.strip().lower() for b in match.bullets}
+            for b in inc_exp.bullets:
+                if b.strip().lower() not in existing_set:
+                    match.bullets.append(b)
+                    existing_set.add(b.strip().lower())
+            for t in inc_exp.technologies:
+                if t not in match.technologies:
+                    match.technologies.append(t)
+        else:
+            merged_exps.append(inc_exp)
+
+    # Merge education
+    merged_edu = list(base.education)
+    for inc_edu in incoming.education:
+        match_edu = next((ed for ed in merged_edu if ed.institution.lower() == inc_edu.institution.lower() and ed.degree.lower() == inc_edu.degree.lower()), None)
+        if not match_edu:
+            merged_edu.append(inc_edu)
+
+    # Merge projects
+    merged_projs = list(base.projects)
+    for inc_proj in incoming.projects:
+        match_p = next((p for p in merged_projs if p.name.lower() == inc_proj.name.lower()), None)
+        if match_p:
+            if inc_proj.description and len(inc_proj.description) > len(match_p.description):
+                match_p.description = inc_proj.description
+            for s in inc_proj.tech_stack:
+                if s not in match_p.tech_stack:
+                    match_p.tech_stack.append(s)
+            for h in inc_proj.highlights:
+                if h not in match_p.highlights:
+                    match_p.highlights.append(h)
+            if inc_proj.url and not match_p.url:
+                match_p.url = inc_proj.url
+            if inc_proj.github_url and not match_p.github_url:
+                match_p.github_url = inc_proj.github_url
+        else:
+            merged_projs.append(inc_proj)
+
+    # Merge skills
+    merged_skills = {s.category.lower(): s for s in base.skills}
+    for inc_skill in incoming.skills:
+        cat_key = inc_skill.category.lower()
+        if cat_key in merged_skills:
+            target = merged_skills[cat_key]
+            existing_sk_set = {sk.lower() for sk in target.skills}
+            for sk in inc_skill.skills:
+                if sk.lower() not in existing_sk_set:
+                    target.skills.append(sk)
+                    existing_sk_set.add(sk.lower())
+        else:
+            merged_skills[cat_key] = inc_skill
+
+    # Merge raw context and dossier documents
+    merged_context = dict(base.raw_context)
+    merged_context.update(incoming.raw_context)
+    base_docs = base.raw_context.get("dossier_documents", {})
+    inc_docs = incoming.raw_context.get("dossier_documents", {})
+    if base_docs or inc_docs:
+        combined_docs = dict(base_docs)
+        combined_docs.update(inc_docs)
+        merged_context["dossier_documents"] = combined_docs
+
+    return CandidateProfile(
+        full_name=full_name,
+        title=title,
+        email=email,
+        phone=phone,
+        location=location,
+        linkedin_url=linkedin_url,
+        github_url=github_url,
+        portfolio_url=portfolio_url,
+        summary=summary,
+        experiences=merged_exps,
+        education=merged_edu,
+        projects=merged_projs,
+        skills=list(merged_skills.values()),
+        raw_context=merged_context
+    )
+
+
 class UniversalIngestor:
     """Ingests candidate context from arbitrary web URLs, files, or raw text into CandidateProfile."""
 
@@ -168,7 +333,7 @@ class UniversalIngestor:
         provider: BaseLLMProvider,
         source_label: str = "Ingested Context"
     ) -> CandidateProfile:
-        """Parse raw text/html into a structured CandidateProfile via LLM."""
+        """Parse raw text/html into a structured CandidateProfile via LLM, routing deep context into dossiers."""
         # If it's already a valid JSON Resume, parse directly
         try:
             data = json.loads(raw_text)
@@ -179,6 +344,32 @@ class UniversalIngestor:
         except Exception:
             pass
 
+        doc_type = classify_document(raw_text, source_label=source_label)
+
+        # 1. Specialized extraction for Project READMEs / Architecture Docs
+        if doc_type == "project_readme":
+            return cls._extract_project_dossier(raw_text, provider, source_label)
+
+        # 2. Specialized extraction for Dissertations / Theses / Research Whitepapers
+        if doc_type == "academic":
+            return cls._extract_academic_dossier(raw_text, provider, source_label)
+
+        # 3. For long resumes/portfolios (>6,000 chars), use sliding-window map-reduce
+        chunks = chunk_text(raw_text, chunk_size=5000, overlap=400)
+        if len(chunks) > 1:
+            return cls._extract_chunked_profile(chunks, provider, source_label)
+
+        # 4. Standard single-pass extraction for focused resumes/bios
+        return cls._extract_single_pass_profile(raw_text, provider, source_label)
+
+    @classmethod
+    def _extract_single_pass_profile(
+        cls,
+        text_chunk: str,
+        provider: BaseLLMProvider,
+        source_label: str
+    ) -> CandidateProfile:
+        """Extract atomic facts from a single text block."""
         sys_prompt = """You are an expert career intelligence data extractor.
 Your task is to analyze candidate portfolio text, bio, or resume data and extract verified facts into a structured JSON schema.
 
@@ -193,7 +384,7 @@ RULES:
         user_prompt = f"""SOURCE: {source_label}
 
 RAW CANDIDATE CONTENT:
-{raw_text[:7000]}
+{text_chunk}
 
 Respond ONLY in valid JSON matching this exact schema:
 {{
@@ -247,7 +438,6 @@ Respond ONLY in valid JSON matching this exact schema:
 
         res = provider.generate_json(sys_prompt, user_prompt)
 
-        # Build CandidateProfile models
         exps = [
             WorkExperience(
                 company=e.get("company", "Company"),
@@ -308,37 +498,237 @@ Respond ONLY in valid JSON matching this exact schema:
         )
 
     @classmethod
+    def _extract_chunked_profile(
+        cls,
+        chunks: List[str],
+        provider: BaseLLMProvider,
+        source_label: str
+    ) -> CandidateProfile:
+        """Map-reduce extraction over long documents to prevent truncation and data loss."""
+        aggregated_profile: Optional[CandidateProfile] = None
+
+        for idx, chunk in enumerate(chunks):
+            chunk_label = f"{source_label} (Part {idx + 1}/{len(chunks)})"
+            chunk_profile = cls._extract_single_pass_profile(chunk, provider, chunk_label)
+            if aggregated_profile is None:
+                aggregated_profile = chunk_profile
+            else:
+                aggregated_profile = merge_profiles(aggregated_profile, chunk_profile)
+
+        return aggregated_profile or cls._extract_single_pass_profile(chunks[0], provider, source_label)
+
+    @classmethod
+    def _extract_project_dossier(
+        cls,
+        raw_text: str,
+        provider: BaseLLMProvider,
+        source_label: str
+    ) -> CandidateProfile:
+        """Extract atomic project card for Ledger 1 and comprehensive case study for Ledger 2."""
+        sys_prompt = """You are Breadwinner's Technical Project Ingestion Specialist.
+Analyze this project documentation / README / architecture RFC.
+Extract:
+1. Atomic Project Card: name, 1-2 sentence architectural summary, tech stack tags, repository/demo URL, and key highlights.
+2. Candidate identity if mentioned (author name, title, contact).
+3. Synthesize a deep architectural case study (Markdown) capturing system design, trade-offs, concurrency/scalability choices, and benchmarks.
+"""
+
+        user_prompt = f"""PROJECT DOCUMENTATION:
+Source: {source_label}
+
+{raw_text[:8000]}
+
+Respond in valid JSON matching this schema:
+{{
+  "project_name": "Project Name",
+  "author_name": "Author / Candidate Name (or 'Candidate' if unspecified)",
+  "author_title": "Professional Title (or 'Software Engineer')",
+  "summary": "1-2 sentence architectural summary of the project",
+  "tech_stack": ["Tech1", "Tech2"],
+  "url": "https://...",
+  "github_url": "https://github.com/...",
+  "highlights": ["Metric or architectural accomplishment 1", "Accomplishment 2"],
+  "deep_dossier_markdown": "# Project Deep Dive: ...\\n\\n## Architecture & System Design\\n...\\n\\n## Technical Trade-offs\\n...\\n\\n## Benchmarks & Measured Scale\\n..."
+}}
+"""
+        res = provider.generate_json(sys_prompt, user_prompt)
+        pname = res.get("project_name", Path(source_label).stem.replace("_", " ").title())
+        safe_slug = re.sub(r"[^a-zA-Z0-9_-]", "_", pname.lower()).strip("_") or "project"
+
+        proj = Project(
+            name=pname,
+            description=res.get("summary", "Technical project with verified architecture and impact."),
+            tech_stack=res.get("tech_stack", []),
+            url=res.get("url"),
+            github_url=res.get("github_url"),
+            highlights=res.get("highlights", [])
+        )
+
+        dossier_content = res.get("deep_dossier_markdown", "")
+        if not dossier_content or len(dossier_content) < 50:
+            dossier_content = f"# Project Deep Dive: {pname}\n\n## Overview\n{proj.description}\n\n## Tech Stack\n{', '.join(proj.tech_stack)}\n\n## Source Reference\n{source_label}\n\n```markdown\n{raw_text[:2000]}\n```"
+
+        dossier_docs = {
+            f"projects/{safe_slug}.md": dossier_content
+        }
+
+        return CandidateProfile(
+            full_name=res.get("author_name", "Candidate"),
+            title=res.get("author_title", "Software Engineer"),
+            summary=f"Creator of {pname}: {proj.description}",
+            projects=[proj],
+            skills=[SkillCategory(category="Project Technologies", skills=proj.tech_stack)],
+            raw_context={
+                "source": source_label,
+                "doc_type": "project_readme",
+                "dossier_documents": dossier_docs
+            }
+        )
+
+    @classmethod
+    def _extract_academic_dossier(
+        cls,
+        raw_text: str,
+        provider: BaseLLMProvider,
+        source_label: str
+    ) -> CandidateProfile:
+        """Extract academic credentials for Ledger 1 and long-form research dossier for Ledger 2."""
+        chunks = chunk_text(raw_text, chunk_size=5000, overlap=400)
+        core_sample = chunks[0] if chunks else raw_text[:5000]
+
+        sys_prompt = """You are Breadwinner's Academic Research Ingestor.
+Analyze this academic thesis, dissertation, or research paper.
+Extract:
+1. Degree, institution, field of study, graduation/publication year, thesis title, and author name.
+2. Key research projects, mathematical or algorithmic methodologies, and quantitative results.
+3. Synthesize an authoritative research dossier (Markdown) detailing research questions, methodology, and findings.
+"""
+
+        user_prompt = f"""ACADEMIC DOCUMENT:
+Source: {source_label}
+
+DOCUMENT CORE EXCERPT:
+{core_sample}
+
+Respond in valid JSON matching this schema:
+{{
+  "author_name": "Author / Candidate Name",
+  "title": "Professional Title (e.g. 'Ph.D. Researcher / Distributed Systems Engineer')",
+  "degree": "Ph.D. in Computer Science (or relevant degree)",
+  "institution": "University / Institute Name",
+  "graduation_year": "YYYY",
+  "thesis_title": "Full Thesis or Dissertation Title",
+  "research_summary": "2-3 sentence overview of research contribution",
+  "methodologies": ["Distributed consensus", "Formal verification"],
+  "deep_dossier_markdown": "# Academic Research & Dissertation Dossier\\n\\n## Executive Summary\\n...\\n\\n## Problem Formulation & Research Questions\\n...\\n\\n## Algorithmic & System Methodology\\n...\\n\\n## Quantitative Results & Measured Findings\\n...\\n\\n## Publications & Contributions\\n..."
+}}
+"""
+        res = provider.generate_json(sys_prompt, user_prompt)
+        thesis_title = res.get("thesis_title", "Doctoral Dissertation Research")
+        safe_slug = "dissertation"
+
+        edu = Education(
+            degree=res.get("degree", "Doctoral Research"),
+            institution=res.get("institution", "Academic Institution"),
+            graduation_year=res.get("graduation_year", "2023"),
+            coursework=res.get("methodologies", [])
+        )
+
+        proj = Project(
+            name=thesis_title,
+            description=res.get("research_summary", "Advanced academic research and experimental methodology."),
+            tech_stack=res.get("methodologies", []),
+            highlights=[f"Degree: {edu.degree} @ {edu.institution}"]
+        )
+
+        dossier_content = res.get("deep_dossier_markdown", "")
+        if not dossier_content or len(dossier_content) < 50:
+            dossier_content = (
+                f"# Academic Research: {thesis_title}\n\n"
+                f"**Author**: {res.get('author_name', 'Candidate')}  \n"
+                f"**Institution**: {edu.institution} ({edu.graduation_year})  \n"
+                f"**Degree**: {edu.degree}  \n\n"
+                f"## Executive Summary\n{proj.description}\n\n"
+                f"## Methodologies & Focus Areas\n" + "\n".join(f"- {m}" for m in res.get("methodologies", []))
+            )
+
+        dossier_docs = {
+            f"{safe_slug}.md": dossier_content
+        }
+
+        return CandidateProfile(
+            full_name=res.get("author_name", "Candidate"),
+            title=res.get("title", "Research Engineer"),
+            education=[edu],
+            projects=[proj],
+            skills=[SkillCategory(category="Research Methodologies", skills=res.get("methodologies", []))],
+            raw_context={
+                "source": source_label,
+                "doc_type": "academic",
+                "dossier_documents": dossier_docs
+            }
+        )
+
+    @classmethod
     def ingest(
         cls,
         source: Any,
-        provider: BaseLLMProvider
+        provider: BaseLLMProvider,
+        existing_profile: Optional[CandidateProfile] = None
     ) -> CandidateProfile:
-        """Universal entry point: handles URLs, files, lists of sources, and text."""
+        """Universal entry point: handles URLs, files, lists of sources, and merges with existing profile."""
         if isinstance(source, list):
-            combined_texts = []
+            aggregated: Optional[CandidateProfile] = existing_profile
             for s in source:
-                s_clean = str(s).strip()
-                if s_clean.startswith("http://") or s_clean.startswith("https://"):
-                    combined_texts.append(cls.extract_text_from_url(s_clean))
-                elif Path(s_clean).exists() and Path(s_clean).is_file():
-                    combined_texts.append(cls.extract_text_from_file(Path(s_clean)))
+                single_profile = cls.ingest(s, provider)
+                if aggregated is None:
+                    aggregated = single_profile
                 else:
-                    combined_texts.append(s_clean)
-            merged = "\n\n--- NEXT SOURCE ---\n\n".join(combined_texts)
-            return cls.parse_text_to_profile(merged, provider, source_label=f"Multi-Source ({len(source)} items)")
+                    aggregated = merge_profiles(aggregated, single_profile)
+            return aggregated or cls.parse_text_to_profile("", provider, source_label="Empty Source List")
 
         source_clean = str(source).strip()
         if source_clean.startswith("http://") or source_clean.startswith("https://"):
             raw_text = cls.extract_text_from_url(source_clean)
-            return cls.parse_text_to_profile(raw_text, provider, source_label=source_clean)
+            new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=source_clean)
+        else:
+            path = Path(source_clean)
+            if path.exists() and path.is_file():
+                raw_text = cls.extract_text_from_file(path)
+                new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=str(path))
+            else:
+                new_profile = cls.parse_text_to_profile(source_clean, provider, source_label="Manual Paste")
 
-        path = Path(source_clean)
-        if path.exists() and path.is_file():
-            raw_text = cls.extract_text_from_file(path)
-            return cls.parse_text_to_profile(raw_text, provider, source_label=str(path))
+        if existing_profile is not None:
+            return merge_profiles(existing_profile, new_profile)
+        return new_profile
 
-        # Raw text / bio paste
-        return cls.parse_text_to_profile(source_clean, provider, source_label="Manual Paste")
+    @classmethod
+    def ingest_two_ledger(
+        cls,
+        source: Any,
+        provider: BaseLLMProvider,
+        pantry: Optional[Any] = None
+    ) -> CandidateProfile:
+        """Ingests source, merges facts into Pantry Ledger 1 and writes deep context to Ledger 2."""
+        existing_profile = None
+        if pantry and hasattr(pantry, "is_initialized") and pantry.is_initialized():
+            try:
+                existing_profile = pantry.load_profile()
+            except Exception:
+                existing_profile = None
+
+        new_profile = cls.ingest(source, provider, existing_profile=existing_profile)
+
+        if pantry and hasattr(pantry, "save_pantry"):
+            pantry.save_pantry(
+                new_profile,
+                context=new_profile.raw_context.get("context_diary"),
+                source_info={"source": str(source), "type": "two_ledger_ingest"},
+                trigger="two_ledger_ingest"
+            )
+
+        return new_profile
 
 
 def decompose_raw_input(raw: str) -> list[str]:

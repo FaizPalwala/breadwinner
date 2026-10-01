@@ -117,6 +117,29 @@ class CandidateProfile(BaseModel):
             ]
         }
 
+    def to_yaml(self) -> str:
+        """Export profile as clean, human-readable YAML for in-place editing and LLM context."""
+        import yaml
+        data = self.model_dump(exclude={"raw_context"})
+        # Remove null values for cleaner editing
+        def clean_dict(d: Any) -> Any:
+            if isinstance(d, dict):
+                return {k: clean_dict(v) for k, v in d.items() if v is not None and v != ""}
+            elif isinstance(d, list):
+                return [clean_dict(v) for v in d]
+            return d
+        cleaned = clean_dict(data)
+        return yaml.dump(cleaned, sort_keys=False, allow_unicode=True, default_flow_style=False)
+
+    @classmethod
+    def from_yaml(cls, yaml_str: str) -> "CandidateProfile":
+        """Parse clean YAML into a validated CandidateProfile."""
+        import yaml
+        data = yaml.safe_load(yaml_str)
+        if not isinstance(data, dict):
+            raise ValueError("YAML content must be a valid mapping dictionary.")
+        return cls(**data)
+
 
 class JobPosting(BaseModel):
     id: str
