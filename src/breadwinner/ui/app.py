@@ -1491,8 +1491,7 @@ class BreadwinnerApp(App):
     }
     #app-sidebar.-collapsed {
         width: 7;
-        padding: 1 0;
-        align-horizontal: center;
+        padding: 1 0 1 1;
         overflow: hidden;
     }
     .sidebar-flow-btn {
@@ -1606,7 +1605,7 @@ class BreadwinnerApp(App):
         background: #0C0E14;
     }
     #pipeline-table-hint {
-        height: 1;
+        height: 2;
         color: #6272A4;
         margin-top: 1;
         padding-left: 1;
@@ -1684,9 +1683,15 @@ class BreadwinnerApp(App):
         margin-bottom: 1;
     }
     #details-body {
-        height: auto;
-        margin-bottom: 1;
+        height: 6;
+        min-height: 6;
+        border: round #2A2E3D;
+        background: #0C0E14;
         color: #F8F8F2;
+        content-align: center middle;
+        text-align: center;
+        padding: 0 1;
+        margin-bottom: 1;
     }
     #notes-header-row {
         height: 1;
@@ -2242,10 +2247,14 @@ class BreadwinnerApp(App):
                         with Horizontal(id="pipeline-container"):
                             with Vertical(id="pipeline-table-col"):
                                 yield DataTable(id="pipeline-table", cursor_type="row")
-                                yield Label("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio • (b) Bake • (v) PDF • (o) Folder[/dim]", id="pipeline-table-hint")
+                                yield Label("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio\n            (b) Bake • (v) PDF • (o) Folder[/dim]", id="pipeline-table-hint")
                             with VerticalScroll(id="job-details-pane"):
                                 yield Label("[bold #FFB86C]APPLICATION INSPECTOR[/bold #FFB86C]", id="details-header")
-                                yield Static("Select a job row above to inspect details.", id="details-body")
+                                yield Static(
+                                    "[bold #A89F91]◈ NO APPLICATION SELECTED[/bold #A89F91]\n"
+                                    "[dim]Select a job row from the table\nto inspect details & notes[/dim]",
+                                    id="details-body"
+                                )
                                 yield Label("[bold #A89F91]JOB ACTIONS[/bold #A89F91]", classes="inspector-sec-label")
                                 with Horizontal(classes="inspector-btn-row"):
                                     yield Button("✦ Studio (e)", id="btn-pipeline-edit-studio")
