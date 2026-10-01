@@ -49,6 +49,8 @@ BakeryWelcomeModal {
 
 .welcome-title {
     text-align: center;
+    content-align: center middle;
+    width: 100%;
     color: #f4a261;
     text-style: bold;
     margin-bottom: 0;
@@ -56,6 +58,8 @@ BakeryWelcomeModal {
 
 .welcome-subtitle {
     text-align: center;
+    content-align: center middle;
+    width: 100%;
     color: #a89f91;
     margin-bottom: 1;
 }
@@ -67,6 +71,8 @@ BakeryWelcomeModal {
 
 .step-heading {
     text-align: center;
+    content-align: center middle;
+    width: 100%;
     color: #f4a261;
     text-style: bold;
     margin-bottom: 0;
@@ -74,6 +80,7 @@ BakeryWelcomeModal {
 
 .step-subheading {
     text-align: center;
+    content-align: center middle;
     color: #a89f91;
     margin-bottom: 1;
     width: 100%;
@@ -100,6 +107,7 @@ Button.-style-default.prov-pill, Button.prov-pill {
     height: 1;
     width: 1fr;
     min-width: 8;
+    max-width: 18;
     margin: 0 1;
     padding: 0;
     border: none;
@@ -290,6 +298,8 @@ Button.-style-default.active-pill:hover, Button.prov-pill.active-pill:hover {
 
 #welcome-pantry-step {
     height: auto;
+    margin-bottom: 0;
+    display: none;
 }
 
 #welcome-mode-tabs {

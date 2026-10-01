@@ -431,8 +431,8 @@ async def test_welcome_modal_back_to_keys(tmp_path, monkeypatch):
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        pill_mock = modal.query_one("#pill-prov-mock", Button)
-        pill_mock.press()
+        pill_ollama = modal.query_one("#pill-prov-ollama", Button)
+        pill_ollama.press()
         await pilot.pause()
 
         btn_save = modal.query_one("#btn-welcome-save-ai", Button)
@@ -521,8 +521,8 @@ async def test_welcome_modal_multi_provider_key_configuration(tmp_path, monkeypa
 
 
 @pytest.mark.anyio
-async def test_welcome_modal_all_ten_provider_pills_interactive(tmp_path, monkeypatch):
-    """Verify that all 10 provider pills exist, dropdown is eliminated, and pill switching functions."""
+async def test_welcome_modal_all_nine_provider_pills_interactive(tmp_path, monkeypatch):
+    """Verify that all 9 provider pills exist, dropdown is eliminated, and pill switching functions."""
     monkeypatch.chdir(tmp_path)
 
     mock_pantry = MagicMock()
@@ -536,10 +536,10 @@ async def test_welcome_modal_all_ten_provider_pills_interactive(tmp_path, monkey
 
         expected_slugs = [
             "gemini", "openrouter", "anthropic", "openai", "deepseek",
-            "groq", "mistral", "ollama", "lmstudio", "mock"
+            "groq", "mistral", "ollama", "lmstudio"
         ]
 
-        # Verify all 10 pills are mounted
+        # Verify all 9 pills are mounted
         for slug in expected_slugs:
             pill = modal.query_one(f"#pill-prov-{slug}", Button)
             assert pill is not None

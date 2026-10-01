@@ -271,17 +271,21 @@ class XYZValidatorWidget(Static):
             self.update(content)
             return
 
-        g_xyz = make_gauge_bar(report.quantified_score, width=12)
-        g_verb = make_gauge_bar(report.action_verbs_score, width=12)
-        g_ground = make_gauge_bar(report.groundedness_score, width=12)
-        g_bake = make_gauge_bar(report.bake_health_score, width=12)
+        g_xyz = make_gauge_bar(report.quantified_score, width=24)
+        g_verb = make_gauge_bar(report.action_verbs_score, width=24)
+        g_ground = make_gauge_bar(report.groundedness_score, width=24)
+        g_bake = make_gauge_bar(report.bake_health_score, width=24)
 
         content = (
             f"[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Career Pantry Telemetry[/dim]\n"
-            f" [#c9b5a2]• Google XYZ Compliance:[/] {g_xyz} [dim]({report.quantified_bullets}/{report.total_bullets} Quantified)[/dim]\n"
-            f" [#c9b5a2]• Action Verb Velocity:[/]  {g_verb} [dim]({report.action_verbs_count}/{report.total_bullets} Action Verbs)[/dim]\n"
-            f" [#c9b5a2]• Pantry Fact Grounding:[/] {g_ground} [dim](Verified Facts)[/dim]\n"
-            f" [#c9b5a2]• Bake Health Index:[/]     {g_bake} [dim](Hearth Readiness)[/dim]\n"
+            f" [#c9b5a2]• Google XYZ Compliance[/] [dim]({report.quantified_bullets}/{report.total_bullets} Quantified)[/dim]\n"
+            f"   {g_xyz}\n"
+            f" [#c9b5a2]• Action Verb Velocity[/] [dim]({report.action_verbs_count}/{report.total_bullets} Action Verbs)[/dim]\n"
+            f"   {g_verb}\n"
+            f" [#c9b5a2]• Pantry Fact Grounding[/] [dim](Verified Facts)[/dim]\n"
+            f"   {g_ground}\n"
+            f" [#c9b5a2]• Bake Health Index[/] [dim](Hearth Readiness)[/dim]\n"
+            f"   {g_bake}\n"
             f"{report.coaching_tip}"
         )
         self.update(content)

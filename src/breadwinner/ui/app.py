@@ -1318,7 +1318,7 @@ class BreadwinnerApp(App):
     """Breadwinner Interactive TUI Application."""
 
     TITLE = "Breadwinner"
-    SUB_TITLE = "Local 8-Bit Anti-Slop Career Studio 🍞👾"
+    SUB_TITLE = "Local 8-Bit Anti-Slop Career Studio ◈"
     CSS = """
     Screen {
         background: #16161E;
@@ -2321,17 +2321,6 @@ class BreadwinnerApp(App):
                                     yield Button("Open Bullet Lab →", variant="default", id="btn-view-lab")
                                 yield Static("", id="tailor-status-box")
 
-                                with Horizontal(id="studio-readiness-deck"):
-                                    with Vertical(classes="studio-readiness-card"):
-                                        yield Label("[bold #FFB86C]📦 VERIFIED FACTS[/bold #FFB86C]", classes="readiness-card-title")
-                                        yield Label("[dim]Canonical facts from pantry/profile.json. Every bullet traces to real experience.[/dim]", classes="readiness-card-desc")
-                                    with Vertical(classes="studio-readiness-card"):
-                                        yield Label("[bold #50FA7B]🎯 GOOGLE XYZ FORMULA[/bold #50FA7B]", classes="readiness-card-title")
-                                        yield Label("[dim]Enforces: Accomplished [X], measured by [Y], by doing [Z]. Metric preservation.[/dim]", classes="readiness-card-desc")
-                                    with Vertical(classes="studio-readiness-card"):
-                                        yield Label("[bold #8BE9FD]🛡️ ZERO-HALLUCINATION[/bold #8BE9FD]", classes="readiness-card-title")
-                                        yield Label("[dim]Zero slop, local-first BYOK. Strategy Loop aligns narratives without fake skills.[/dim]", classes="readiness-card-desc")
-
                         with Vertical(id="studio-lab-view"):
                             with Horizontal(id="studio-lab-top-bar"):
                                 yield Button("← Setup", id="btn-lab-back")
@@ -2374,9 +2363,9 @@ class BreadwinnerApp(App):
                                             yield Markdown("Portal Q&A will appear here.", id="preview-qna-md", classes="preview-box")
 
                             with Vertical(id="studio-lab-bottom-bar"):
+                                yield Label("[bold #FFB86C]✦ Prompt Model to Refine Bullets:[/bold #FFB86C] [dim](e.g. emphasize Go concurrency over Kafka, scale metrics)[/dim]", id="lab-refine-prompt-label")
                                 with Horizontal(id="studio-lab-prompt-row"):
-                                    yield Label("[bold #FFB86C]✦ Prompt Model to Refine:[/bold #FFB86C]")
-                                    yield Input(placeholder="e.g. 'Emphasize Go concurrency over Kafka with higher throughput numbers'...", id="lab-refine-prompt")
+                                    yield Input(placeholder="Enter prompt directive to refine experience bullets...", id="lab-refine-prompt")
                                     yield Button("Refine with AI", variant="warning", id="btn-lab-refine-diff")
                                 with Vertical(id="lab-diff-preview-box"):
                                     yield Label("[bold #FFB86C]Proposed Metric Diff (Google XYZ Transformation):[/bold #FFB86C]", id="lab-diff-title")
@@ -2400,7 +2389,7 @@ class BreadwinnerApp(App):
                                 yield Button("Inspect History (h)", id="btn-pantry-history", classes="pantry-nav-btn")
                                 yield Label("[bold #A89F91]QUICK ACTIONS[/bold #A89F91]", classes="pantry-nav-sec-label")
                                 yield Button("+ Ingest (i)", id="btn-pantry-ingest", classes="pantry-nav-btn")
-                                yield Button("🎙 Interview (m)", id="btn-pantry-interview", classes="pantry-nav-btn")
+                                yield Button("§ Interview (m)", id="btn-pantry-interview", classes="pantry-nav-btn")
                                 yield Button("Sync Portfolio (y)", id="btn-pantry-sync", classes="pantry-nav-btn")
                                 yield Button("Edit Pantry & Diary (e)", id="btn-pantry-edit", classes="pantry-nav-btn")
                             with Vertical(id="pantry-ide-main"):
@@ -2411,7 +2400,7 @@ class BreadwinnerApp(App):
                                 yield TextArea("", id="pantry-editor-textarea")
                                 yield Markdown(self.get_profile_markdown(), id="profile-md")
                                 with Horizontal(id="pantry-ai-bar"):
-                                    yield Label("[bold #FFB86C]✨ Prompt AI to Refine:[/bold #FFB86C]")
+                                    yield Label("[bold #FFB86C]✦ Prompt Model to Refine:[/bold #FFB86C]")
                                     yield Input(placeholder="e.g. 'Synthesize 2 new bullets focusing on Kafka partitioning'...", id="pantry-ai-prompt")
                                     yield Button("Refine & Diff", variant="warning", id="btn-pantry-ai-refine")
 
@@ -2577,7 +2566,7 @@ class BreadwinnerApp(App):
         else:
             model = "default"
         src_label = "Pantry" if self.pantry.is_initialized() else settings.portfolio_path.name
-        return f" 👾 BREADWINNER ARCADE | [bold #50fa7b]ONLINE[/bold #50fa7b] | Engine: [{provider}: {model}] | Source: {src_label} "
+        return f" ◈ BREADWINNER ARCADE | [bold #50fa7b]ONLINE[/bold #50fa7b] | Engine: [{provider}: {model}] | Source: {src_label} "
 
     def get_active_model_chip_text(self) -> str:
         prov = settings.breadwinner_llm_provider.upper()
@@ -2700,7 +2689,7 @@ class BreadwinnerApp(App):
     def update_details_pane(self) -> None:
         details_body = self.query_one("#details-body", Static)
         if not self.selected_job:
-            details_body.update("[dim]No application selected.\nSelect a row above to inspect.[/dim]")
+            details_body.update("[bold #A89F91]◈ No application selected[/bold #A89F91]\n[dim]Select a job row from the table to inspect details.[/dim]")
             try:
                 self.query_one("#input-job-notes", TextArea).text = ""
             except Exception:
@@ -2708,15 +2697,15 @@ class BreadwinnerApp(App):
             return
 
         j = self.selected_job
-        folder_info = f"↗ [cyan]{j.folder_path}[/cyan]" if j.folder_path else "[dim]Not tailored yet[/dim]"
-        url_info = f"↗ [underline blue]{j.url[:34]}...[/underline blue]" if j.url and len(j.url) > 34 else (f"↗ [underline blue]{j.url}[/underline blue]" if j.url else "[dim]No URL[/dim]")
-        match_str = f"[bold #50FA7B]{j.match_score}% ATS Match[/bold #50FA7B]" if j.match_score is not None else "[dim]Unscored[/dim]"
-        flag_str = f" | [bold #F1FA8C]⚑ {j.flag}[/bold #F1FA8C]" if j.flag else ""
+        folder_info = f"[bold #8BE9FD]↗ {j.folder_path}[/bold #8BE9FD]" if j.folder_path else "[dim]Not tailored yet[/dim]"
+        url_info = f"↗ [underline #8BE9FD]{j.url[:34]}...[/underline #8BE9FD]" if j.url and len(j.url) > 34 else (f"↗ [underline #8BE9FD]{j.url}[/underline #8BE9FD]" if j.url else "[dim]No URL[/dim]")
+        match_str = f"[bold #50FA7B]{j.match_score}% ATS Match[/bold #50FA7B]" if j.match_score is not None else "[#A89F91]Unscored[/#A89F91]"
+        flag_str = f" | [bold #FF79C6]⚑ {j.flag}[/bold #FF79C6]" if j.flag else ""
 
         details_body.update(
-            f"[bold white]{j.company}[/bold white] — [bold #FFB86C]{j.title}[/bold #FFB86C]\n"
-            f"Stage: [bold cyan]{j.status.upper()}[/bold cyan] ({match_str}){flag_str}\n"
-            f"Location: {j.location or 'N/A'}\n"
+            f"[bold #FFFFFF]{j.company}[/bold #FFFFFF] — [bold #FFB86C]{j.title}[/bold #FFB86C]\n"
+            f"Stage: [bold #50FA7B]{j.status.upper()}[/bold #50FA7B] • ({match_str}){flag_str}\n"
+            f"Location: [#F8F8F2]{j.location or 'N/A'}[/#F8F8F2]\n"
             f"{url_info}\n"
             f"{folder_info}"
         )
@@ -3281,7 +3270,7 @@ class BreadwinnerApp(App):
             for slug in personas.keys():
                 btn_id = f"btn-persona-{slug}"
                 if btn_id not in existing_ids:
-                    btn = Button(f"🎭 {slug}.yaml", id=btn_id, classes="pantry-nav-btn")
+                    btn = Button(f"◈ {slug}.yaml", id=btn_id, classes="pantry-nav-btn")
                     personas_list.mount(btn)
 
             self.load_pantry_file(self.active_pantry_file)

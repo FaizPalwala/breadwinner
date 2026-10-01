@@ -162,26 +162,28 @@ PROVIDERS_REGISTRY: List[ProviderSpec] = [
         is_local=True,
         requires_key=False,
     ),
-    ProviderSpec(
-        slug="mock",
-        name="Offline Mock",
-        pill_label="Mock",
-        category="mock",
-        env_var=None,
-        settings_key_attr=None,
-        settings_model_attr=None,
-        key_placeholder="No API key required (Mock Test Drive)",
-        key_url=None,
-        hint_text="[dim]Instant testing mode without any API keys or network connection[/dim]",
-        mascot_msg="Offline Mock selected! Perfect for an instant zero-setup test drive.",
-        is_local=True,
-        requires_key=False,
-    ),
-
 ]
 
+# Internal test/offline fallback mock spec (not displayed in user-facing onboarding pills)
+MOCK_PROVIDER_SPEC = ProviderSpec(
+    slug="mock",
+    name="Offline Mock",
+    pill_label="Mock",
+    category="mock",
+    env_var=None,
+    settings_key_attr=None,
+    settings_model_attr=None,
+    key_placeholder="No API key required (Mock Test Drive)",
+    key_url=None,
+    hint_text="[dim]Instant testing mode without any API keys or network connection[/dim]",
+    mascot_msg="Offline Mock selected! Perfect for an instant zero-setup test drive.",
+    is_local=True,
+    requires_key=False,
+)
 
 _SPECS_BY_SLUG: Dict[str, ProviderSpec] = {spec.slug: spec for spec in PROVIDERS_REGISTRY}
+_SPECS_BY_SLUG["mock"] = MOCK_PROVIDER_SPEC
+
 
 
 def get_provider_specs() -> List[ProviderSpec]:
