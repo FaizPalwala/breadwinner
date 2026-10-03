@@ -237,12 +237,11 @@ class PipelineFunnelWidget(Static):
             f"[{c_off}][OFFER: {offer_count}][/]"
         )
 
-        shelf_box = (
-            f"┌── [bold #FFB86C]PIPELINE MOMENTUM[/bold #FFB86C] ────────────────────────────────────────────────────────┐\n"
-            f"│  {funnel_line}  [dim](Total: {total})[/dim]\n"
-            f"└─────────────────────────────────────────────────────────────────────────────┘"
+        content = (
+            f"[bold #FFB86C]PIPELINE MOMENTUM[/bold #FFB86C] [dim]• Cooling Rack & Conversion Velocity[/dim]  [bold white](Total: {total})[/bold white]\n"
+            f" {funnel_line}"
         )
-        self.update(shelf_box)
+        self.update(content)
 
 
 class PantryMaturityWidget(Static):

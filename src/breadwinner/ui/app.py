@@ -1595,17 +1595,24 @@ class BreadwinnerApp(App):
         height: 1fr;
         background: #16161E;
     }
+    Screen, VerticalScroll, #job-details-pane, DataTable {
+        scrollbar-size-vertical: 1;
+        scrollbar-size-horizontal: 1;
+        scrollbar-color: #334155 #10141f;
+        scrollbar-color-hover: #6272A4 #10141f;
+        scrollbar-color-active: #8BE9FD #10141f;
+    }
     ScrollBar {
-        background: #16161E;
-        color: #2E344A;
+        background: #10141f;
+        color: #334155;
         scrollbar-size-vertical: 1;
         scrollbar-size-horizontal: 1;
     }
     ScrollBar:hover {
-        color: #3E4663;
+        color: #6272A4;
     }
     ScrollBarCorner {
-        background: #16161E;
+        background: #10141f;
     }
     #app-header-deck {
         dock: top;
@@ -1614,14 +1621,15 @@ class BreadwinnerApp(App):
     #app-top-bar {
         height: 3;
         background: #10141f;
-        border-bottom: heavy #2A2E3D;
+        border-bottom: solid #2A2E3D;
         padding: 0 1;
         layout: horizontal;
+        align: left middle;
     }
     #top-bar-left {
         width: auto;
         height: 1;
-        margin-top: 1;
+        margin: 0;
         align: left middle;
     }
     .icon-toggle-btn {
@@ -1643,7 +1651,7 @@ class BreadwinnerApp(App):
     #top-bar-center {
         width: 1fr;
         height: 1;
-        margin-top: 1;
+        margin: 0;
         align: center middle;
         content-align: center middle;
     }
@@ -1661,7 +1669,7 @@ class BreadwinnerApp(App):
     #top-bar-right {
         width: auto;
         height: 1;
-        margin-top: 1;
+        margin: 0;
         align: right middle;
     }
     #btn-active-model-chip {
@@ -1709,16 +1717,17 @@ class BreadwinnerApp(App):
     }
     #top-bar-nav-pills {
         display: none;
-        height: 3;
+        height: 2;
         background: #12131A;
-        border-bottom: heavy #2A2E3D;
+        border-bottom: solid #2A2E3D;
         padding: 0 1;
         layout: horizontal;
+        align: left middle;
     }
     .top-nav-btn {
         width: 1fr;
         height: 1;
-        margin: 1 1 0 0;
+        margin: 0 1 0 0;
         border: none;
         background: #16161E;
         color: #A89F91;
@@ -1726,7 +1735,7 @@ class BreadwinnerApp(App):
         content-align: center middle;
     }
     .top-nav-btn:last-of-type {
-        margin: 1 0 0 0;
+        margin: 0;
     }
     .top-nav-btn:hover {
         background: #212330;
@@ -1852,13 +1861,16 @@ class BreadwinnerApp(App):
     }
     #pipeline-container.-vertical-stack #pipeline-table-col {
         width: 100%;
-        height: 1fr;
+        height: auto;
+    }
+    #pipeline-container.-vertical-stack DataTable {
+        height: 6;
     }
     #pipeline-container.-vertical-stack #job-details-pane {
         width: 100%;
         height: 1fr;
         border-left: none;
-        border-top: heavy #2A2E3D;
+        border-top: solid #2A2E3D;
     }
     DataTable {
         height: 1fr;
@@ -1866,7 +1878,7 @@ class BreadwinnerApp(App):
         background: #0C0E14;
     }
     #pipeline-table-hint {
-        height: 2;
+        height: auto;
         color: #6272A4;
         margin-top: 1;
         padding-left: 1;
@@ -1876,32 +1888,33 @@ class BreadwinnerApp(App):
         height: 100%;
         border-left: heavy #2A2E3D;
         background: #16161E;
-        padding: 1 2;
+        padding: 0 1;
+        overflow-y: auto;
     }
     .inspector-sec-label {
         text-style: bold;
         color: #A89F91;
         margin-top: 1;
-        margin-bottom: 0;
+        margin-bottom: 1;
     }
     .inspector-btn-row {
-        height: 3;
-        margin-top: 1;
+        height: 1;
+        margin-bottom: 1;
         layout: horizontal;
     }
     .inspector-btn-row Button {
         width: 1fr;
-        height: 100%;
+        height: 1;
         min-width: 0;
-        margin: 0;
-        border: round #2E3346;
+        margin: 0 1 0 0;
+        border: none;
         background: #1B1E2A;
         color: #F8F8F2;
         text-style: bold;
-        padding: 0 1;
+        padding: 0;
     }
-    .inspector-btn-row Button:first-of-type {
-        margin-right: 1;
+    .inspector-btn-row Button:last-of-type {
+        margin-right: 0;
     }
     .inspector-btn-row Button:hover {
         background: #272C3E;
@@ -1909,32 +1922,50 @@ class BreadwinnerApp(App):
     }
     #btn-pipeline-edit-studio {
         background: #182234;
-        border: round #3B527A;
         color: #8BE9FD;
     }
     #btn-pipeline-edit-studio:hover {
         background: #22324C;
-        border: round #8BE9FD;
         color: #FFFFFF;
     }
     #btn-pipeline-bake {
         background: #16281E;
-        border: round #356345;
         color: #50FA7B;
     }
     #btn-pipeline-bake:hover {
         background: #1E3A2A;
-        border: round #50FA7B;
+        color: #FFFFFF;
+    }
+    #btn-pipeline-view-pdf {
+        background: #1E2233;
+        color: #BD93F9;
+    }
+    #btn-pipeline-view-pdf:hover {
+        background: #2D334D;
+        color: #FFFFFF;
+    }
+    #btn-open-folder {
+        background: #212330;
+        color: #F8F8F2;
+    }
+    #btn-open-folder:hover {
+        background: #32364A;
+        color: #FFFFFF;
+    }
+    #btn-status {
+        background: #252836;
+        color: #FFB86C;
+    }
+    #btn-status:hover {
+        background: #3A3F55;
         color: #FFFFFF;
     }
     #btn-flag {
         background: #28161A;
-        border: round #5C2E35;
         color: #FF79C6;
     }
     #btn-flag:hover {
         background: #3A1F26;
-        border: round #FF5555;
         color: #FFFFFF;
     }
     #details-header {
@@ -1945,7 +1976,7 @@ class BreadwinnerApp(App):
     }
     #details-body {
         height: auto;
-        min-height: 3;
+        min-height: 2;
         border: round #2A2E3D;
         background: #0C0E14;
         color: #F8F8F2;
@@ -1955,6 +1986,7 @@ class BreadwinnerApp(App):
     #notes-header-row {
         height: 1;
         margin-top: 1;
+        margin-bottom: 1;
         align: left middle;
         layout: horizontal;
     }
@@ -1977,11 +2009,11 @@ class BreadwinnerApp(App):
         color: #0C0E14;
     }
     #input-job-notes {
-        height: 4;
+        height: 3;
         background: #0C0E14;
         border: round #2A2E3D;
         color: #F8F8F2;
-        margin-top: 1;
+        margin-top: 0;
         margin-bottom: 0;
     }
     .action-bar {
@@ -2467,7 +2499,11 @@ class BreadwinnerApp(App):
         margin: 0 1;
     }
     #pipeline-funnel-widget {
+        width: 100%;
         height: auto;
+        background: #141926;
+        border: round #334155;
+        padding: 0 1;
         margin-bottom: 1;
     }
     #studio-skill-constellation {
@@ -2569,7 +2605,7 @@ class BreadwinnerApp(App):
                                 yield DataTable(id="pipeline-table", cursor_type="row")
                                 yield Label("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio\n            (b) Bake • (v) PDF • (o) Folder[/dim]", id="pipeline-table-hint")
                             with VerticalScroll(id="job-details-pane"):
-                                yield Label("[bold #FFB86C]APPLICATION INSPECTOR[/bold #FFB86C]", id="details-header")
+                                yield Label("[bold #FFB86C]APPLICATION INSPECTOR[/bold #FFB86C] [dim]• Dossier[/dim]", id="details-header")
                                 yield Static(
                                     "[dim]Select a job row from the table to inspect details.[/dim]",
                                     id="details-body"
@@ -2578,10 +2614,9 @@ class BreadwinnerApp(App):
                                 with Horizontal(classes="inspector-btn-row"):
                                     yield Button("✦ Studio (e)", id="btn-pipeline-edit-studio")
                                     yield Button("▲ Bake (b)", id="btn-pipeline-bake")
-                                with Horizontal(classes="inspector-btn-row"):
                                     yield Button("▤ View (v)", id="btn-pipeline-view-pdf")
-                                    yield Button("↗ Folder (o)", id="btn-open-folder")
                                 with Horizontal(classes="inspector-btn-row"):
+                                    yield Button("↗ Folder (o)", id="btn-open-folder")
                                     yield Button("↻ Status (s)", id="btn-status")
                                     yield Button("⚑ Flag (f)", id="btn-flag")
                                 with Horizontal(id="notes-header-row"):
@@ -2763,6 +2798,8 @@ class BreadwinnerApp(App):
         elif is_guard_active:
             self.pop_screen()
 
+        self._update_quick_keys_hint(event.size.width)
+
         # Responsive layout adapting when terminal width is resized dynamically
         nav_style = getattr(settings, "navigation_style", "auto")
         if nav_style == "auto" and self._last_width is not None and event.size.width != self._last_width:
@@ -2772,9 +2809,20 @@ class BreadwinnerApp(App):
             elif event.size.width >= 100 and self.layout_preset == "split":
                 self.apply_layout_preset("normal", resize_window=False)
 
+    def _update_quick_keys_hint(self, width: int) -> None:
+        try:
+            hint = self.query_one("#pipeline-table-hint", Label)
+            if width < 150:
+                hint.update("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio\n            (b) Bake • (v) PDF • (o) Folder[/dim]")
+            else:
+                hint.update("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio • (b) Bake • (v) PDF • (o) Folder[/dim]")
+        except Exception:
+            pass
+
     def on_mount(self) -> None:
         self.apply_layout_preset("normal")
         self._last_width = self.size.width
+        self._update_quick_keys_hint(self.size.width)
         self._update_active_top_nav("tab-pipeline")
         self.load_pipeline_table()
         self.load_models_tab()
@@ -3259,6 +3307,7 @@ class BreadwinnerApp(App):
         self.layout_preset = preset.lower()
         cols, rows = get_preset_geometry(self.layout_preset)
         self._last_width = cols
+        self._update_quick_keys_hint(cols)
         if resize_window:
             resize_terminal_window(cols, rows)
 
