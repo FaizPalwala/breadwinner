@@ -1619,12 +1619,11 @@ class BreadwinnerApp(App):
         height: auto;
     }
     #app-top-bar {
-        height: 3;
+        height: auto;
         background: #10141f;
         border-bottom: solid #2A2E3D;
-        padding: 0 1;
+        padding: 1 1;
         layout: horizontal;
-        align: left middle;
     }
     #top-bar-left {
         width: auto;
