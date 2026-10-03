@@ -212,10 +212,28 @@ class CrustSpectrumWidget(Static):
 
 
 class PipelineFunnelWidget(Static):
-    """Artisan Bakery Cooling Rack: Visual Application Stage Pipeline Funnel."""
+    """Visual Application Stage Pipeline Funnel."""
+
+    DEFAULT_CSS = """
+    PipelineFunnelWidget {
+        width: 100%;
+        height: auto;
+        margin-bottom: 1;
+    }
+    """
 
     def __init__(self, id: Optional[str] = "pipeline-funnel-box"):
         super().__init__("", id=id)
+        self.draft_count = 0
+        self.applied_count = 0
+        self.interview_count = 0
+        self.offer_count = 0
+
+    def on_mount(self) -> None:
+        self.refresh_box()
+
+    def on_resize(self, event: Any) -> None:
+        self.refresh_box(event.size.width)
 
     def update_pipeline(
         self,
@@ -224,24 +242,41 @@ class PipelineFunnelWidget(Static):
         interview_count: int = 0,
         offer_count: int = 0
     ) -> None:
-        total = draft_count + applied_count + interview_count + offer_count
+        self.draft_count = draft_count
+        self.applied_count = applied_count
+        self.interview_count = interview_count
+        self.offer_count = offer_count
+        self.refresh_box()
+
+    def refresh_box(self, width: int = 0) -> None:
+        w = width or self.size.width or 96
+        w = max(w, 78)
+        total = self.draft_count + self.applied_count + self.interview_count + self.offer_count
         c_draft = "#94A3B8"
         c_appl = "#38BDF8"
         c_int = "#F59E0B"
         c_off = "#50FA7B"
 
         funnel_line = (
-            f"[{c_draft}][DRAFT: {draft_count}][/] ──> "
-            f"[{c_appl}][APPLIED: {applied_count}][/] ──> "
-            f"[{c_int}][INTERVIEWING: {interview_count}][/] ──> "
-            f"[{c_off}][OFFER: {offer_count}][/]"
+            f"[{c_draft}][DRAFT: {self.draft_count}][/] ──> "
+            f"[{c_appl}][APPLIED: {self.applied_count}][/] ──> "
+            f"[{c_int}][INTERVIEWING: {self.interview_count}][/] ──> "
+            f"[{c_off}][OFFER: {self.offer_count}][/]  [dim](Total: {total})[/dim]"
         )
 
-        content = (
-            f"[bold #FFB86C]PIPELINE MOMENTUM[/bold #FFB86C] [dim]• Cooling Rack & Conversion Velocity[/dim]  [bold white](Total: {total})[/bold white]\n"
-            f" {funnel_line}"
-        )
-        self.update(content)
+        title = "┌── [bold #FFB86C]PIPELINE MOMENTUM[/bold #FFB86C] "
+        title_plain_len = 22  # len('┌── PIPELINE MOMENTUM ')
+        dashes_top = max(1, w - title_plain_len - 1)
+        top = f"{title}{'─' * dashes_top}┐"
+
+        plain_text = f"[DRAFT: {self.draft_count}] ──> [APPLIED: {self.applied_count}] ──> [INTERVIEWING: {self.interview_count}] ──> [OFFER: {self.offer_count}]  (Total: {total})"
+        pad = max(1, w - 1 - 2 - len(plain_text) - 1)
+        mid = f"│  {funnel_line}{' ' * pad}│"
+
+        dashes_bottom = max(1, w - 2)
+        bottom = f"└{'─' * dashes_bottom}┘"
+
+        self.update(f"{top}\n{mid}\n{bottom}")
 
 
 class PantryMaturityWidget(Static):

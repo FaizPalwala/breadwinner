@@ -2500,9 +2500,6 @@ class BreadwinnerApp(App):
     #pipeline-funnel-widget {
         width: 100%;
         height: auto;
-        background: #141926;
-        border: round #334155;
-        padding: 0 1;
         margin-bottom: 1;
     }
     #studio-skill-constellation {
