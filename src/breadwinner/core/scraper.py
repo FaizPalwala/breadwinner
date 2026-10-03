@@ -20,44 +20,38 @@ class JobScraper:
 
     @classmethod
     def ingest_from_url(cls, url: str) -> JobPosting:
-        """Fetch and extract job posting details from a web URL."""
-        headers = {"User-Agent": cls.USER_AGENT}
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        """Fetch and extract job posting details using UniversalJobIngestor."""
+        from breadwinner.core.universal import UniversalJobIngestor
+        from breadwinner.core.pantry import PantryManager
 
-        html = response.text
-        portal_type = cls.detect_portal_type(url, html)
-        company, title, location, clean_text = cls.parse_html_job(url, html, portal_type)
+        # Optionally load profile for math experience calculation
+        profile = None
+        try:
+            pantry = PantryManager()
+            if pantry.is_initialized():
+                profile = pantry.load_profile()
+        except Exception:
+            pass
 
-        # Generate a slug id: company-role
-        safe_company = re.sub(r'[^a-zA-Z0-9]+', '-', company.lower()).strip('-') or "unknown-company"
-        safe_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-') or "role"
-        job_id = f"{safe_company}-{safe_title}"
-
-        return JobPosting(
-            id=job_id,
-            company=company,
-            title=title,
-            url=url,
-            location=location,
-            portal_type=portal_type,
-            raw_text=clean_text
-        )
+        result = UniversalJobIngestor.ingest_url(url, profile=profile)
+        return UniversalJobIngestor.to_job_posting(result)
 
     @classmethod
     def ingest_from_text(cls, text: str, company: str = "Target Company", title: str = "Target Role") -> JobPosting:
-        """Ingest job posting from raw text or markdown."""
-        safe_company = re.sub(r'[^a-zA-Z0-9]+', '-', company.lower()).strip('-') or "unknown-company"
-        safe_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-') or "role"
-        job_id = f"{safe_company}-{safe_title}"
+        """Ingest job posting from raw text or markdown using UniversalJobIngestor."""
+        from breadwinner.core.universal import UniversalJobIngestor
+        from breadwinner.core.pantry import PantryManager
 
-        return JobPosting(
-            id=job_id,
-            company=company,
-            title=title,
-            portal_type="text",
-            raw_text=text.strip()
-        )
+        profile = None
+        try:
+            pantry = PantryManager()
+            if pantry.is_initialized():
+                profile = pantry.load_profile()
+        except Exception:
+            pass
+
+        result = UniversalJobIngestor.ingest_text(text, company=company, title=title, profile=profile)
+        return UniversalJobIngestor.to_job_posting(result)
 
     @classmethod
     def detect_portal_type(cls, url: str, html: str) -> str:

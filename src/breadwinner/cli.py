@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt, Confirm
+from rich import box
 
 from breadwinner.config import settings
 from breadwinner.db.repository import JobRecord, JobRepository
@@ -962,6 +963,112 @@ def pantry_revert_cmd(snapshot_id: str):
         console.print(f"[bold green]✓ Successfully reverted Pantry to snapshot '{snapshot_id}'![/bold green]")
     else:
         console.print(f"[bold red]Error: Snapshot '{snapshot_id}' not found.[/bold red]")
+
+
+# =========================================================================
+# UNIVERSAL JOB INGESTION COMMANDS (ADR 001)
+# =========================================================================
+
+@main.group(name="job")
+def job_group():
+    """Universal job ingestion and requirement inspection."""
+    pass
+
+
+@job_group.command(name="inspect")
+@click.argument("source")
+def job_inspect_cmd(source: str):
+    """Inspect any job posting link or file for questions, tech tags, and knockout fields."""
+    from breadwinner.core.universal import UniversalJobIngestor
+    from breadwinner.core.models import CoverLetterRequirement
+
+    console.print(f"\n[bold #d4a373]🥐 BREADWINNER UNIVERSAL JOB INSPECTOR[/bold #d4a373]")
+    console.print(f"[dim]Resolving and analyzing: {source}[/dim]\n")
+
+    pantry = PantryManager(settings.pantry_dir)
+    profile = pantry.load_profile() if pantry.is_initialized() else None
+
+    if source.startswith("http://") or source.startswith("https://"):
+        result = UniversalJobIngestor.ingest_url(source, profile=profile)
+    else:
+        p_path = Path(source)
+        if p_path.is_file():
+            text = p_path.read_text(encoding="utf-8")
+        else:
+            text = source
+        result = UniversalJobIngestor.ingest_text(text, company="Target Company", title="Target Role", profile=profile)
+
+    # 1. Summary Card
+    tier_desc = "Tier 1: Verified ATS API" if result.extraction_method == "tier_1_api" else "Tier 2: Universal Fallback"
+    summary_table = Table(box=box.ROUNDED, border_style="cyan", show_header=False)
+    summary_table.add_column("Field", style="bold cyan", width=18)
+    summary_table.add_column("Value")
+
+    summary_table.add_row("Target Role", f"[bold white]{result.title}[/bold white]")
+    summary_table.add_row("Company", f"[bold yellow]{result.company}[/bold yellow]")
+    summary_table.add_row("Location", result.location or "[dim]Unspecified / Remote[/dim]")
+    summary_table.add_row("Portal Platform", f"{result.portal_type.upper()} ({tier_desc})")
+
+    # Cover Letter status
+    if result.cover_letter_status == CoverLetterRequirement.MANDATORY:
+        cl_str = "[bold #50fa7b][✓] MANDATORY[/bold #50fa7b]"
+    elif result.cover_letter_status == CoverLetterRequirement.OPTIONAL:
+        cl_str = "[bold #ffb86c][·] OPTIONAL[/bold #ffb86c]"
+    elif result.cover_letter_status == CoverLetterRequirement.PROHIBITED:
+        cl_str = "[bold #ff5555][✕] PROHIBITED (Not Accepted)[/bold #ff5555]"
+    else:
+        cl_str = "[dim][?] Not Specified[/dim]"
+    summary_table.add_row("Cover Letter", cl_str)
+
+    console.print(summary_table)
+
+    # 2. Matched Technology Tags
+    log = result.logistics
+    if log.matched_technology_tags:
+        console.print(f"\n[bold #8be9fd]🏷 Matched Technology Tags (to paste into Skills field):[/bold #8be9fd]")
+        console.print(f"  [bold green]{', '.join(log.matched_technology_tags)}[/bold green]")
+
+    # 3. Mathematical Experience
+    if log.calculated_years_of_experience:
+        console.print(f"\n[bold #8be9fd]⏱ Calculated Experience from Career Pantry:[/bold #8be9fd]")
+        for tech, yrs in sorted(log.calculated_years_of_experience.items(), key=lambda x: -x[1]):
+            console.print(f"  • [bold white]{tech}:[/bold white] [bold cyan]{yrs} Year{'s' if yrs != 1 else ''}[/bold cyan]")
+
+    # 4. Detected Application Questions
+    if result.questions:
+        console.print(f"\n[bold #8be9fd]📝 Detected Application Questions ({len(result.questions)} Prompts):[/bold #8be9fd]")
+        for idx, q in enumerate(result.questions, 1):
+            req_tag = "[bold #ff5555][REQUIRED][/bold #ff5555]" if q.required else "[dim][OPTIONAL][/dim]"
+            src_tag = "[cyan]Form Field[/cyan]" if q.source.value == "form_field" else "[yellow]In-Text Screening[/yellow]"
+            type_tag = f"[dim]({q.question_type.value})[/dim]"
+            console.print(f"  {idx}. {req_tag} {src_tag} {type_tag}: [bold white]\"{q.prompt}\"[/bold white]")
+            if q.options:
+                console.print(f"     [dim]Options: {', '.join(q.options)}[/dim]")
+    else:
+        console.print(f"\n[dim]✓ No custom essay questions detected.[/dim]")
+
+    console.print(f"\n[dim]To generate the complete copy-paste dossier, run: breadwinner job answers {source}[/dim]\n")
+
+
+@job_group.command(name="answers")
+@click.argument("source")
+def job_answers_cmd(source: str):
+    """Generate the complete copy-paste Application Dossier (`portal_answers.md`)."""
+    from breadwinner.core.universal import UniversalJobIngestor
+    from breadwinner.core.dossier import render_application_dossier
+
+    pantry = PantryManager(settings.pantry_dir)
+    profile = pantry.load_profile() if pantry.is_initialized() else None
+
+    if source.startswith("http://") or source.startswith("https://"):
+        result = UniversalJobIngestor.ingest_url(source, profile=profile)
+    else:
+        p_path = Path(source)
+        text = p_path.read_text(encoding="utf-8") if p_path.is_file() else source
+        result = UniversalJobIngestor.ingest_text(text, profile=profile)
+
+    dossier_md = render_application_dossier(result, profile=profile)
+    console.print(dossier_md)
 
 
 if __name__ == "__main__":

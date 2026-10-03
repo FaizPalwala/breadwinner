@@ -1,5 +1,4 @@
-"""Data models for Breadwinner representing candidate profiles, jobs, and applications."""
-
+from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -141,6 +140,54 @@ class CandidateProfile(BaseModel):
         return cls(**data)
 
 
+class QuestionType(str, Enum):
+    TEXT = "text"
+    TEXTAREA = "textarea"
+    DROPDOWN = "dropdown"
+    BOOLEAN = "boolean"
+    NUMBER = "number"
+    FILE = "file"
+
+
+class QuestionSource(str, Enum):
+    FORM_FIELD = "form_field"
+    IN_TEXT = "in_text"
+    USER_ADDED = "user_added"
+
+
+class CoverLetterRequirement(str, Enum):
+    MANDATORY = "mandatory"
+    OPTIONAL = "optional"
+    PROHIBITED = "prohibited"
+    NOT_SPECIFIED = "not_specified"
+
+
+class ApplicationQuestion(BaseModel):
+    id: str
+    prompt: str
+    required: bool = False
+    question_type: QuestionType = QuestionType.TEXT
+    source: QuestionSource = QuestionSource.FORM_FIELD
+    options: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
+    character_limit: Optional[int] = None
+    answer: str = ""
+
+
+class KnockoutLogistics(BaseModel):
+    work_authorized: bool = True
+    visa_sponsorship_needed: bool = False
+    visa_status: str = "Citizen / Permanent Resident"
+    notice_period: str = "1 month"
+    earliest_start_date: str = ""
+    salary_numeric: int = 0
+    salary_currency: str = "GBP"
+    salary_range_display: str = ""
+    profile_links: Dict[str, str] = Field(default_factory=dict)
+    calculated_years_of_experience: Dict[str, int] = Field(default_factory=dict)
+    matched_technology_tags: List[str] = Field(default_factory=list)
+
+
 class JobPosting(BaseModel):
     id: str
     company: str
@@ -149,9 +196,33 @@ class JobPosting(BaseModel):
     location: Optional[str] = None
     portal_type: str = "general"
     raw_text: str = ""
+    cleaned_markdown: str = ""
     extracted_skills: List[str] = Field(default_factory=list)
     extracted_responsibilities: List[str] = Field(default_factory=list)
     extracted_requirements: List[str] = Field(default_factory=list)
+    questions: List[ApplicationQuestion] = Field(default_factory=list)
+    cover_letter_status: CoverLetterRequirement = CoverLetterRequirement.NOT_SPECIFIED
+    cover_letter_guidance: str = ""
+    matched_technology_tags: List[str] = Field(default_factory=list)
+    calculated_years_of_experience: Dict[str, int] = Field(default_factory=dict)
+    extraction_method: str = "tier_1_api"
+
+
+class IngestedJobResult(BaseModel):
+    id: str
+    company: str
+    title: str
+    url: Optional[str] = None
+    location: Optional[str] = None
+    portal_type: str = "general"
+    extraction_method: str = "tier_1_api"
+    raw_text: str = ""
+    cleaned_markdown: str = ""
+    extracted_skills: List[str] = Field(default_factory=list)
+    questions: List[ApplicationQuestion] = Field(default_factory=list)
+    logistics: KnockoutLogistics = Field(default_factory=KnockoutLogistics)
+    cover_letter_status: CoverLetterRequirement = CoverLetterRequirement.NOT_SPECIFIED
+    cover_letter_guidance: str = ""
 
 
 class MatchAnalysis(BaseModel):
