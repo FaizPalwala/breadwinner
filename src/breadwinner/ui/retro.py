@@ -226,6 +226,40 @@ BakingModal {
     align: center middle;
 }
 
+.modal-header-bar {
+    height: 1;
+    width: 100%;
+    align: left middle;
+    margin-bottom: 1;
+}
+.modal-header-title {
+    width: 1fr;
+    color: #ffb86c;
+    text-style: bold;
+}
+Button.modal-close-btn, .modal-close-btn, #btn-modal-close {
+    dock: right;
+    min-width: 3;
+    width: 3;
+    height: 1;
+    border: none;
+    background: transparent;
+    color: #6272a4;
+    padding: 0;
+}
+Button.modal-close-btn:focus, .modal-close-btn:focus, #btn-modal-close:focus {
+    background: transparent;
+    color: #6272a4;
+    border: none;
+    text-style: none;
+}
+Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
+    background: transparent;
+    color: #ff5555;
+    border: none;
+    text-style: bold;
+}
+
 #baking-modal-container {
     width: 76;
     height: auto;
@@ -492,6 +526,8 @@ class RetroProgressBar(Static):
 class BakingModal(ModalScreen):
     """Full retro 8-bit arcade baking modal dialog with animated oven & progress tracker."""
 
+    DEFAULT_CSS = RETRO_THEME_CSS
+
     def __init__(
         self,
         task_type: str,  # "tailor" or "bake_pdf"
@@ -512,7 +548,9 @@ class BakingModal(ModalScreen):
                 if self.task_type == "tailor"
                 else "[▲] HEADLESS OVEN PDF BAKE [▲]"
             )
-            yield Label(f"[bold #ffb86c]{header_title}[/bold #ffb86c]", id="baking-title")
+            with Horizontal(classes="modal-header-bar"):
+                yield Label(f"[bold #ffb86c]{header_title}[/bold #ffb86c]", id="baking-title", classes="modal-header-title")
+                yield Button("✕", id="btn-modal-close", classes="modal-close-btn")
             yield BakeryStepper(current_stage=0, id="modal-stepper")
             yield Center(AnimatedOven(id="oven-widget"))
             yield Label("[bold #f1fa8c]Preheating the stone hearth...[/bold #f1fa8c]", id="baking-status-text")
@@ -804,7 +842,7 @@ class BakingModal(ModalScreen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
-        if bid == "btn-modal-cancel":
+        if bid in ("btn-modal-cancel", "btn-modal-close"):
             self.dismiss(None)
         elif bid == "btn-modal-collect":
             self.dismiss(self.baking_result)

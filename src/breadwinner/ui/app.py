@@ -157,6 +157,60 @@ def get_persona_select_options() -> List[tuple]:
     return opts or [("Tech & AI (SDE / MLE / Distributed)", "tech_ai")]
 
 
+MODAL_BASE_CSS = """
+    .modal-header-bar {
+        height: 1;
+        width: 100%;
+        align: left middle;
+        margin-bottom: 1;
+    }
+    .modal-header-title {
+        width: 1fr;
+        color: #ffb86c;
+        text-style: bold;
+    }
+    Button.modal-close-btn, .modal-close-btn,
+    #btn-switcher-close, #btn-settings-close, #btn-strategy-close,
+    #btn-modal-close, #btn-ingest-close, #btn-interview-close,
+    #btn-history-close, #btn-status-close, #btn-flag-close, #btn-close-persona-synth {
+        dock: right;
+        min-width: 3;
+        width: 3;
+        height: 1;
+        border: none;
+        background: transparent;
+        color: #6272a4;
+        padding: 0;
+    }
+    Button.modal-close-btn:focus, .modal-close-btn:focus,
+    #btn-switcher-close:focus, #btn-settings-close:focus, #btn-strategy-close:focus,
+    #btn-modal-close:focus, #btn-ingest-close:focus, #btn-interview-close:focus,
+    #btn-history-close:focus, #btn-status-close:focus, #btn-flag-close:focus, #btn-close-persona-synth:focus {
+        background: transparent;
+        color: #6272a4;
+        border: none;
+        text-style: none;
+    }
+    Button.modal-close-btn:hover, .modal-close-btn:hover,
+    #btn-switcher-close:hover, #btn-settings-close:hover, #btn-strategy-close:hover,
+    #btn-modal-close:hover, #btn-ingest-close:hover, #btn-interview-close:hover,
+    #btn-history-close:hover, #btn-status-close:hover, #btn-flag-close:hover, #btn-close-persona-synth:hover {
+        background: transparent;
+        color: #ff5555;
+        border: none;
+        text-style: bold;
+    }
+    .modal-action-bar {
+        height: 3;
+        margin-top: 1;
+        align: right middle;
+    }
+    .modal-action-bar Button {
+        margin-left: 1;
+    }
+"""
+
+
 class JobStrategyModal(ModalScreen):
     """Modal screen for the target job strategy interview loop."""
 
@@ -168,11 +222,11 @@ class JobStrategyModal(ModalScreen):
         padding: 1 2;
         background: #10141f;
         border: heavy #d4a373;
-        width: 76;
-        max-width: 80;
-        min-width: 68;
+        width: 84;
+        max-width: 90;
+        min-width: 76;
         height: auto;
-        max-height: 36;
+        max-height: 32;
         overflow-x: hidden;
         overflow-y: auto;
     }
@@ -185,32 +239,7 @@ class JobStrategyModal(ModalScreen):
         color: #A89F91;
         margin-bottom: 1;
     }
-    .modal-header-bar {
-        height: 1;
-        width: 100%;
-        align: right middle;
-        margin-bottom: 1;
-    }
-    .modal-header-title {
-        width: 1fr;
-        margin-bottom: 0;
-    }
-    .modal-close-btn {
-        width: 3;
-        min-width: 3;
-        height: 1;
-        padding: 0;
-        margin: 0;
-        border: none;
-        background: #ff5555;
-        color: #0b0e17;
-        text-style: bold;
-    }
-    .modal-close-btn:hover {
-        background: #ff6e6e;
-        color: #ffffff;
-    }
-    """
+    """ + MODAL_BASE_CSS
 
     def __init__(self, job: JobPosting, questions: List[Dict[str, str]], base_persona: Persona):
         super().__init__()
@@ -245,7 +274,7 @@ class JobStrategyModal(ModalScreen):
                 id="input-persona-slug"
             )
 
-            with Horizontal():
+            with Horizontal(classes="modal-action-bar"):
                 yield Button("Bake with Strategy", variant="success", id="btn-submit-strategy")
                 yield Button("Cancel", variant="error", id="btn-cancel-strategy")
 
@@ -309,7 +338,7 @@ class PersonaSynthesizerModal(ModalScreen):
     .persona-synth-step {
         width: 100%;
     }
-    """
+    """ + MODAL_BASE_CSS
 
     BINDINGS = [
         ("ctrl+r", "trigger_voice_dump", "Voice Dump"),
@@ -442,13 +471,20 @@ class StatusModal(ModalScreen):
         padding: 1 2;
         background: #10141f;
         border: heavy #d4a373;
-        width: 76;
-        max-width: 80;
-        min-width: 68;
+        width: 50;
+        max-width: 54;
+        min-width: 44;
         height: auto;
-        max-height: 36;
+        max-height: 18;
     }
-    """
+    #status-radios {
+        height: auto;
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1;
+    }
+    """ + MODAL_BASE_CSS
 
     def __init__(self, job: JobRecord, repo: JobRepository):
         super().__init__()
@@ -474,10 +510,17 @@ class StatusModal(ModalScreen):
             ),
             Horizontal(
                 Button("Save", variant="success", id="btn-save-status"),
-                Button("Cancel", variant="error", id="btn-cancel-status")
+                Button("Cancel", variant="error", id="btn-cancel-status"),
+                classes="modal-action-bar"
             ),
             id="status-dialog"
         )
+
+    def on_mount(self) -> None:
+        try:
+            self.query_one("#status-radios", RadioSet).focus()
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ("btn-cancel-status", "btn-status-close"):
@@ -508,13 +551,20 @@ class FlagModal(ModalScreen):
         padding: 1 2;
         background: #10141f;
         border: heavy #d4a373;
-        width: 76;
-        max-width: 80;
-        min-width: 68;
+        width: 50;
+        max-width: 54;
+        min-width: 44;
         height: auto;
-        max-height: 36;
+        max-height: 16;
     }
-    """
+    #flag-radios {
+        height: auto;
+        border: none;
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1;
+    }
+    """ + MODAL_BASE_CSS
 
     def __init__(self, job: JobRecord, repo: JobRepository):
         super().__init__()
@@ -537,10 +587,17 @@ class FlagModal(ModalScreen):
             ),
             Horizontal(
                 Button("Save", variant="success", id="btn-save-flag"),
-                Button("Cancel", variant="error", id="btn-cancel-flag")
+                Button("Cancel", variant="error", id="btn-cancel-flag"),
+                classes="modal-action-bar"
             ),
             id="flag-dialog"
         )
+
+    def on_mount(self) -> None:
+        try:
+            self.query_one("#flag-radios", RadioSet).focus()
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ("btn-cancel-flag", "btn-flag-close"):
@@ -638,18 +695,16 @@ class PantryIngestModal(ModalScreen):
         padding: 1 2;
         background: #10141f;
         border: heavy #d4a373;
-        width: 76;
-        max-width: 80;
-        min-width: 68;
+        width: 62;
+        max-width: 68;
+        min-width: 52;
         height: auto;
-        max-height: 36;
-        overflow-x: hidden;
-        overflow-y: auto;
+        max-height: 16;
     }
     #pantry-source-input {
         margin: 1 0;
     }
-    """
+    """ + MODAL_BASE_CSS
 
     def compose(self) -> ComposeResult:
         yield Vertical(
@@ -663,7 +718,7 @@ class PantryIngestModal(ModalScreen):
             Horizontal(
                 Button("Ingest & Update Pantry", variant="success", id="btn-run-ingest"),
                 Button("Cancel", variant="error", id="btn-cancel-ingest"),
-                classes="action-bar"
+                classes="modal-action-bar"
             ),
             id="pantry-ingest-dialog"
         )
@@ -706,11 +761,11 @@ class PantryInterviewModal(ModalScreen):
         padding: 1 2;
         background: #10141f;
         border: heavy #d4a373;
-        width: 76;
-        max-width: 80;
-        min-width: 68;
+        width: 84;
+        max-width: 90;
+        min-width: 76;
         height: auto;
-        max-height: 36;
+        max-height: 32;
         overflow-x: hidden;
         overflow-y: auto;
     }
@@ -738,7 +793,7 @@ class PantryInterviewModal(ModalScreen):
     .voice-btn {
         margin-right: 1;
     }
-    """
+    """ + MODAL_BASE_CSS
 
     def __init__(self, questions: Optional[List[Dict[str, str]]] = None):
         super().__init__()
@@ -789,10 +844,17 @@ class PantryInterviewModal(ModalScreen):
             Horizontal(
                 Button("Synthesize Directives (context.md)", variant="success", id="btn-save-interview"),
                 Button("Cancel", variant="error", id="btn-cancel-interview"),
-                classes="action-bar"
+                classes="modal-action-bar"
             ),
             id="interview-dialog"
         )
+
+    def on_mount(self) -> None:
+        try:
+            area_id = "int-q1" if len(self.questions) == 3 else f"int-q-{self.questions[0].get('id', 'q0')}"
+            self.query_one(f"#{area_id}", TextArea).focus()
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id or ""
@@ -834,20 +896,18 @@ class PantryHistoryModal(ModalScreen):
         padding: 1 2;
         background: #10141f;
         border: heavy #d4a373;
-        width: 76;
-        max-width: 80;
-        min-width: 68;
+        width: 84;
+        max-width: 90;
+        min-width: 76;
         height: auto;
-        max-height: 36;
-        overflow-x: hidden;
-        overflow-y: auto;
+        max-height: 24;
     }
     #history-table {
-        height: 1fr;
-        min-height: 10;
+        height: 10;
+        min-height: 8;
         margin: 1 0;
     }
-    """
+    """ + MODAL_BASE_CSS
 
     def __init__(self, snapshots: List[Dict[str, Any]]):
         super().__init__()
@@ -866,7 +926,7 @@ class PantryHistoryModal(ModalScreen):
             Horizontal(
                 Button("Revert to Selected", variant="warning", id="btn-revert-snap"),
                 Button("Close", variant="default", id="btn-close-snap"),
-                classes="action-bar"
+                classes="modal-action-bar"
             ),
             id="history-dialog"
         )
@@ -876,6 +936,10 @@ class PantryHistoryModal(ModalScreen):
         table.add_columns("Snapshot ID", "Timestamp", "Trigger Event")
         for s in self.snapshots:
             table.add_row(s.get("id", ""), s.get("timestamp", ""), s.get("trigger", ""), key=s.get("id"))
+        try:
+            table.focus()
+        except Exception:
+            pass
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self.selected_snapshot_id = event.row_key.value
@@ -1414,7 +1478,7 @@ class BakerySettingsModal(ModalScreen):
         margin-right: 1;
         min-width: 18;
     }
-    """
+    """ + MODAL_BASE_CSS
 
     BINDINGS = [
         Binding("escape", "dismiss_modal", "Close"),
@@ -1504,6 +1568,12 @@ class BakerySettingsModal(ModalScreen):
                 yield Button("Save Settings (Enter)", variant="success", id="btn-settings-save")
                 yield Button("Cancel (Esc)", variant="error", id="btn-settings-cancel")
 
+    def on_mount(self) -> None:
+        try:
+            self.query_one("#settings-select-template").focus()
+        except Exception:
+            pass
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
         if bid in ("btn-settings-cancel", "btn-settings-close"):
@@ -1582,6 +1652,39 @@ class BreadwinnerApp(App):
     Footer {
         background: #16161E;
         border-top: solid #2A2E3D;
+    }
+    .modal-header-bar {
+        height: 1;
+        width: 100%;
+        align: left middle;
+        margin-bottom: 1;
+    }
+    .modal-header-title {
+        width: 1fr;
+        color: #ffb86c;
+        text-style: bold;
+    }
+    .modal-close-btn {
+        dock: right;
+        min-width: 3;
+        width: 3;
+        height: 1;
+        border: none;
+        background: transparent;
+        color: #6272a4;
+        padding: 0;
+    }
+    .modal-close-btn:hover {
+        color: #ff5555;
+        text-style: bold;
+    }
+    .modal-action-bar {
+        height: 3;
+        margin-top: 1;
+        align: right middle;
+    }
+    .modal-action-bar Button {
+        margin-left: 1;
     }
     TabbedContent {
         height: 1fr;
