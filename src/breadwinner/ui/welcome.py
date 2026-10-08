@@ -769,16 +769,13 @@ class BakeryWelcomeModal(ModalScreen):
             )
             return
 
-        # Clean dragged terminal string (strip quotes, file://, unescape spaces, expand ~)
-        clean = raw_val.strip("'\"")
-        if clean.startswith("file://"):
-            clean = clean[7:]
-        clean = clean.replace(r"\ ", " ")
-        clean_expanded = os.path.expanduser(clean)
-        path_obj = Path(clean_expanded)
+        from breadwinner.core.ingestor import clean_user_input_path, normalize_source
+        clean = clean_user_input_path(raw_val)
+        display_label, kind = normalize_source(clean)
+        path_obj = Path(os.path.expanduser(clean))
 
-        if path_obj.is_file():
-            size_kb = max(1, path_obj.stat().st_size // 1024)
+        if kind == "file" or path_obj.is_file():
+            size_kb = max(1, path_obj.stat().st_size // 1024) if path_obj.exists() else 10
             ext = path_obj.suffix.lower()
             ext_names = {
                 ".pdf": "PDF Document",
@@ -793,10 +790,10 @@ class BakeryWelcomeModal(ModalScreen):
                 f"Fresh {doc_type} detected ({path_obj.name})! Click [Stock Pantry] to knead your profile!",
                 status="Ingredient Verified"
             )
-        elif clean.startswith("http://") or clean.startswith("https://"):
-            badge.update(f"[bold #52b788]✓ WEB PORTFOLIO:[/] [bold white]{clean}[/] [dim](Universal Scraper Ready)[/]")
+        elif kind == "url":
+            badge.update(f"[bold #52b788]✓ WEB PORTFOLIO:[/] [bold white]{display_label}[/] [dim](Universal Scraper Ready)[/]")
             mascot.set_dialogue(
-                "Target portfolio identified! I'll scrape your case studies and structure your pantry facts!",
+                f"Target portfolio identified ({display_label})! I'll scrape your case studies and structure your pantry facts!",
                 status="Online Portfolio"
             )
         else:
@@ -998,17 +995,16 @@ class BakeryWelcomeModal(ModalScreen):
             self.query_one("#input-welcome-bio", TextArea).focus()
 
         elif bid == "btn-welcome-stock":
+            from breadwinner.core.ingestor import clean_user_input_path, normalize_source
             source_raw = self.query_one("#input-welcome-source", Input).value.strip()
-            clean_source = source_raw.strip("'\"")
-            if clean_source.startswith("file://"):
-                clean_source = clean_source[7:]
-            clean_source = clean_source.replace(r"\ ", " ")
-            clean_source = os.path.expanduser(clean_source) if clean_source else ""
+            clean_source = clean_user_input_path(source_raw)
 
             bio_val = self.query_one("#input-welcome-bio", TextArea).text.strip()
 
             if clean_source:
-                self.dismiss({"action": "import", "source": clean_source})
+                display_label, kind = normalize_source(clean_source)
+                final_source = display_label if kind == "url" else clean_source
+                self.dismiss({"action": "import", "source": final_source})
             elif bio_val:
                 self.dismiss({"action": "import", "source": bio_val})
             else:

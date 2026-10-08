@@ -732,20 +732,21 @@ class PantryIngestModal(ModalScreen):
     def on_paste(self, event: events.Paste) -> None:
         if event.text:
             inp = self.query_one("#pantry-source-input", Input)
-            clean = event.text.strip().strip("'\"“”‘’")
-            if clean.startswith("file://"):
-                clean = clean[7:]
-                if clean.startswith("localhost"):
-                    clean = clean[9:]
-            clean = unquote(clean).replace(r"\ ", " ")
-            inp.value = clean
+            from breadwinner.core.ingestor import clean_user_input_path
+            inp.value = clean_user_input_path(event.text)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ("btn-cancel-ingest", "btn-ingest-close"):
             self.dismiss(None)
         elif event.button.id == "btn-run-ingest":
             val = self.query_one("#pantry-source-input", Input).value.strip()
-            self.dismiss(val if val else None)
+            if val:
+                from breadwinner.core.ingestor import clean_user_input_path, normalize_source
+                clean = clean_user_input_path(val)
+                label, kind = normalize_source(clean)
+                self.dismiss(label if kind == "url" else clean)
+            else:
+                self.dismiss(None)
         else:
             self.dismiss(None)
 

@@ -576,6 +576,8 @@ class BakingModal(ModalScreen):
         # Launch background worker
         if self.task_type == "tailor":
             self.run_tailor_worker()
+        elif self.task_type == "ingest":
+            self.run_ingest_worker()
         else:
             self.run_pdf_bake_worker()
 
@@ -766,8 +768,113 @@ class BakingModal(ModalScreen):
 
         except Exception as e:
             self.app.call_from_thread(self._show_error_screen, str(e))
+    @work(thread=True)
+    def run_ingest_worker(self) -> None:
+        """Executes the candidate career pantry ingestion pipeline with animated retro stages."""
+        stepper = self.query_one("#modal-stepper", BakeryStepper)
+        status_lbl = self.query_one("#baking-status-text", Label)
+        gauge = self.query_one("#retro-progress-gauge", RetroProgressBar)
+        oven = self.query_one("#oven-widget", AnimatedOven)
 
-    # --------------------------------------------------------------------------
+        import time
+        from breadwinner.core.ingestor import UniversalIngestor, normalize_source
+        from breadwinner.providers.factory import get_llm_provider
+
+        try:
+            sources = self.target_info.get("sources", [])
+            pantry = self.target_info.get("pantry")
+
+            # STAGE 0: INGREDIENT HARVESTING
+            self.app.call_from_thread(stepper.set_stage, 0)
+            self.app.call_from_thread(gauge.update_progress, 15)
+            self.app.call_from_thread(
+                status_lbl.update,
+                f"[bold #8be9fd][·] Harvesting career ingredients ({len(sources)} source{'s' if len(sources) != 1 else ''})...[/bold #8be9fd]"
+            )
+            time.sleep(0.4)
+
+            # STAGE 1: PORTFOLIO & ARTIFACT EXTRACTION
+            self.app.call_from_thread(stepper.set_stage, 1)
+            self.app.call_from_thread(gauge.update_progress, 40)
+            self.app.call_from_thread(
+                status_lbl.update,
+                "[bold #ffb86c][~] Extracting documents, route discovery, and text streams...[/bold #ffb86c]"
+            )
+
+            provider = get_llm_provider()
+            existing_profile = pantry.load_profile() if pantry and pantry.is_initialized() else None
+
+            # STAGE 2: LLM FACT PARSING & METRIC EXTRACTION
+            self.app.call_from_thread(stepper.set_stage, 2)
+            self.app.call_from_thread(gauge.update_progress, 70)
+            self.app.call_from_thread(
+                status_lbl.update,
+                "[bold #f1fa8c][≡] Structuring facts, Google XYZ metrics, and skill deduplication...[/bold #f1fa8c]"
+            )
+
+            is_multi = len(sources) > 1
+            ingest_payload = sources if is_multi else (sources[0] if sources else "")
+            new_profile = UniversalIngestor.ingest(ingest_payload, provider, existing_profile=existing_profile)
+
+            # STAGE 3: STOCKING THE CANONICAL PANTRY
+            self.app.call_from_thread(stepper.set_stage, 3)
+            self.app.call_from_thread(gauge.update_progress, 90)
+            self.app.call_from_thread(
+                status_lbl.update,
+                "[bold #ff79c6][▲] Committing facts to profile.json, context.md, and dossiers...[/bold #ff79c6]"
+            )
+            time.sleep(0.3)
+
+            if pantry:
+                context_diary = new_profile.raw_context.get("context_diary")
+                source_meta = {
+                    "source": f"Multi-source ({len(sources)} items)" if is_multi else str(sources[0] if sources else ""),
+                    "type": "multi" if is_multi else "single",
+                    "sources": sources
+                }
+                pantry.save_pantry(new_profile, context=context_diary, source_info=source_meta, trigger="baking_modal_ingest")
+
+            self.baking_result = {
+                "success": True,
+                "profile": new_profile,
+                "sources": sources
+            }
+
+            self.app.call_from_thread(self._show_victory_ingest_screen, new_profile)
+
+        except Exception as e:
+            self.app.call_from_thread(self._show_error_screen, str(e))
+
+    def _show_victory_ingest_screen(self, profile: Any) -> None:
+        self.is_done = True
+        oven = self.query_one("#oven-widget", AnimatedOven)
+        oven.set_state("celebrate")
+
+        gauge = self.query_one("#retro-progress-gauge", RetroProgressBar)
+        gauge.update_progress(100)
+
+        status_lbl = self.query_one("#baking-status-text", Label)
+        status_lbl.update("[bold #50fa7b][★] DING! CAREER PANTRY SUCCESSFULLY STOCKED! [★][/bold #50fa7b]")
+
+        score_card = self.query_one("#baking-score-card", Vertical)
+        score_card.display = True
+
+        score_title = self.query_one("#score-card-title", Label)
+        score_title.update(f"[bold #f1fa8c][★] PANTRY READY[/bold #f1fa8c] | [bold #50fa7b]{profile.full_name} — {profile.title}[/bold #50fa7b]")
+
+        score_details = self.query_one("#score-card-details", Label)
+        score_details.update(
+            f"[dim]Verified Accomplishments:[/] [cyan]{len(profile.experiences)} roles[/cyan] • "
+            f"[cyan]{len(profile.projects)} projects[/cyan] • "
+            f"[cyan]{sum(len(s.skills) for s in profile.skills)} skills[/cyan]\n"
+            f"[dim]Storage:[/] [green]Canonical Ledgers (profile.json & context.md)[/green]"
+        )
+
+        self.query_one("#btn-modal-cancel", Button).display = False
+        collect_btn = self.query_one("#btn-modal-collect", Button)
+        collect_btn.label = "Enter Bakery Studio (Enter)"
+        collect_btn.display = True
+
     # VICTORY / ERROR SCREEN UPDATES (CALLED ON UI THREAD)
     # --------------------------------------------------------------------------
 
