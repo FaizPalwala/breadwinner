@@ -308,34 +308,6 @@ Button.-style-default.active-pill:hover, Button.prov-pill.active-pill:hover {
     margin: 1 0;
 }
 
-Button.-style-default.tab-btn, Button.tab-btn {
-    height: 1;
-    min-width: 20;
-    margin: 0 1;
-    padding: 0 1;
-    border: none;
-    background: #232d42;
-    color: #e2e8f0;
-    text-style: bold;
-}
-
-Button.-style-default.tab-btn:hover, Button.tab-btn:hover {
-    background: #3b4d6e;
-    color: #ffffff;
-    border: none;
-}
-
-Button.-style-default.tab-btn:focus, Button.tab-btn:focus {
-    border: none;
-}
-
-Button.-style-default.active-tab, Button.tab-btn.active-tab {
-    background: #f4a261;
-    color: #0b0e17;
-    text-style: bold;
-    border: none;
-}
-
 #welcome-dropzone-box {
     height: auto;
     background: #141926;
@@ -363,19 +335,6 @@ Button.-style-default.active-tab, Button.tab-btn.active-tab {
     text-align: center;
     height: 1;
     margin: 0;
-}
-
-#welcome-bio-box {
-    height: auto;
-    display: none;
-    margin-bottom: 1;
-}
-
-#input-welcome-bio {
-    height: 6;
-    background: #0b0e17;
-    border: round #d4a373;
-    color: #fefae0;
 }
 
 #btn-welcome-stock {
@@ -631,30 +590,23 @@ class BakeryWelcomeModal(ModalScreen):
                     yield Button("Quit", variant="error", id="btn-welcome-exit-models")
 
             # -------------------------------------------------------------
-            # STEP 3: CAREER PANTRY SETUP
+            # STEP 3: CAREER PANTRY SETUP (UNIFIED UNIVERSAL DOUGH BIN)
             # -------------------------------------------------------------
             with Vertical(id="welcome-pantry-step"):
-                yield Label("STEP 3 OF 3: STOCK THE PANTRY (CAREER INGREDIENTS)", classes="step-heading")
-                # Input Mode Selector Tabs
-                with Horizontal(id="welcome-mode-tabs"):
-                    yield Button("Drop File / URL (Recommended)", id="btn-tab-dropzone", classes="tab-btn active-tab")
-                    yield Button("Paste Bio Notes", id="btn-tab-bio", classes="tab-btn")
+                yield Label("STEP 3 OF 3: STOCK THE PANTRY (UNIVERSAL DOUGH BIN)", classes="step-heading")
+                yield Label(
+                    "[dim]Add any mix of career ingredients: personal website, GitHub, resumes (.pdf/.docx), or notes.[/dim]",
+                    classes="step-subheading"
+                )
 
-                # MODE A: Tactile Drag & Drop Dropzone Box
+                # Unified Dough Bin Box
                 with Vertical(id="welcome-dropzone-box"):
-                    yield Label("DOUGH BIN: Drag & drop resume (.pdf, .docx, .json, .md) or paste link", classes="dropzone-label")
+                    yield Label("UNIVERSAL DOUGH BIN: Enter website, drop file, or paste raw notes", classes="dropzone-label")
                     yield Input(
-                        placeholder="Drop file from desktop or paste URL (e.g. ~/resume.pdf or https://...)",
+                        placeholder="e.g. faizpalwala.tech, @username, ~/resume.pdf, or paste career summary...",
                         id="input-welcome-source"
                     )
-                    yield Static("[dim]Waiting for ingredient drop... (drag file or paste URL)[/dim]", id="ingredient-badge")
-
-                # MODE B: Collapsible Raw Bio Box
-                with Vertical(id="welcome-bio-box"):
-                    yield TextArea(
-                        "",
-                        id="input-welcome-bio"
-                    )
+                    yield Static("[dim]Waiting for ingredients... (type or drop and press Enter to stock)[/dim]", id="ingredient-badge")
 
                 # Action Bar
                 with Horizontal(id="welcome-action-bar"):
@@ -979,36 +931,17 @@ class BakeryWelcomeModal(ModalScreen):
 
         # -------------------------------------------------------------
         # STEP 3: Career Pantry Actions
-        # -------------------------------------------------------------
-        elif bid == "btn-tab-dropzone":
-            self.query_one("#welcome-dropzone-box").styles.display = "block"
-            self.query_one("#welcome-bio-box").styles.display = "none"
-            self.query_one("#btn-tab-dropzone").add_class("active-tab")
-            self.query_one("#btn-tab-bio").remove_class("active-tab")
-            self.query_one("#input-welcome-source", Input).focus()
-
-        elif bid == "btn-tab-bio":
-            self.query_one("#welcome-dropzone-box").styles.display = "none"
-            self.query_one("#welcome-bio-box").styles.display = "block"
-            self.query_one("#btn-tab-bio").add_class("active-tab")
-            self.query_one("#btn-tab-dropzone").remove_class("active-tab")
-            self.query_one("#input-welcome-bio", TextArea).focus()
-
         elif bid == "btn-welcome-stock":
             from breadwinner.core.ingestor import clean_user_input_path, normalize_source
             source_raw = self.query_one("#input-welcome-source", Input).value.strip()
             clean_source = clean_user_input_path(source_raw)
 
-            bio_val = self.query_one("#input-welcome-bio", TextArea).text.strip()
-
             if clean_source:
                 display_label, kind = normalize_source(clean_source)
                 final_source = display_label if kind == "url" else clean_source
                 self.dismiss({"action": "import", "source": final_source})
-            elif bio_val:
-                self.dismiss({"action": "import", "source": bio_val})
             else:
-                self.app.notify("Please drop a file, paste a link, or click 'Load Demo Loaf'!", severity="warning")
+                self.app.notify("Please enter a website, drop a file, or click 'Load Demo Loaf'!", severity="warning")
 
         elif bid == "btn-welcome-demo":
             self.dismiss({"action": "demo"})

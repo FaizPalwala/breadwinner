@@ -100,23 +100,15 @@ async def test_welcome_modal_drag_and_drop_cleaning():
 
 @pytest.mark.anyio
 async def test_welcome_modal_tabs_and_bio():
-    """Verify switching to bio notes tab and submitting pasted text."""
+    """Verify entering raw career bio notes in the unified Dough Bin."""
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry)
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        # Click bio notes tab
-        btn_tab_bio = modal.query_one("#btn-tab-bio", Button)
-        btn_tab_bio.press()
+        source_input = modal.query_one("#input-welcome-source", Input)
+        source_input.value = "Staff SRE with 8 years scaling distributed systems."
         await pilot.pause()
-
-        bio_box = modal.query_one("#welcome-bio-box")
-        assert bio_box.styles.display == "block"
-
-        # Type bio text
-        bio_input = modal.query_one("#input-welcome-bio", TextArea)
-        bio_input.text = "Staff SRE with 8 years scaling distributed systems."
 
         # Click stock pantry
         btn = modal.query_one("#btn-welcome-stock", Button)
