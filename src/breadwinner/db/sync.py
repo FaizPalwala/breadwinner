@@ -43,7 +43,7 @@ class CsvSync:
 
     @classmethod
     def import_from_csv(cls, repo: JobRepository, csv_path: Path) -> int:
-        """Import jobs from existing CSV file (such as ai_job_target_tracker.csv)."""
+        """Import jobs from existing CSV file (such as job_tracker.csv or ai_job_target_tracker.csv)."""
         csv_path = Path(csv_path)
         if not csv_path.exists():
             return 0
@@ -61,10 +61,26 @@ class CsvSync:
                 notes = norm_row.get("why target them") or norm_row.get("notes") or ""
                 status = norm_row.get("status") or "target"
                 
-                # Slug id
-                safe_company = re.sub(r'[^a-zA-Z0-9]+', '-', company.lower()).strip('-')
-                safe_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-')
-                job_id = f"{safe_company}-{safe_title}"
+                # Use explicit ID if provided, otherwise slug id
+                explicit_id = norm_row.get("id")
+                if explicit_id:
+                    job_id = explicit_id
+                else:
+                    safe_company = re.sub(r'[^a-zA-Z0-9]+', '-', company.lower()).strip('-')
+                    safe_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-')
+                    job_id = f"{safe_company}-{safe_title}"
+
+                match_score_str = norm_row.get("match score") or norm_row.get("match_score") or norm_row.get("match")
+                match_score = None
+                if match_score_str:
+                    try:
+                        match_score = int(float(match_score_str.rstrip("%")))
+                    except ValueError:
+                        pass
+
+                date_added = norm_row.get("date added") or norm_row.get("date_added") or datetime.now().strftime("%Y-%m-%d")
+                date_applied = norm_row.get("date applied") or norm_row.get("date_applied")
+                flag = norm_row.get("flag") or None
 
                 record = JobRecord(
                     id=job_id,
@@ -72,8 +88,11 @@ class CsvSync:
                     title=title,
                     url=url,
                     status=status.lower(),
-                    date_added=datetime.now().strftime("%Y-%m-%d"),
-                    notes=notes
+                    match_score=match_score,
+                    date_added=date_added,
+                    date_applied=date_applied,
+                    notes=notes,
+                    flag=flag
                 )
                 repo.upsert_job(record)
                 count += 1
