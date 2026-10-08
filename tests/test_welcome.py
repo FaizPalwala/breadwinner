@@ -57,7 +57,11 @@ async def test_welcome_modal_import_source():
         btn.press()
         await pilot.pause()
 
-    assert app.result == {"action": "import", "source": "https://example.com/resume.pdf"}
+    assert app.result == {
+        "action": "import",
+        "source": "https://example.com/resume.pdf",
+        "sources": ["https://example.com/resume.pdf"]
+    }
 
 
 @pytest.mark.anyio
@@ -95,7 +99,11 @@ async def test_welcome_modal_drag_and_drop_cleaning():
         btn.press()
         await pilot.pause()
 
-    assert app.result == {"action": "import", "source": "/Users/test/my_resume.pdf"}
+    assert app.result == {
+        "action": "import",
+        "source": "/Users/test/my_resume.pdf",
+        "sources": ["/Users/test/my_resume.pdf"]
+    }
 
 
 @pytest.mark.anyio
@@ -115,7 +123,11 @@ async def test_welcome_modal_tabs_and_bio():
         btn.press()
         await pilot.pause()
 
-    assert app.result == {"action": "import", "source": "Staff SRE with 8 years scaling distributed systems."}
+    assert app.result == {
+        "action": "import",
+        "source": "Staff SRE with 8 years scaling distributed systems.",
+        "sources": ["Staff SRE with 8 years scaling distributed systems."]
+    }
 
 
 @pytest.mark.anyio
@@ -557,6 +569,120 @@ async def test_welcome_modal_all_nine_provider_pills_interactive(tmp_path, monke
         assert not pill_ollama.has_class("active-pill")
         assert key_input.disabled is False
         assert "DeepSeek" in key_input.placeholder
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_multi_source_staging():
+    """Verify entering website, committing via Enter to tray, adding dissertation, and stocking both."""
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry)
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        source_input = modal.query_one("#input-welcome-source", Input)
+
+        # 1. Type website and hit Enter (Input.Submitted)
+        source_input.value = "faizpalwala.tech"
+        await source_input.action_submit()
+        await pilot.pause()
+
+        # Input should be cleared for next ingredient and staged in tray
+        assert source_input.value == ""
+        assert len(modal.staged_ingredients) == 1
+        assert "faizpalwala.tech" in modal.staged_ingredients
+        assert len(modal.query(".ingredient-pill")) == 1
+
+        # 2. Add second ingredient: dissertation
+        source_input.value = "'/Users/test/dissertation.pdf'"
+        await source_input.action_submit()
+        await pilot.pause()
+
+        assert source_input.value == ""
+        assert len(modal.staged_ingredients) == 2
+        assert "/Users/test/dissertation.pdf" in modal.staged_ingredients
+        assert len(modal.query(".ingredient-pill")) == 2
+
+        # 3. Press Enter on empty input to trigger stocking
+        await source_input.action_submit()
+        await pilot.pause()
+
+    assert app.result is not None
+    assert app.result["action"] == "import"
+    assert app.result["sources"] == ["https://faizpalwala.tech", "/Users/test/dissertation.pdf"]
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_tray_pill_removal():
+    """Verify clicking ✕ on a tray pill badge removes it from the staged queue."""
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry)
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        source_input = modal.query_one("#input-welcome-source", Input)
+
+        # Add two ingredients
+        source_input.value = "https://example.com/site"
+        await source_input.action_submit()
+        await pilot.pause()
+
+        source_input.value = "/Users/test/resume.docx"
+        await source_input.action_submit()
+        await pilot.pause()
+
+        assert len(modal.staged_ingredients) == 2
+
+        # Click remove on first pill (site)
+        del_btn = modal.query(".ingredient-pill").first()
+        del_btn.press()
+        await pilot.pause()
+
+        assert len(modal.staged_ingredients) == 1
+        assert modal.staged_ingredients[0] == "/Users/test/resume.docx"
+
+        # Submit remaining
+        btn_stock = modal.query_one("#btn-welcome-stock", Button)
+        btn_stock.press()
+        await pilot.pause()
+
+    assert app.result == {
+        "action": "import",
+        "source": "/Users/test/resume.docx",
+        "sources": ["/Users/test/resume.docx"]
+    }
+
+
+@pytest.mark.anyio
+async def test_welcome_modal_drag_and_drop_paste_event():
+    """Verify pasting or dropping into input preserves existing input in queue instead of string-concatenating."""
+    mock_pantry = MagicMock()
+    modal = BakeryWelcomeModal(pantry=mock_pantry)
+    app = WelcomeHostApp(modal)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        source_input = modal.query_one("#input-welcome-source", Input)
+
+        # User started typing website
+        source_input.value = "faizpalwala.tech"
+        await pilot.pause()
+
+        # User drops dissertation.pdf from Finder into the terminal
+        modal.handle_pasted_or_dropped_text("'/Users/test/dissertation.pdf'")
+        await pilot.pause()
+
+        # Existing website should have been moved into staged_ingredients queue
+        assert "faizpalwala.tech" in modal.staged_ingredients
+        # And input now holds the clean dropped path
+        assert source_input.value == "/Users/test/dissertation.pdf"
+
+        # Click Stock Pantry
+        btn_stock = modal.query_one("#btn-welcome-stock", Button)
+        btn_stock.press()
+        await pilot.pause()
+
+    assert app.result is not None
+    assert app.result["action"] == "import"
+    assert app.result["sources"] == ["https://faizpalwala.tech", "/Users/test/dissertation.pdf"]
 
 
 

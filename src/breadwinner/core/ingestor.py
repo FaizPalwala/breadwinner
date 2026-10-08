@@ -912,12 +912,57 @@ Respond in valid JSON matching this schema:
         return new_profile
 
 
+def parse_dropped_sources(raw: str) -> list[str]:
+    """Parse raw dragged or pasted input into individual clean source paths or URLs.
+    
+    Handles:
+    - Multiple space-separated quoted paths dropped from file managers
+    - Multi-line lists of URLs or file paths
+    - Comma/semicolon delimited lists
+    - Single paths or URLs
+    - Raw plain text notes
+    """
+    raw_str = str(raw).strip()
+    if not raw_str:
+        return []
+
+    # 1. Newlines indicate separate lines/sources
+    if "\n" in raw_str:
+        lines = [line.strip() for line in raw_str.splitlines() if line.strip()]
+        return [clean_user_input_path(l) for l in lines]
+
+    # 2. Check for multiple space-separated quoted paths (standard terminal drag-and-drop)
+    if ("'" in raw_str or '"' in raw_str) and len(raw_str.split()) > 1:
+        try:
+            import shlex
+            parts = shlex.split(raw_str)
+            if parts and all(
+                p.startswith(("http://", "https://", "file://", "@", "~", "/"))
+                or any(p.lower().endswith(ext) for ext in (".pdf", ".docx", ".doc", ".json", ".md", ".txt", ".rtf"))
+                or Path(os.path.expanduser(p)).exists()
+                for p in parts
+            ):
+                return [clean_user_input_path(p) for p in parts]
+        except Exception:
+            pass
+
+    # 3. Comma/semicolon separated list of URLs or paths
+    if "," in raw_str or ";" in raw_str:
+        items = [p.strip() for p in re.split(r"[,;]+", raw_str) if p.strip()]
+        if len(items) > 1 and all(
+            it.startswith(("http://", "https://", "@", "~", "/"))
+            or "." in it
+            for it in items
+        ):
+            return [clean_user_input_path(it) for it in items]
+
+    # 4. Single item fallback
+    return [clean_user_input_path(raw_str)]
+
+
 def decompose_raw_input(raw: str) -> list[str]:
     """Decompose comma/newline/space separated inputs into individual source items."""
-    if not raw:
-        return []
-    parts = re.split(r"[\n,;]+", raw)
-    return [p.strip() for p in parts if p.strip()]
+    return parse_dropped_sources(raw)
 
 
 def clean_user_input_path(raw: str) -> str:
@@ -928,7 +973,7 @@ def clean_user_input_path(raw: str) -> str:
         if s.startswith("localhost"):
             s = s[9:]
     s = unquote(s).replace(r"\ ", " ")
-    return s
+    return s.strip().strip("'\"“”‘’")
 
 
 def normalize_source(source: str) -> tuple[str, str]:

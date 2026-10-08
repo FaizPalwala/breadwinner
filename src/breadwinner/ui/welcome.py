@@ -10,12 +10,15 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Center
+from textual.message import Message
 from textual.widgets import Static, Label, Button, Input, TextArea, Select
 from textual.screen import ModalScreen
 
 from breadwinner.config import settings, save_env_config
+from breadwinner.core.ingestor import clean_user_input_path, normalize_source, parse_dropped_sources
 from breadwinner.core.pantry import PantryManager
 from breadwinner.providers.discovery import ProviderDiscovery, PROVIDER_MODELS
 from breadwinner.providers.registry import (
@@ -27,6 +30,20 @@ from breadwinner.providers.registry import (
     get_configured_initial_keys,
 )
 from breadwinner.ui.retro import PokemonBakeryCounter
+
+
+class UniversalDropzoneInput(Input):
+    """Smart drag-and-drop terminal input that handles bracketed pastes & dropped files."""
+
+    class PastedText(Message):
+        def __init__(self, text: str) -> None:
+            super().__init__()
+            self.text = text
+
+    def _on_paste(self, event: events.Paste) -> None:
+        event.stop()
+        if event.text:
+            self.post_message(self.PastedText(event.text))
 
 
 WELCOME_MODAL_CSS = """
@@ -337,6 +354,54 @@ Button.-style-default.active-pill:hover, Button.prov-pill.active-pill:hover {
     margin: 0;
 }
 
+#welcome-ingredient-tray {
+    height: auto;
+    min-height: 1;
+    max-height: 3;
+    width: 100%;
+    margin-top: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+Button.ingredient-pill {
+    height: 1;
+    min-width: 8;
+    max-width: 36;
+    padding: 0 1;
+    margin-right: 1;
+    margin-bottom: 0;
+    border: none;
+    background: #1e293b;
+    color: #e2e8f0;
+    text-style: bold;
+}
+
+Button.ingredient-pill:hover {
+    background: #5c1e1e;
+    color: #ffcccc;
+}
+
+Button.ingredient-pill-file {
+    background: #17382d;
+    color: #a7f3d0;
+}
+
+Button.ingredient-pill-file:hover {
+    background: #5c1e1e;
+    color: #ffcccc;
+}
+
+Button.ingredient-pill-url {
+    background: #2d2342;
+    color: #c4b5fd;
+}
+
+Button.ingredient-pill-url:hover {
+    background: #5c1e1e;
+    color: #ffcccc;
+}
+
 #btn-welcome-stock {
     background: #1b4332;
     color: #d8f3dc;
@@ -388,6 +453,8 @@ class BakeryWelcomeModal(ModalScreen):
             self.active_provider = "gemini"
 
         self.provider_keys: Dict[str, str] = get_configured_initial_keys()
+        self.staged_ingredients: List[str] = []
+        self._pill_id_counter: int = 0
 
     def get_configured_provider_slugs(self) -> List[str]:
         """Return list of provider slugs that the user explicitly configured with a key or local/mock."""
@@ -601,12 +668,14 @@ class BakeryWelcomeModal(ModalScreen):
 
                 # Unified Dough Bin Box
                 with Vertical(id="welcome-dropzone-box"):
-                    yield Label("UNIVERSAL DOUGH BIN: Enter website, drop file, or paste raw notes", classes="dropzone-label")
-                    yield Input(
-                        placeholder="e.g. faizpalwala.tech, @username, ~/resume.pdf, or paste career summary...",
+                    yield Label("UNIVERSAL DOUGH BIN: Drop files or enter website/notes (Enter to add)", classes="dropzone-label")
+                    yield UniversalDropzoneInput(
+                        placeholder="e.g. faizpalwala.tech, dissertation.pdf (Enter to queue)...",
                         id="input-welcome-source"
                     )
-                    yield Static("[dim]Waiting for ingredients... (type or drop and press Enter to stock)[/dim]", id="ingredient-badge")
+                    yield Static("[dim]Waiting for ingredients... (type or drop and press Enter to queue)[/dim]", id="ingredient-badge")
+                    with Horizontal(id="welcome-ingredient-tray"):
+                        pass
 
                 # Action Bar
                 with Horizontal(id="welcome-action-bar"):
@@ -638,6 +707,10 @@ class BakeryWelcomeModal(ModalScreen):
                 status="Verified Ingredients Only",
                 badge="BREADWINNER PANTRY"
             )
+            try:
+                self.query_one("#input-welcome-source", UniversalDropzoneInput).focus()
+            except Exception:
+                pass
 
     def load_step_2_models(self, provider: str) -> None:
         """Fetch live models for active provider and populate model selector."""
@@ -709,19 +782,31 @@ class BakeryWelcomeModal(ModalScreen):
         if event.input.id != "input-welcome-source":
             return
 
-        raw_val = event.value.strip()
+        self.update_ingredient_badge_and_mascot(event.value)
+
+    def update_ingredient_badge_and_mascot(self, raw_val: str) -> None:
+        """Update detection badge and mascot dialogue based on input value."""
+        raw_val = (raw_val or "").strip()
         badge = self.query_one("#ingredient-badge", Static)
         mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
 
         if not raw_val:
-            badge.update("[dim]Waiting for ingredient drop... (drag file or paste URL)[/dim]")
-            mascot.set_dialogue(
-                "Welcome, Trainer! Drop your resume or portfolio into the dough bin below, and I'll bake an anti-slop masterpiece!",
-                status="Verified Ingredients Only"
-            )
+            if self.staged_ingredients:
+                count = len(self.staged_ingredients)
+                badge.update(f"[bold #52b788]✓ {count} INGREDIENT{'S' if count != 1 else ''} STAGED IN TRAY[/] [dim](press Enter to stock)[/dim]")
+                mascot.set_dialogue(
+                    f"{count} ingredient{'s' if count != 1 else ''} in dough bin! Click [Stock Pantry] or press Enter to bake!",
+                    status=f"Queue: {count} Staged",
+                    badge="DOUGH BIN READY"
+                )
+            else:
+                badge.update("[dim]Waiting for ingredients... (type or drop and press Enter to queue)[/dim]")
+                mascot.set_dialogue(
+                    "Welcome, Trainer! Drop your resume or portfolio into the dough bin below, and I'll bake an anti-slop masterpiece!",
+                    status="Verified Ingredients Only"
+                )
             return
 
-        from breadwinner.core.ingestor import clean_user_input_path, normalize_source
         clean = clean_user_input_path(raw_val)
         display_label, kind = normalize_source(clean)
         path_obj = Path(os.path.expanduser(clean))
@@ -739,7 +824,7 @@ class BakeryWelcomeModal(ModalScreen):
             doc_type = ext_names.get(ext, f"{ext.upper()} File")
             badge.update(f"[bold #52b788]✓ INGREDIENT FOUND:[/] [bold white]{path_obj.name}[/] [dim]({size_kb} KB • {doc_type})[/]")
             mascot.set_dialogue(
-                f"Fresh {doc_type} detected ({path_obj.name})! Click [Stock Pantry] to knead your profile!",
+                f"Fresh {doc_type} detected ({path_obj.name})! Click [Stock Pantry] or press Enter to add to queue!",
                 status="Ingredient Verified"
             )
         elif kind == "url":
@@ -751,8 +836,173 @@ class BakeryWelcomeModal(ModalScreen):
         else:
             badge.update(f"[bold #f4a261]• Input:[/] [white]{clean}[/]")
 
+    def on_paste(self, event: events.Paste) -> None:
+        """Handle drag-and-drop or clipboard paste at the modal screen level."""
+        if self.current_step == 3 and event.text:
+            event.stop()
+            self.handle_pasted_or_dropped_text(event.text)
+
+    def on_universal_dropzone_input_pasted_text(self, message: UniversalDropzoneInput.PastedText) -> None:
+        """Handle paste events captured directly by the dropzone input."""
+        self.handle_pasted_or_dropped_text(message.text)
+
+    def handle_pasted_or_dropped_text(self, raw_text: str) -> None:
+        """Process pasted or dropped paths/URLs, preventing path concatenation bugs."""
+        if not raw_text or not raw_text.strip():
+            return
+
+        items = parse_dropped_sources(raw_text)
+        if not items:
+            return
+
+        try:
+            input_widget = self.query_one("#input-welcome-source", UniversalDropzoneInput)
+        except Exception:
+            return
+
+        existing_val = input_widget.value.strip()
+        if existing_val:
+            prev_items = parse_dropped_sources(existing_val)
+            for it in prev_items:
+                if it and it not in self.staged_ingredients:
+                    self.staged_ingredients.append(it)
+            input_widget.value = ""
+
+        if len(items) == 1:
+            solo_item = items[0]
+            input_widget.value = solo_item
+            input_widget.focus()
+            self.update_ingredient_badge_and_mascot(solo_item)
+            if existing_val:
+                self.refresh_ingredient_tray()
+        else:
+            for it in items:
+                if it and it not in self.staged_ingredients:
+                    self.staged_ingredients.append(it)
+            input_widget.value = ""
+            input_widget.focus()
+            self.refresh_ingredient_tray()
+            self.update_tray_count_mascot()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Commit typed or dropped input to the staged ingredients tray on Enter."""
+        if event.input.id != "input-welcome-source":
+            return
+
+        raw_val = event.value.strip()
+        if raw_val:
+            items = parse_dropped_sources(raw_val)
+            for it in items:
+                if it and it not in self.staged_ingredients:
+                    self.staged_ingredients.append(it)
+            event.input.value = ""
+            self.refresh_ingredient_tray()
+            self.update_tray_count_mascot()
+        else:
+            if self.staged_ingredients:
+                self.trigger_stock_pantry()
+            else:
+                self.app.notify("Please enter a website, drop a file, or click 'Load Demo Loaf'!", severity="warning")
+
+    def refresh_ingredient_tray(self) -> None:
+        """Re-render the staged ingredients pill tray."""
+        try:
+            tray = self.query_one("#welcome-ingredient-tray", Horizontal)
+        except Exception:
+            return
+
+        tray.remove_children()
+        for idx, item in enumerate(self.staged_ingredients):
+            display_label, kind = normalize_source(item)
+            if kind == "file":
+                p = Path(os.path.expanduser(item))
+                name = p.name if p.name else item
+                icon = "✦"
+                pill_cls = "ingredient-pill ingredient-pill-file"
+            elif kind == "url":
+                name = display_label
+                icon = "★"
+                pill_cls = "ingredient-pill ingredient-pill-url"
+            else:
+                name = item[:20] + "..." if len(item) > 20 else item
+                icon = "✧"
+                pill_cls = "ingredient-pill"
+
+            self._pill_id_counter += 1
+            btn = Button(
+                f"{icon} {name} ✕",
+                id=f"btn-tray-pill-{self._pill_id_counter}",
+                classes=pill_cls
+            )
+            setattr(btn, "staged_source", item)
+            tray.mount(btn)
+
+    def update_tray_count_mascot(self) -> None:
+        """Update detection badge and mascot dialogue when tray items change."""
+        count = len(self.staged_ingredients)
+        badge = self.query_one("#ingredient-badge", Static)
+        mascot = self.query_one("#welcome-mascot", PokemonBakeryCounter)
+        if count == 0:
+            badge.update("[dim]Waiting for ingredients... (type or drop and press Enter to queue)[/dim]")
+            mascot.set_dialogue(
+                "Welcome, Trainer! Drop your resume or portfolio into the dough bin below, and I'll bake an anti-slop masterpiece!",
+                status="Verified Ingredients Only"
+            )
+        else:
+            badge.update(f"[bold #52b788]✓ {count} INGREDIENT{'S' if count != 1 else ''} STAGED IN TRAY[/] [dim](press Enter to stock)[/dim]")
+            mascot.set_dialogue(
+                f"{count} ingredient{'s' if count != 1 else ''} in dough bin! Click [Stock Pantry] or press Enter to bake!",
+                status=f"Queue: {count} Staged",
+                badge="DOUGH BIN READY"
+            )
+
+    def trigger_stock_pantry(self) -> None:
+        """Collect staged ingredients and uncommitted input, normalize and dismiss for baking."""
+        try:
+            curr_input = self.query_one("#input-welcome-source", UniversalDropzoneInput).value.strip()
+        except Exception:
+            curr_input = ""
+
+        all_raw = list(self.staged_ingredients)
+        if curr_input:
+            pending_items = parse_dropped_sources(curr_input)
+            for it in pending_items:
+                if it and it not in all_raw:
+                    all_raw.append(it)
+
+        if not all_raw:
+            self.app.notify("Please enter a website, drop a file, or click 'Load Demo Loaf'!", severity="warning")
+            return
+
+        final_sources: List[str] = []
+        for s in all_raw:
+            clean = clean_user_input_path(s)
+            if clean:
+                display_label, kind = normalize_source(clean)
+                final_sources.append(display_label if kind == "url" else clean)
+
+        if not final_sources:
+            self.app.notify("Please enter a valid website or file path!", severity="warning")
+            return
+
+        dismiss_data = {
+            "action": "import",
+            "source": final_sources[0] if len(final_sources) == 1 else final_sources,
+            "sources": final_sources,
+        }
+        self.dismiss(dismiss_data)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
+
+        # Remove ingredient from staging tray
+        if bid and bid.startswith("btn-tray-pill-"):
+            target_source = getattr(event.button, "staged_source", None)
+            if target_source and target_source in self.staged_ingredients:
+                self.staged_ingredients.remove(target_source)
+                self.refresh_ingredient_tray()
+                self.update_tray_count_mascot()
+            return
 
         # Quick Provider Switcher Pills
         if bid and bid.startswith("pill-prov-"):
@@ -927,21 +1177,12 @@ class BakeryWelcomeModal(ModalScreen):
                 status="Step 3 of 3: Stock Career Pantry",
                 badge="CRUMB'S PANTRY"
             )
-            self.query_one("#input-welcome-source", Input).focus()
+            self.query_one("#input-welcome-source", UniversalDropzoneInput).focus()
 
         # -------------------------------------------------------------
         # STEP 3: Career Pantry Actions
         elif bid == "btn-welcome-stock":
-            from breadwinner.core.ingestor import clean_user_input_path, normalize_source
-            source_raw = self.query_one("#input-welcome-source", Input).value.strip()
-            clean_source = clean_user_input_path(source_raw)
-
-            if clean_source:
-                display_label, kind = normalize_source(clean_source)
-                final_source = display_label if kind == "url" else clean_source
-                self.dismiss({"action": "import", "source": final_source})
-            else:
-                self.app.notify("Please enter a website, drop a file, or click 'Load Demo Loaf'!", severity="warning")
+            self.trigger_stock_pantry()
 
         elif bid == "btn-welcome-demo":
             self.dismiss({"action": "demo"})
