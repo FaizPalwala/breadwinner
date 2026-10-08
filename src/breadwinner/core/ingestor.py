@@ -5,8 +5,10 @@ import re
 import zlib
 import platform
 import subprocess
+import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
+from urllib.parse import urlparse, urljoin, unquote
 from bs4 import BeautifulSoup
 import requests
 
@@ -105,16 +107,44 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
     portfolio_url = base.portfolio_url or incoming.portfolio_url
     summary = base.summary if len(base.summary) > len(incoming.summary) else (incoming.summary or base.summary)
 
-    # Merge experiences
+    # Merge experiences with Metric Maximization
     merged_exps = list(base.experiences)
     for inc_exp in incoming.experiences:
         match = next((e for e in merged_exps if e.company.lower() == inc_exp.company.lower()), None)
         if match:
-            existing_set = {b.strip().lower() for b in match.bullets}
-            for b in inc_exp.bullets:
-                if b.strip().lower() not in existing_set:
-                    match.bullets.append(b)
-                    existing_set.add(b.strip().lower())
+            # Bullet deduplication with Metric Maximization
+            # If incoming bullet expresses same core concept but has higher quantified metrics, replace it
+            for inc_b in inc_exp.bullets:
+                inc_clean = inc_b.strip()
+                if not inc_clean:
+                    continue
+                
+                # Check for near-duplicate or identical bullet
+                found_dup_idx = -1
+                for idx, exist_b in enumerate(match.bullets):
+                    if exist_b.strip().lower() == inc_clean.lower():
+                        found_dup_idx = idx
+                        break
+                    # Check semantic overlap: shared entities/words > 60%
+                    words_exist = set(re.findall(r"\w+", exist_b.lower()))
+                    words_inc = set(re.findall(r"\w+", inc_clean.lower()))
+                    if len(words_exist) > 4 and len(words_inc) > 4:
+                        overlap = len(words_exist & words_inc) / min(len(words_exist), len(words_inc))
+                        if overlap >= 0.70:
+                            found_dup_idx = idx
+                            break
+
+                if found_dup_idx != -1:
+                    # Metric maximization: compare metrics count
+                    exist_bullet = match.bullets[found_dup_idx]
+                    from breadwinner.core.density import METRIC_REGEX
+                    exist_metrics = len(METRIC_REGEX.findall(exist_bullet))
+                    inc_metrics = len(METRIC_REGEX.findall(inc_clean))
+                    if inc_metrics > exist_metrics:
+                        match.bullets[found_dup_idx] = inc_clean
+                else:
+                    match.bullets.append(inc_clean)
+
             for t in inc_exp.technologies:
                 if t not in match.technologies:
                     match.technologies.append(t)
@@ -192,6 +222,140 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
 
 class UniversalIngestor:
     """Ingests candidate context from arbitrary web URLs, files, or raw text into CandidateProfile."""
+
+    @classmethod
+    def discover_portfolio_routes(cls, base_url: str, timeout: int = 10) -> List[Tuple[str, str, str]]:
+        """Discover canonical subpages, blogs, and downloadable resumes from a portfolio.
+        
+        Returns a list of tuples: (route_url, category, title)
+        where category is one of: 'resume_pdf', 'about', 'projects', 'research', 'articles', 'page'.
+        """
+        discovered: List[Tuple[str, str, str]] = []
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+        
+        try:
+            resp = requests.get(base_url, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+        except Exception:
+            return discovered
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        seen_urls: set[str] = {base_url.rstrip("/")}
+
+        # Scan all links
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href or href.startswith("#") or href.startswith("mailto:") or href.startswith("javascript:"):
+                continue
+
+            full_url = urljoin(base_url, href)
+            parsed_full = urlparse(full_url)
+            parsed_base = urlparse(base_url)
+
+            # Keep only same domain links or relevant resumes
+            if parsed_full.netloc != parsed_base.netloc and not href.endswith(".pdf"):
+                continue
+
+            clean_full = full_url.split("#")[0].rstrip("/")
+            if clean_full in seen_urls:
+                continue
+            seen_urls.add(clean_full)
+
+            link_text = a.get_text(strip=True) or href
+            path_lower = parsed_full.path.lower()
+
+            if path_lower.endswith(".pdf") or "resume" in path_lower or "cv" in path_lower:
+                discovered.append((full_url, "resume_pdf", link_text or "Download Resume"))
+            elif any(k in path_lower for k in ["about", "bio", "experience", "hire"]):
+                discovered.append((clean_full, "about", link_text or "About & Career"))
+            elif any(k in path_lower for k in ["project", "work", "portfolio", "showcase"]):
+                discovered.append((clean_full, "projects", link_text or "Projects"))
+            elif any(k in path_lower for k in ["research", "publication", "paper"]):
+                discovered.append((clean_full, "research", link_text or "Research"))
+            elif any(k in path_lower for k in ["blog", "writing", "articles", "noggin", "notes", "posts"]):
+                discovered.append((clean_full, "articles", link_text or "Writing & Technical Blog"))
+
+        # Check standard fallback routes if not found in links
+        fallback_checks = [
+            ("/about", "about", "About"),
+            ("/resume.pdf", "resume_pdf", "Resume PDF"),
+            ("/projects", "projects", "Projects"),
+            ("/research", "research", "Research"),
+        ]
+        for route_path, cat, default_title in fallback_checks:
+            probe_url = urljoin(base_url, route_path)
+            clean_probe = probe_url.rstrip("/")
+            if clean_probe not in seen_urls:
+                try:
+                    probe_resp = requests.head(probe_url, headers=headers, timeout=3, allow_redirects=True)
+                    if probe_resp.status_code == 200:
+                        seen_urls.add(clean_probe)
+                        discovered.append((probe_url, cat, default_title))
+                except Exception:
+                    pass
+
+        return discovered
+
+    @classmethod
+    def extract_deep_portfolio(cls, base_url: str, timeout: int = 15) -> Tuple[str, Dict[str, str]]:
+        """Deeply harvest a candidate's portfolio: root, about/projects, and blogs.
+        
+        Returns:
+            (composite_fact_text, dossier_articles_dict)
+        """
+        routes = cls.discover_portfolio_routes(base_url, timeout=timeout)
+        root_text = cls.extract_text_from_url(base_url, timeout=timeout)
+        
+        composite_texts = [f"=== HOMEPAGE: {base_url} ===\n{root_text}"]
+        dossier_docs: Dict[str, str] = {}
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+
+        # Check for direct resume.pdf download first
+        resume_links = [r for r in routes if r[1] == "resume_pdf"]
+        for r_url, _, _ in resume_links:
+            try:
+                r_resp = requests.get(r_url, headers=headers, timeout=timeout)
+                if r_resp.status_code == 200 and r_resp.content.startswith(b"%PDF"):
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                        tmp.write(r_resp.content)
+                        tmp_path = Path(tmp.name)
+                    try:
+                        pdf_text = cls.extract_text_from_pdf(tmp_path)
+                        if pdf_text.strip():
+                            composite_texts.insert(0, f"=== CANONICAL RESUME PDF ({r_url}) ===\n{pdf_text}")
+                    finally:
+                        if tmp_path.exists():
+                            tmp_path.unlink()
+                    break
+            except Exception:
+                pass
+
+        # Ingest key career pages into composite fact text
+        career_routes = [r for r in routes if r[1] in ("about", "projects", "research")]
+        for r_url, cat, title in career_routes[:4]:
+            try:
+                page_text = cls.extract_text_from_url(r_url, timeout=timeout)
+                composite_texts.append(f"=== {cat.upper()}: {title} ({r_url}) ===\n{page_text}")
+            except Exception:
+                continue
+
+        # Ingest blog/technical articles into deep dossier documents
+        article_routes = [r for r in routes if r[1] == "articles"]
+        for r_url, _, title in article_routes[:3]:
+            try:
+                art_text = cls.extract_text_from_url(r_url, timeout=timeout)
+                safe_slug = re.sub(r"[^a-zA-Z0-9_-]", "_", title.lower()).strip("_") or "article"
+                dossier_docs[f"articles/{safe_slug}.md"] = f"# {title}\n\n*Source: {r_url}*\n\n{art_text}"
+            except Exception:
+                continue
+
+        return "\n\n".join(composite_texts), dossier_docs
 
     @staticmethod
     def extract_text_from_url(url: str, timeout: int = 15) -> str:
@@ -687,17 +851,34 @@ Respond in valid JSON matching this schema:
                     aggregated = merge_profiles(aggregated, single_profile)
             return aggregated or cls.parse_text_to_profile("", provider, source_label="Empty Source List")
 
-        source_clean = str(source).strip()
-        if source_clean.startswith("http://") or source_clean.startswith("https://"):
-            raw_text = cls.extract_text_from_url(source_clean)
-            new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=source_clean)
-        else:
-            path = Path(source_clean)
-            if path.exists() and path.is_file():
+        display_label, kind = normalize_source(str(source))
+        if kind == "url":
+            raw_text, dossier_docs = cls.extract_deep_portfolio(display_label)
+            new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=display_label)
+            if dossier_docs:
+                existing_docs = new_profile.raw_context.get("dossier_documents", {})
+                existing_docs.update(dossier_docs)
+                new_profile.raw_context["dossier_documents"] = existing_docs
+        elif kind == "file" or kind == "dir":
+            clean_p = clean_user_input_path(str(source))
+            path = Path(os.path.expanduser(clean_p)).resolve()
+            if path.is_dir():
+                from breadwinner.core.portfolio import get_profile_source
+                adapter = get_profile_source(path)
+                new_profile = adapter.load_profile()
+            else:
                 raw_text = cls.extract_text_from_file(path)
                 new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=str(path))
+        else:
+            clean_p = clean_user_input_path(str(source))
+            p_check = Path(os.path.expanduser(clean_p))
+            if p_check.exists() and p_check.is_dir():
+                from breadwinner.core.portfolio import get_profile_source
+                adapter = get_profile_source(p_check)
+                new_profile = adapter.load_profile()
             else:
-                new_profile = cls.parse_text_to_profile(source_clean, provider, source_label="Manual Paste")
+                raw_text = clean_p
+                new_profile = cls.parse_text_to_profile(raw_text, provider, source_label="Manual Paste")
 
         if existing_profile is not None:
             return merge_profiles(existing_profile, new_profile)
@@ -739,13 +920,49 @@ def decompose_raw_input(raw: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+def clean_user_input_path(raw: str) -> str:
+    """Clean dragged or pasted terminal paths, strip file:// and URL-encoded characters."""
+    s = str(raw).strip().strip("'\"“”‘’")
+    if s.startswith("file://"):
+        s = s[7:]
+        if s.startswith("localhost"):
+            s = s[9:]
+    s = unquote(s).replace(r"\ ", " ")
+    return s
+
+
 def normalize_source(source: str) -> tuple[str, str]:
-    """Normalize a source string and return (display_label, kind)."""
-    s = str(source).strip()
+    """Normalize a source string and return (display_label, kind).
+    
+    Handles:
+    - Standard URLs (https://...)
+    - Bare domains (faizpalwala.tech, www.example.com)
+    - GitHub handles (@username or github.com/username)
+    - Local file paths (~/resume.pdf, file://...)
+    - Raw text notes
+    """
+    s = clean_user_input_path(str(source))
+    if not s:
+        return "", "empty"
+
+    # 1. Direct URLs
     if s.startswith("http://") or s.startswith("https://"):
         return s, "url"
-    p = Path(s)
-    if p.exists() or p.suffix.lower() in (".pdf", ".docx", ".doc", ".md", ".json", ".txt"):
-        return p.name, "file"
+
+    # 2. GitHub handles
+    if s.startswith("@"):
+        gh_user = s[1:].strip()
+        return f"https://github.com/{gh_user}", "url"
+
+    # 3. Local file or directory check
+    expanded = Path(os.path.expanduser(s))
+    if expanded.exists() or expanded.suffix.lower() in (".pdf", ".docx", ".doc", ".md", ".json", ".txt", ".rtf"):
+        return expanded.name, "file"
+
+    # 4. Bare domain check (e.g. faizpalwala.tech, blog.me.org, site.co.uk/about)
+    domain_match = re.match(r"^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(/.*)?$", s)
+    if domain_match:
+        return f"https://{s}", "url"
+
     return s, "text"
 
