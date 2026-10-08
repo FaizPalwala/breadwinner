@@ -1,0 +1,374 @@
+/* Breadwinner Studio View Styling - Scoped to #studio-view / #tab-studio */
+#studio-formulation-view {
+    height: 1fr;
+}
+#studio-mascot-banner {
+    height: auto;
+    padding: 0 1;
+    margin-bottom: 1;
+    background: #212330;
+    border: heavy #D18F52;
+}
+#studio-banner-header-row {
+    height: 1;
+    width: 100%;
+    align: left middle;
+}
+#studio-banner-title {
+    color: #FFB86C;
+    text-style: bold;
+    width: 1fr;
+}
+#studio-banner-status {
+    color: #50FA7B;
+    text-style: bold;
+    dock: right;
+}
+#studio-banner-desc {
+    color: #A89F91;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+#studio-mascot-speech {
+    color: #F8F8F2;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+#studio-mascot, #studio-oven, #studio-stepper {
+    display: none;
+}
+#studio-readiness-deck {
+    height: auto;
+    margin-top: 1;
+    layout: horizontal;
+}
+.studio-readiness-card {
+    width: 1fr;
+    height: auto;
+    background: #10141f;
+    border: round #2A2E3D;
+    padding: 0 1;
+    margin-right: 1;
+}
+.studio-readiness-card:last-of-type {
+    margin-right: 0;
+}
+.readiness-card-title {
+    text-style: bold;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+.readiness-card-desc {
+    color: #A89F91;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+#studio-formulation-view .input-label {
+    text-style: bold;
+    color: #FFB86C;
+    margin-top: 1;
+    margin-bottom: 0;
+}
+#input-job-url {
+    background: #0C0E14;
+    border: round #2A2E3D;
+    color: #F8F8F2;
+}
+#studio-skill-constellation {
+    height: auto;
+    margin: 1 0;
+    padding: 0 1;
+    background: #141926;
+    border: none;
+    color: #94A3B8;
+}
+#studio-picker-row {
+    height: auto;
+    layout: horizontal;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+.studio-picker-col {
+    width: 1fr;
+    height: auto;
+}
+#select-persona, #select-template {
+    border: none;
+    background: transparent;
+    height: auto;
+    margin-bottom: 1;
+}
+#select-persona SelectCurrent, #select-template SelectCurrent {
+    background: #212330;
+    border: round #D18F52;
+    color: #FFFFFF;
+    height: 3;
+    padding: 0 1;
+}
+#select-persona SelectCurrent:focus, #select-template SelectCurrent:focus {
+    border: round #FFB86C;
+    background: #2A2E3D;
+}
+#select-persona SelectCurrent Static#label, #select-template SelectCurrent Static#label {
+    color: #FFFFFF !important;
+    text-style: bold;
+}
+#select-persona SelectCurrent .arrow, #select-template SelectCurrent .arrow {
+    color: #FFB86C;
+}
+#studio-formulation-view .action-bar {
+    height: 3;
+    margin-top: 1;
+    align: left middle;
+}
+#studio-formulation-view .action-bar Button {
+    margin-right: 1;
+    min-width: 14;
+}
+#tailor-status-box {
+    display: none;
+    margin-top: 1;
+    padding: 1;
+    background: #212330;
+    border: round #2A2E3D;
+}
+
+/* Bullet Laboratory View */
+#studio-lab-view {
+    height: 1fr;
+    display: none;
+}
+#studio-lab-top-bar {
+    height: 3;
+    padding: 0 1;
+    background: #181A24;
+    border-bottom: heavy #2A2E3D;
+    align: left middle;
+}
+#studio-lab-top-bar Button {
+    height: 1;
+    min-width: 8;
+    border: none;
+    padding: 0 1;
+    margin-right: 1;
+    text-style: bold;
+}
+#btn-lab-back {
+    background: #252836;
+    color: #A89F91;
+    margin-right: 2;
+}
+#btn-lab-back:hover {
+    background: #3A3F55;
+    color: #FFFFFF;
+}
+#lab-active-job-label {
+    width: 1fr;
+    text-style: bold;
+    color: #FFB86C;
+    padding-right: 1;
+}
+#lab-ats-badge {
+    color: #50FA7B;
+    text-style: bold;
+    margin-right: 1;
+    padding: 0 1;
+    background: #16281E;
+}
+#btn-lab-toggle-stack {
+    background: #212534;
+    color: #8BE9FD;
+    margin-right: 1;
+}
+#btn-lab-toggle-stack:hover {
+    background: #323A52;
+    color: #FFFFFF;
+}
+#btn-lab-bake-pdf {
+    background: #2D1B4E;
+    color: #BD93F9;
+    margin-right: 1;
+}
+#btn-lab-bake-pdf:hover {
+    background: #4A2D82;
+    color: #FFFFFF;
+}
+#btn-lab-view-pdf {
+    background: #16281E;
+    color: #50FA7B;
+    margin-right: 1;
+}
+#btn-lab-view-pdf:hover {
+    background: #264A35;
+    color: #FFFFFF;
+}
+#btn-lab-folder {
+    background: #212330;
+    color: #F8F8F2;
+}
+#btn-lab-folder:hover {
+    background: #32364A;
+    color: #FFFFFF;
+}
+#studio-lab-split {
+    height: 1fr;
+    layout: horizontal;
+}
+#studio-lab-split.-vertical-stack {
+    layout: vertical;
+}
+#studio-lab-split.-vertical-stack #lab-left-col {
+    width: 100%;
+    height: 1fr;
+    border-right: none;
+    border-bottom: heavy #2A2E3D;
+}
+#studio-lab-split.-vertical-stack #lab-right-col {
+    width: 100%;
+    height: 1fr;
+}
+#lab-left-col {
+    width: 1fr;
+    height: 1fr;
+    padding: 0 1;
+    border-right: solid #2A2E3D;
+    background: #12131A;
+}
+.lab-col-header {
+    height: 1;
+    margin-bottom: 1;
+    align: left middle;
+}
+.lab-col-header .pane-header {
+    width: 1fr;
+    color: #FFB86C;
+    text-style: bold;
+}
+.lab-col-header Button {
+    height: 1;
+    border: none;
+    padding: 0 1;
+    margin-left: 1;
+    text-style: bold;
+}
+#btn-lab-format-xyz {
+    background: #582F0E;
+    color: #FAEDCD;
+}
+#btn-lab-format-xyz:hover {
+    background: #7F4F24;
+}
+#btn-lab-apply-bullets {
+    background: #16281E;
+    color: #50FA7B;
+}
+#btn-lab-apply-bullets:hover {
+    background: #23452E;
+    color: #FFFFFF;
+}
+#lab-right-col {
+    width: 1fr;
+    height: 1fr;
+    padding: 0 1;
+    background: #16161E;
+}
+.resume-pane-toolbar {
+    height: 1;
+    margin-bottom: 1;
+    align: left middle;
+}
+.pane-toolbar-title {
+    width: 1fr;
+    text-style: bold;
+    color: #FFB86C;
+}
+.resume-pane-toolbar Button {
+    height: 1;
+    border: none;
+    padding: 0 1;
+    margin-left: 1;
+    text-style: bold;
+}
+#btn-lab-save-resume, #btn-lab-save-letter, #btn-lab-save-qna {
+    background: #16281E;
+    color: #50FA7B;
+}
+#btn-lab-save-resume:hover, #btn-lab-save-letter:hover, #btn-lab-save-qna:hover {
+    background: #23452E;
+    color: #FFFFFF;
+}
+#btn-lab-toggle-preview {
+    background: #252836;
+    color: #8BE9FD;
+}
+#btn-lab-toggle-preview:hover {
+    background: #3A3F55;
+    color: #FFFFFF;
+}
+#lab-bullet-editor {
+    height: 1fr;
+    min-height: 8;
+    background: #0C0E14;
+    border: round #D18F52;
+    color: #F8F8F2;
+}
+#lab-resume-editor, #lab-letter-editor, #lab-qna-editor {
+    height: 1fr;
+    background: #0C0E14;
+    border: round #2A2E3D;
+    color: #F8F8F2;
+}
+#preview-resume-md {
+    display: none;
+}
+.preview-box {
+    height: 1fr;
+    border: round #2A2E3D;
+    padding: 1;
+    background: #0C0E14;
+}
+#lab-xyz-validator {
+    height: auto;
+    min-height: 5;
+    max-height: 7;
+    margin-top: 1;
+    background: #212330;
+    border: round #2A2E3D;
+    padding: 0 1;
+    overflow-y: hidden;
+}
+#lab-crust-spectrum {
+    height: auto;
+    max-height: 6;
+    margin-top: 1;
+    padding: 0 1;
+    background: #141926;
+    border: round #334155;
+}
+#studio-lab-bottom-bar {
+    dock: bottom;
+    height: auto;
+    padding: 0 1;
+    background: #16161E;
+    border-top: solid #2A2E3D;
+}
+#studio-lab-prompt-row {
+    height: 3;
+    align: left middle;
+}
+#lab-refine-prompt {
+    width: 1fr;
+    height: 1;
+    background: #0C0E14;
+    border: round #2A2E3D;
+    color: #F8F8F2;
+    margin: 0 1;
+}
+#lab-diff-preview-box {
+    height: auto;
+    padding: 1;
+    background: #0C0E14;
+    border: round #D18F52;
+    margin-bottom: 1;
+    display: none;
+}

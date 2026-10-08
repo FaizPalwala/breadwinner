@@ -1,0 +1,457 @@
+/* Breadwinner Base & Global Styling */
+Screen {
+    background: #16161E;
+    color: #F8F8F2;
+}
+Header {
+    background: #212330;
+    color: #FFB86C;
+    text-style: bold;
+}
+Footer {
+    background: #16161E;
+    border-top: solid #2A2E3D;
+}
+.modal-header-bar {
+    height: 1;
+    width: 100%;
+    align: left middle;
+    margin-bottom: 1;
+}
+.modal-header-title {
+    width: 1fr;
+    color: #ffb86c;
+    text-style: bold;
+}
+Button.modal-close-btn, .modal-close-btn,
+#btn-switcher-close, #btn-settings-close, #btn-strategy-close,
+#btn-modal-close, #btn-ingest-close, #btn-interview-close,
+#btn-history-close, #btn-status-close, #btn-flag-close, #btn-close-persona-synth {
+    dock: right;
+    min-width: 3;
+    width: 3;
+    height: 1;
+    border: none;
+    background: transparent;
+    color: #6272a4;
+    padding: 0;
+}
+Button.modal-close-btn:focus, .modal-close-btn:focus,
+#btn-switcher-close:focus, #btn-settings-close:focus, #btn-strategy-close:focus,
+#btn-modal-close:focus, #btn-ingest-close:focus, #btn-interview-close:focus,
+#btn-history-close:focus, #btn-status-close:focus, #btn-flag-close:focus, #btn-close-persona-synth:focus {
+    background: transparent;
+    color: #6272a4;
+    border: none;
+    text-style: none;
+}
+Button.modal-close-btn:hover, .modal-close-btn:hover,
+#btn-switcher-close:hover, #btn-settings-close:hover, #btn-strategy-close:hover,
+#btn-modal-close:hover, #btn-ingest-close:hover, #btn-interview-close:hover,
+#btn-history-close:hover, #btn-status-close:hover, #btn-flag-close:hover, #btn-close-persona-synth:hover {
+    background: transparent;
+    color: #ff5555;
+    border: none;
+    text-style: bold;
+}
+.modal-action-bar {
+    height: 3;
+    margin-top: 1;
+    align: right middle;
+}
+.modal-action-bar Button {
+    margin-left: 1;
+}
+TabbedContent {
+    height: 1fr;
+    background: #16161E;
+}
+ContentSwitcher {
+    height: 1fr;
+}
+TabPane {
+    padding: 0 1;
+    height: 1fr;
+    background: #16161E;
+}
+Screen, VerticalScroll, #job-details-pane, DataTable {
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-color: #334155 #10141f;
+    scrollbar-color-hover: #6272A4 #10141f;
+    scrollbar-color-active: #8BE9FD #10141f;
+}
+ScrollBar {
+    background: #10141f;
+    color: #334155;
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+}
+ScrollBar:hover {
+    color: #6272A4;
+}
+ScrollBarCorner {
+    background: #10141f;
+}
+#app-header-deck {
+    dock: top;
+    height: auto;
+}
+#app-top-bar {
+    height: auto;
+    background: #10141f;
+    border-bottom: solid #2A2E3D;
+    padding: 1 1;
+    layout: horizontal;
+}
+#top-bar-left {
+    width: auto;
+    height: 1;
+    margin: 0;
+    align: left middle;
+}
+.icon-toggle-btn {
+    width: 5;
+    min-width: 5;
+    height: 1;
+    padding: 0;
+    margin-right: 1;
+    background: #1E2233;
+    border: none;
+    color: #FFB86C;
+    text-style: bold;
+    content-align: center middle;
+}
+.icon-toggle-btn:hover {
+    background: #2D334D;
+    color: #FFFFFF;
+}
+#top-bar-center {
+    width: 1fr;
+    height: 1;
+    margin: 0;
+    align: center middle;
+    content-align: center middle;
+}
+#top-bar-brand {
+    color: #FFB86C;
+    text-style: bold;
+    margin: 0;
+    padding: 0;
+}
+#top-bar-screen-title {
+    color: #A89F91;
+    margin: 0;
+    padding: 0;
+}
+#top-bar-right {
+    width: auto;
+    height: 1;
+    margin: 0;
+    align: right middle;
+}
+#btn-active-model-chip {
+    display: none;
+    height: 1;
+    min-width: 12;
+    padding: 0 1;
+    margin-right: 1;
+    border: none;
+    background: #212330;
+    color: #FFB86C;
+    text-style: bold;
+}
+#btn-active-model-chip:hover {
+    background: #2A2E3D;
+    color: #50FA7B;
+}
+#btn-app-cycle-preset {
+    height: 1;
+    min-width: 10;
+    padding: 0 1;
+    margin-right: 1;
+    border: none;
+    background: #1E2233;
+    color: #8BE9FD;
+    text-style: bold;
+}
+#btn-app-cycle-preset:hover {
+    background: #2D334D;
+    color: #FFFFFF;
+}
+#btn-app-quit {
+    height: 1;
+    min-width: 7;
+    width: auto;
+    padding: 0 1;
+    border: none;
+    background: #E04050;
+    color: #FFFFFF;
+    text-style: bold;
+}
+#btn-app-quit:hover {
+    background: #FF5566;
+    color: #FFFFFF;
+}
+#top-bar-nav-pills {
+    display: none;
+    height: 2;
+    background: #12131A;
+    border-bottom: solid #2A2E3D;
+    padding: 0 1;
+    layout: horizontal;
+    align: left middle;
+}
+.top-nav-btn {
+    width: 1fr;
+    height: 1;
+    margin: 0 1 0 0;
+    border: none;
+    background: #16161E;
+    color: #A89F91;
+    text-style: bold;
+    content-align: center middle;
+}
+.top-nav-btn:last-of-type {
+    margin: 0;
+}
+.top-nav-btn:hover {
+    background: #212330;
+    color: #FFFFFF;
+}
+.top-nav-btn.-active {
+    background: #2A2E3D;
+    color: #FFB86C;
+    text-style: bold;
+}
+#app-workspace-split {
+    height: 1fr;
+    layout: horizontal;
+}
+#app-sidebar {
+    width: 22;
+    height: 100%;
+    background: #12131A;
+    border-right: solid #2A2E3D;
+    padding: 1 1;
+    layout: vertical;
+    overflow: hidden;
+}
+#app-sidebar.-collapsed {
+    width: 8;
+    padding: 1 1;
+    overflow: hidden;
+}
+.sidebar-flow-btn {
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+    background: #16161E;
+    color: #A89F91;
+    border: round #2A2E3D;
+}
+.sidebar-flow-btn:hover {
+    background: #212330;
+    color: #FFFFFF;
+    border: round #FFB86C;
+}
+.sidebar-flow-btn.-active {
+    background: #212330;
+    color: #FFB86C;
+    border: round #D18F52;
+    text-style: bold;
+}
+#app-sidebar.-collapsed .sidebar-flow-btn,
+#app-sidebar.-collapsed #btn-sidebar-settings {
+    width: 5;
+    min-width: 5;
+    height: 3;
+    padding: 0;
+    border: round #3A3F55;
+    background: #181A24;
+    color: #A89F91;
+}
+#app-sidebar.-collapsed .sidebar-flow-btn:hover,
+#app-sidebar.-collapsed #btn-sidebar-settings:hover {
+    border: round #BD93F9;
+    background: #252836;
+    color: #FFFFFF;
+}
+#app-sidebar.-collapsed .sidebar-flow-btn.-active {
+    border: round #FFB86C;
+    background: #252836;
+    color: #FFB86C;
+}
+#sidebar-flows {
+    height: auto;
+}
+#sidebar-bottom {
+    height: auto;
+    overflow: hidden;
+}
+.sidebar-spacer {
+    height: 1fr;
+}
+.sidebar-bottom-btn {
+    width: 100%;
+    height: 3;
+    margin-top: 1;
+    background: #1B1D28;
+    color: #A89F91;
+    border: round #2A2E3D;
+    overflow: hidden;
+}
+.sidebar-bottom-btn:hover {
+    background: #252836;
+    color: #FFFFFF;
+}
+#app-sidebar.-collapsed #btn-sidebar-settings {
+    margin-top: 1;
+    margin-bottom: 1;
+}
+#blade-sidebar-engine {
+    display: none;
+}
+#app-sidebar.-collapsed #btn-sidebar-model {
+    display: none;
+}
+#app-sidebar.-collapsed #blade-sidebar-engine {
+    display: block;
+}
+#main-tabs {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+}
+#main-tabs > Tabs {
+    display: none;
+}
+
+/* Modals base styles */
+.settings-mini-btn {
+    height: 1;
+    margin-top: 1;
+    background: #212330;
+    color: #50fa7b;
+    border: none;
+}
+.settings-mini-btn:hover {
+    background: #50fa7b;
+    color: #16161e;
+}
+
+
+/* 8-bit Retro Arcade Styling for Breadwinner */
+.retro-box {
+    border: double #d18f52;
+    background: #141724;
+    padding: 1;
+}
+
+.retro-gold {
+    color: #f59e0b;
+    text-style: bold;
+}
+
+.retro-mint {
+    color: #50fa7b;
+    text-style: bold;
+}
+
+.retro-flame {
+    color: #ff5555;
+    text-style: bold;
+}
+
+.retro-stepper {
+    text-align: center;
+    padding: 1 0;
+    margin-bottom: 1;
+    background: #0f131f;
+    border: round #d18f52;
+}
+
+BakingModal {
+    align: center middle;
+}
+
+.modal-header-bar {
+    height: 1;
+    width: 100%;
+    align: left middle;
+    margin-bottom: 1;
+}
+.modal-header-title {
+    width: 1fr;
+    color: #ffb86c;
+    text-style: bold;
+}
+Button.modal-close-btn, .modal-close-btn, #btn-modal-close {
+    dock: right;
+    min-width: 3;
+    width: 3;
+    height: 1;
+    border: none;
+    background: transparent;
+    color: #6272a4;
+    padding: 0;
+}
+Button.modal-close-btn:focus, .modal-close-btn:focus, #btn-modal-close:focus {
+    background: transparent;
+    color: #6272a4;
+    border: none;
+    text-style: none;
+}
+Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
+    background: transparent;
+    color: #ff5555;
+    border: none;
+    text-style: bold;
+}
+
+#baking-modal-container {
+    width: 76;
+    height: auto;
+    max-height: 92%;
+    background: #0d111a;
+    border: double #ffb86c;
+    padding: 1 2;
+}
+
+#oven-widget {
+    text-align: center;
+    height: auto;
+    margin: 1 0;
+}
+
+#mascot-widget {
+    height: auto;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#baking-status-text {
+    text-align: center;
+    color: #f1fa8c;
+    text-style: bold;
+    margin: 1 0;
+}
+
+#retro-progress-gauge {
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#baking-score-card {
+    background: #161c2d;
+    border: round #50fa7b;
+    padding: 1;
+    margin: 1 0;
+    display: none;
+}
+
+#baking-action-bar {
+    align: center middle;
+    height: 3;
+    margin-top: 1;
+}

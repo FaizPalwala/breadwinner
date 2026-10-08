@@ -1,0 +1,176 @@
+/* Breadwinner Breadbox View Styling - Scoped to #breadbox-view / #tab-pipeline */
+#pipeline-funnel-widget {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+#pipeline-container {
+    height: 1fr;
+    layout: horizontal;
+}
+#pipeline-table-col {
+    width: 1fr;
+    height: 100%;
+}
+#pipeline-container.-vertical-stack {
+    layout: vertical;
+}
+#pipeline-container.-vertical-stack #pipeline-table-col {
+    width: 100%;
+    height: auto;
+}
+#pipeline-container.-vertical-stack DataTable {
+    height: 6;
+}
+#pipeline-container.-vertical-stack #job-details-pane {
+    width: 100%;
+    height: 1fr;
+    border-left: none;
+    border-top: solid #2A2E3D;
+}
+#pipeline-table {
+    height: auto;
+    max-height: 1fr;
+    border: heavy #2A2E3D;
+    background: #0C0E14;
+}
+#pipeline-table-hint {
+    height: auto;
+    color: #6272A4;
+    margin-top: 1;
+    padding-left: 1;
+}
+#job-details-pane {
+    width: 40;
+    height: 100%;
+    border-left: heavy #2A2E3D;
+    background: #16161E;
+    padding: 0 1;
+    overflow-y: auto;
+}
+.inspector-sec-label {
+    text-style: bold;
+    color: #A89F91;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+.inspector-btn-row {
+    height: 1;
+    margin-bottom: 1;
+    layout: horizontal;
+}
+.inspector-btn-row Button {
+    width: 1fr;
+    height: 1;
+    min-width: 0;
+    margin: 0 1 0 0;
+    border: none;
+    background: #1B1E2A;
+    color: #F8F8F2;
+    text-style: bold;
+    padding: 0;
+}
+.inspector-btn-row Button:last-of-type {
+    margin-right: 0;
+}
+.inspector-btn-row Button:hover {
+    background: #272C3E;
+    color: #FFFFFF;
+}
+#btn-pipeline-edit-studio {
+    background: #182234;
+    color: #8BE9FD;
+}
+#btn-pipeline-edit-studio:hover {
+    background: #22324C;
+    color: #FFFFFF;
+}
+#btn-pipeline-bake {
+    background: #16281E;
+    color: #50FA7B;
+}
+#btn-pipeline-bake:hover {
+    background: #1E3A2A;
+    color: #FFFFFF;
+}
+#btn-pipeline-view-pdf {
+    background: #1E2233;
+    color: #BD93F9;
+}
+#btn-pipeline-view-pdf:hover {
+    background: #2D334D;
+    color: #FFFFFF;
+}
+#btn-open-folder {
+    background: #212330;
+    color: #F8F8F2;
+}
+#btn-open-folder:hover {
+    background: #32364A;
+    color: #FFFFFF;
+}
+#btn-status {
+    background: #252836;
+    color: #FFB86C;
+}
+#btn-status:hover {
+    background: #3A3F55;
+    color: #FFFFFF;
+}
+#btn-flag {
+    background: #28161A;
+    color: #FF79C6;
+}
+#btn-flag:hover {
+    background: #3A1F26;
+    color: #FFFFFF;
+}
+#details-header {
+    color: #FFB86C;
+    text-style: bold;
+    border-bottom: solid #2A2E3D;
+    margin-bottom: 1;
+}
+#details-body {
+    height: auto;
+    min-height: 2;
+    border: round #2A2E3D;
+    background: #0C0E14;
+    color: #F8F8F2;
+    padding: 0 1;
+    margin-bottom: 1;
+}
+#notes-header-row {
+    height: 1;
+    margin-top: 1;
+    margin-bottom: 0;
+    align: left middle;
+    layout: horizontal;
+}
+#details-notes-label {
+    width: auto;
+    text-style: bold;
+    color: #A89F91;
+    margin-right: 1;
+}
+#btn-save-notes {
+    height: 1;
+    min-width: 8;
+    border: none;
+    padding: 0 1;
+    background: #16281E;
+    color: #50FA7B;
+    text-style: bold;
+}
+#btn-save-notes:hover {
+    background: #50FA7B;
+    color: #0C0E14;
+}
+#input-job-notes {
+    height: 3;
+    background: #0C0E14;
+    border: round #2A2E3D;
+    color: #F8F8F2;
+    margin-top: 0;
+    margin-bottom: 0;
+}
