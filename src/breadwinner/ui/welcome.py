@@ -441,19 +441,25 @@ class BakeryWelcomeModal(ModalScreen):
 
     DEFAULT_CSS = WELCOME_MODAL_CSS
 
-    def __init__(self, pantry: PantryManager, initial_step: str = "pantry"):
+    def __init__(
+        self,
+        pantry: PantryManager,
+        initial_step: str = "pantry",
+        initial_provider: Optional[str] = None,
+        initial_sources: Optional[List[str]] = None,
+    ):
         super().__init__()
         self.pantry = pantry
         self.initial_step = initial_step
         self.current_step = 1 if initial_step == "ai" else 3
         self.provider_opts: List[Tuple[str, str]] = get_provider_options()
 
-        self.active_provider: str = settings.breadwinner_llm_provider
+        self.active_provider: str = initial_provider or settings.breadwinner_llm_provider
         if not get_provider_spec(self.active_provider):
             self.active_provider = "gemini"
 
         self.provider_keys: Dict[str, str] = get_configured_initial_keys()
-        self.staged_ingredients: List[str] = []
+        self.staged_ingredients: List[str] = list(initial_sources) if initial_sources else []
         self._pill_id_counter: int = 0
 
     def get_configured_provider_slugs(self) -> List[str]:
@@ -712,6 +718,10 @@ class BakeryWelcomeModal(ModalScreen):
             except Exception:
                 pass
 
+        if self.staged_ingredients:
+            self.refresh_ingredient_tray()
+            self.update_tray_count_mascot()
+
     def load_step_2_models(self, provider: str) -> None:
         """Fetch live models for active provider and populate model selector."""
         if self.current_step != 2:
@@ -728,25 +738,27 @@ class BakeryWelcomeModal(ModalScreen):
         models_with_custom = list(models)
         models_with_custom.append(("[*] Custom Model ID...", "custom"))
         model_select.set_options(models_with_custom)
-        if models_with_custom:
-            model_select.value = models_with_custom[0][1]
 
         spec = get_provider_spec(provider)
         prov_name = spec.name if spec else provider.upper()
         count = len(models)
-        if is_live:
-            status_label.update(f"[bold #52b788]✓ Live API Handshake Success:[/] Discovered {count} models directly from {prov_name}!")
+        if count > 0:
+            model_select.value = models_with_custom[0][1]
+            status_label.update(f"[bold #52b788]✓ Live Discovery Success:[/] Discovered {count} models directly from {prov_name}!")
             mascot.set_dialogue(
                 f"Connected to {prov_name}! Discovered {count} live models. Select your default model or type a custom one!",
-                status=f"Live Handshake: {count} Models",
+                status=f"Discovery: {count} Models",
                 badge="LIVE REGISTRY"
             )
         else:
-            status_label.update(f"[dim]Showing {count} verified curated models for {prov_name}[/dim]")
+            model_select.value = "custom"
+            custom_input.styles.display = "block"
+            custom_input.placeholder = f"Enter {prov_name} model ID (e.g. {provider}-chat)..."
+            status_label.update(f"[dim]No models discovered online. Enter your desired {prov_name} model ID below:[/dim]")
             mascot.set_dialogue(
-                f"Selected {prov_name}. Pick your default model from the verified list below or enter a custom model ID.",
-                status=f"Curated: {count} Models",
-                badge="MODEL SELECTION"
+                f"Enter your model ID for {prov_name} below, or press Save to continue to your dough bin.",
+                status="Manual Model Entry",
+                badge="MODEL CONFIG"
             )
 
     def on_select_changed(self, event: Select.Changed) -> None:

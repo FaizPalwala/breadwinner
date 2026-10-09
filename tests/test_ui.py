@@ -548,3 +548,41 @@ async def test_breadwinner_app_error_change_model_auto_retries():
             app.screen.dismiss(None)
 
 
+@pytest.mark.anyio
+async def test_model_quick_switcher_unconfigured_provider_routes_to_welcome_with_sources():
+    from breadwinner.ui.welcome import BakeryWelcomeModal
+    from breadwinner.ui.app import ModelQuickSwitcherModal
+
+    app = BreadwinnerApp()
+    async with app.run_test(size=(120, 36)) as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        pushed_screens = []
+        orig_push_screen = app.push_screen
+        def tracking_push_screen(screen, callback=None):
+            pushed_screens.append(screen)
+            return orig_push_screen(screen, callback)
+        app.push_screen = tracking_push_screen
+
+        # Set up a pending bake retry with staged sources
+        app._pending_bake_retry = {
+            "task_type": "ingest",
+            "target_info": {"sources": ["https://faizpalwala.tech"], "pantry": app.pantry}
+        }
+
+        # Simulate selecting an unconfigured provider (deepseek) from the switcher
+        app._on_model_switched({"action": "setup_provider", "provider": "deepseek"})
+        await pilot.pause(0.1)
+
+        # BakeryWelcomeModal should have been pushed with initial_step="ai", initial_provider="deepseek", and preserved sources
+        welcome_modals = [s for s in pushed_screens if isinstance(s, BakeryWelcomeModal)]
+        assert len(welcome_modals) == 1
+        wm = welcome_modals[0]
+        assert wm.initial_step == "ai"
+        assert wm.active_provider == "deepseek"
+        assert wm.staged_ingredients == ["https://faizpalwala.tech"]
+
+
+

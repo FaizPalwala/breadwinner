@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from textual.app import App
 from textual.widgets import Input, TextArea, Button, Select, Static
 
+from breadwinner.providers.discovery import ProviderDiscovery
 from breadwinner.ui.welcome import BakeryWelcomeModal
 
 
@@ -136,6 +137,12 @@ async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     monkeypatch.chdir(tmp_path)
 
+    monkeypatch.setattr(
+        ProviderDiscovery,
+        "fetch_models_with_status",
+        lambda prov, api_key=None: ([("Gemini 2.0 Flash", "gemini-2.0-flash")], True)
+    )
+
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
     app = WelcomeHostApp(modal)
@@ -237,6 +244,15 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
     """Verify that Step 2 fetches and populates live models for active configured providers."""
     monkeypatch.chdir(tmp_path)
 
+    def mock_fetch(provider, api_key=None):
+        if provider == "groq":
+            return [("Llama 3.3 70B", "llama-3.3-70b-versatile")], True
+        if provider == "gemini":
+            return [("Gemini 2.0 Flash", "gemini-2.0-flash")], True
+        return [], False
+
+    monkeypatch.setattr(ProviderDiscovery, "fetch_models_with_status", mock_fetch)
+
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
     app = WelcomeHostApp(modal)
@@ -279,7 +295,7 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
         # Switch to Gemini
         active_sel.value = "gemini"
         await pilot.pause()
-        assert model_sel.value == "gemini-3.8-flash"
+        assert model_sel.value == "gemini-2.0-flash"
 
 
 @pytest.mark.anyio
@@ -287,6 +303,13 @@ async def test_welcome_modal_step2_single_provider_badge_and_filter(tmp_path, mo
     """Verify that when only 1 provider is configured, Step 2 displays a single-engine badge,
     hides the provider select dropdown, and strictly populates its models."""
     monkeypatch.chdir(tmp_path)
+
+    def mock_fetch(provider, api_key=None):
+        if provider == "gemini":
+            return [("Gemini 2.0 Flash", "gemini-2.0-flash")], True
+        return [], False
+
+    monkeypatch.setattr(ProviderDiscovery, "fetch_models_with_status", mock_fetch)
 
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
@@ -314,7 +337,7 @@ async def test_welcome_modal_step2_single_provider_badge_and_filter(tmp_path, mo
         assert "Google Gemini" in str(badge.render())
 
         # Models populated should be Gemini's, not Anthropic/OpenAI
-        assert model_sel.value == "gemini-3.8-flash"
+        assert model_sel.value == "gemini-2.0-flash"
 
 
 @pytest.mark.anyio
@@ -339,6 +362,12 @@ async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
     """Verify Option C: user can choose Custom Model ID on Step 2 and enter custom model."""
     env_file = tmp_path / ".env"
     monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(
+        ProviderDiscovery,
+        "fetch_models_with_status",
+        lambda prov, api_key=None: ([("Gemini 2.0 Flash", "gemini-2.0-flash")], True)
+    )
 
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")
@@ -397,6 +426,12 @@ async def test_welcome_modal_openrouter_setup(tmp_path, monkeypatch):
     """Verify setting up OpenRouter provider and advancing through Step 1 and Step 2."""
     env_file = tmp_path / ".env"
     monkeypatch.chdir(tmp_path)
+
+    monkeypatch.setattr(
+        ProviderDiscovery,
+        "fetch_models_with_status",
+        lambda prov, api_key=None: ([("Claude 3.7 Sonnet", "anthropic/claude-3.7-sonnet")], True)
+    )
 
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry, initial_step="ai")

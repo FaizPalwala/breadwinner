@@ -1191,7 +1191,8 @@ class ModelQuickSwitcherModal(ModalScreen):
 
     def _build_all_items(self) -> List[PaletteModelItem]:
         prov_order = ["gemini", "anthropic", "deepseek", "groq", "openai", "openrouter", "mistral", "ollama", "lmstudio", "mock"]
-        grouped_items: List[PaletteModelItem] = []
+        ready_items: List[PaletteModelItem] = []
+        unconfigured_items: List[PaletteModelItem] = []
 
         for slug in prov_order:
             st = self.status_map.get(slug)
@@ -1200,31 +1201,42 @@ class ModelQuickSwitcherModal(ModalScreen):
             models: List[Tuple[str, str]] = []
             if st and st.models:
                 models = [(m.name or m.id, m.id) for m in st.models]
+            elif slug == "mock":
+                models = PROVIDER_MODELS.get("mock", [])
+
+            if is_avail and models:
+                pref_model_id = getattr(settings, f"{slug}_model", models[0][1] if models else "")
+                prov_ready: List[PaletteModelItem] = []
+                for idx, (disp, mid) in enumerate(models):
+                    clean_disp = disp.split("(")[0].strip()
+                    is_act = (slug == self.active_prov and (mid == self.cur_model or (not self.cur_model and idx == 0)))
+                    item = PaletteModelItem(
+                        provider_slug=slug,
+                        provider_name=prov_name,
+                        model_id=mid,
+                        display_name=clean_disp,
+                        is_available=True,
+                        is_active=is_act,
+                    )
+                    if mid == pref_model_id or (idx == 0 and not prov_ready):
+                        prov_ready.insert(0, item)
+                    else:
+                        prov_ready.append(item)
+                ready_items.extend(prov_ready)
             else:
-                models = PROVIDER_MODELS.get(slug, [])
-
-            pref_model_id = getattr(settings, f"{slug}_model", models[0][1] if models else "")
-            current_prov_items: List[PaletteModelItem] = []
-
-            for idx, (disp, mid) in enumerate(models):
-                clean_disp = disp.split("(")[0].strip()
-                is_act = (slug == self.active_prov and (mid == self.cur_model or (not self.cur_model and idx == 0)))
-                item = PaletteModelItem(
-                    provider_slug=slug,
-                    provider_name=prov_name,
-                    model_id=mid,
-                    display_name=clean_disp,
-                    is_available=is_avail,
-                    is_active=is_act,
+                # Strictly ONE row for unconfigured provider - zero speculative models!
+                unconfigured_items.append(
+                    PaletteModelItem(
+                        provider_slug=slug,
+                        provider_name=prov_name,
+                        model_id="Key Required" if slug not in ("ollama", "lmstudio") else "Offline",
+                        display_name=f"Setup {prov_name}",
+                        is_available=False,
+                        is_active=(slug == self.active_prov),
+                    )
                 )
-                if mid == pref_model_id or (idx == 0 and not current_prov_items):
-                    current_prov_items.insert(0, item)
-                else:
-                    current_prov_items.append(item)
 
-            grouped_items.extend(current_prov_items)
-
-        return grouped_items
+        return ready_items + unconfigured_items
 
     def compose(self) -> ComposeResult:
         with Vertical(id="switcher-dialog"):
@@ -1249,16 +1261,16 @@ class ModelQuickSwitcherModal(ModalScreen):
         color = self.PROVIDER_COLORS.get(item.provider_slug, "#8be9fd")
         p_tag = f"[{item.provider_slug.upper()}]"
 
-        if item.is_active:
+        if item.is_active and item.is_available:
             status_markup = "[bold #ffb86c]● ACTIVE[/bold #ffb86c]"
         elif item.is_available:
             status_markup = "[#50fa7b]● READY[/#50fa7b]"
         else:
-            status_markup = "[dim]○ SETUP[/dim]"
+            status_markup = "[dim]○ UNCONFIGURED[/dim]"
 
         hotkey_markup = f"[bold #ffb86c]{hotkey}[/bold #ffb86c]" if 1 <= index <= 9 else "[dim]   [/dim]"
-        prov_markup = f"[bold {color}]{p_tag:<10}[/bold {color}]"
-        display = item.display_name[:22].ljust(22)
+        prov_markup = f"[bold {color}]{p_tag:<12}[/bold {color}]"
+        display = item.display_name[:24].ljust(24)
         mid = item.model_id[:18].ljust(18)
 
         line = f"{hotkey_markup} {prov_markup} {display} [dim]{mid}[/dim] {status_markup}"
@@ -1295,25 +1307,24 @@ class ModelQuickSwitcherModal(ModalScreen):
         opt_list = self.query_one("#switcher-list", OptionList)
         opt_list.clear_options()
 
-        prov_order = ["gemini", "anthropic", "deepseek", "groq", "openai", "openrouter", "mistral", "ollama", "lmstudio", "mock"]
-        # Include custom provider slug if present
-        seen_slugs = set(prov_order)
-        for it in matching_items:
-            if it.provider_slug not in seen_slugs:
-                prov_order.append(it.provider_slug)
-                seen_slugs.add(it.provider_slug)
+        ready_group = [it for it in matching_items if it.is_available]
+        unconfigured_group = [it for it in matching_items if not it.is_available]
 
         global_idx = 1
-        for slug in prov_order:
-            group_items = [it for it in matching_items if it.provider_slug == slug]
-            if not group_items:
-                continue
-            color = self.PROVIDER_COLORS.get(slug, "#8be9fd")
-            prov_display_name = group_items[0].provider_name.upper()
-            header_text = Text.from_markup(f"[bold {color}]── ◈ {prov_display_name} ({len(group_items)}) ──────────────────────────────[/]")
-            opt_list.add_option(Option(header_text, id=f"hdr-{slug}", disabled=True))
+        if ready_group:
+            opt_list.add_option(Option(Text.from_markup("[bold #50fa7b]── ◈ READY ENGINES ──────────────────────────────────────[/]"), id="hdr-ready", disabled=True))
+            for item in ready_group:
+                hotkey_idx = global_idx if 1 <= global_idx <= 9 else 0
+                prompt = self._format_option_text(item, hotkey_idx)
+                opt_id = f"opt-{global_idx}"
+                opt_list.add_option(Option(prompt, id=opt_id))
+                self._option_item_map[opt_id] = item
+                self._selectable_items.append(item)
+                global_idx += 1
 
-            for item in group_items:
+        if unconfigured_group:
+            opt_list.add_option(Option(Text.from_markup("[bold #6272a4]── ◈ UNCONFIGURED ENGINES (Press Enter to Setup) ──────[/]"), id="hdr-unconfigured", disabled=True))
+            for item in unconfigured_group:
                 hotkey_idx = global_idx if 1 <= global_idx <= 9 else 0
                 prompt = self._format_option_text(item, hotkey_idx)
                 opt_id = f"opt-{global_idx}"
@@ -1376,6 +1387,10 @@ class ModelQuickSwitcherModal(ModalScreen):
 
     def _activate_item(self, item: PaletteModelItem) -> None:
         prov = item.provider_slug
+        if not item.is_available:
+            self.dismiss({"action": "setup_provider", "provider": prov})
+            return
+
         model_val = item.model_id
         model_env_map = {
             "gemini": "GEMINI_MODEL",
@@ -1401,7 +1416,7 @@ class ModelQuickSwitcherModal(ModalScreen):
         if hasattr(settings, attr_name):
             setattr(settings, attr_name, model_val)
 
-        self.dismiss({"provider": prov, "model": model_val})
+        self.dismiss({"action": "switch_model", "provider": prov, "model": model_val})
 
 
 class BakerySettingsModal(ModalScreen):
@@ -2127,10 +2142,29 @@ class BreadwinnerApp(App):
     def action_switch_model(self) -> None:
         self.push_screen(ModelQuickSwitcherModal(), self._on_model_switched)
 
-    def _on_model_switched(self, result: Optional[Dict[str, str]]) -> None:
+    def _on_model_switched(self, result: Optional[Dict[str, Any]]) -> None:
         if not result:
             self._pending_bake_retry = None
             return
+
+        if result.get("action") == "setup_provider":
+            prov = result.get("provider", "gemini")
+            staged_sources = []
+            if getattr(self, "_pending_bake_retry", None):
+                retry_info = self._pending_bake_retry
+                target_info = retry_info.get("target_info", {})
+                staged_sources = target_info.get("sources", [])
+            self.push_screen(
+                BakeryWelcomeModal(
+                    pantry=self.pantry,
+                    initial_step="ai",
+                    initial_provider=prov,
+                    initial_sources=staged_sources,
+                ),
+                self._on_welcome_modal_dismissed,
+            )
+            return
+
         prov = result.get("provider", "").upper()
         model = result.get("model", "")
         try:
