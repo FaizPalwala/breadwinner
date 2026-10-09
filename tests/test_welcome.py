@@ -107,7 +107,7 @@ async def test_welcome_modal_drag_and_drop_cleaning():
 
 
 @pytest.mark.anyio
-async def test_welcome_modal_tabs_and_bio():
+async def test_welcome_modal_raw_bio_dough_bin():
     """Verify entering raw career bio notes in the unified Dough Bin."""
     mock_pantry = MagicMock()
     modal = BakeryWelcomeModal(pantry=mock_pantry)
@@ -279,7 +279,7 @@ async def test_welcome_modal_step2_live_model_discovery(tmp_path, monkeypatch):
         # Switch to Gemini
         active_sel.value = "gemini"
         await pilot.pause()
-        assert model_sel.value == "gemini-2.0-flash"
+        assert model_sel.value == "gemini-3.8-flash"
 
 
 @pytest.mark.anyio
@@ -314,7 +314,7 @@ async def test_welcome_modal_step2_single_provider_badge_and_filter(tmp_path, mo
         assert "Google Gemini" in str(badge.render())
 
         # Models populated should be Gemini's, not Anthropic/OpenAI
-        assert model_sel.value == "gemini-2.0-flash"
+        assert model_sel.value == "gemini-3.8-flash"
 
 
 @pytest.mark.anyio
@@ -582,14 +582,14 @@ async def test_welcome_modal_multi_source_staging():
         source_input = modal.query_one("#input-welcome-source", Input)
 
         # 1. Type website and hit Enter (Input.Submitted)
-        source_input.value = "faizpalwala.tech"
+        source_input.value = "candidate-portfolio.tech"
         await source_input.action_submit()
         await pilot.pause()
 
         # Input should be cleared for next ingredient and staged in tray
         assert source_input.value == ""
         assert len(modal.staged_ingredients) == 1
-        assert "faizpalwala.tech" in modal.staged_ingredients
+        assert "candidate-portfolio.tech" in modal.staged_ingredients
         assert len(modal.query(".ingredient-pill")) == 1
 
         # 2. Add second ingredient: dissertation
@@ -608,7 +608,7 @@ async def test_welcome_modal_multi_source_staging():
 
     assert app.result is not None
     assert app.result["action"] == "import"
-    assert app.result["sources"] == ["https://faizpalwala.tech", "/Users/test/dissertation.pdf"]
+    assert app.result["sources"] == ["https://candidate-portfolio.tech", "/Users/test/dissertation.pdf"]
 
 
 @pytest.mark.anyio
@@ -663,7 +663,7 @@ async def test_welcome_modal_drag_and_drop_paste_event():
         source_input = modal.query_one("#input-welcome-source", Input)
 
         # User started typing website
-        source_input.value = "faizpalwala.tech"
+        source_input.value = "candidate-portfolio.tech"
         await pilot.pause()
 
         # User drops dissertation.pdf from Finder into the terminal
@@ -671,7 +671,7 @@ async def test_welcome_modal_drag_and_drop_paste_event():
         await pilot.pause()
 
         # Existing website should have been moved into staged_ingredients queue
-        assert "faizpalwala.tech" in modal.staged_ingredients
+        assert "candidate-portfolio.tech" in modal.staged_ingredients
         # And input now holds the clean dropped path
         assert source_input.value == "/Users/test/dissertation.pdf"
 
@@ -682,7 +682,7 @@ async def test_welcome_modal_drag_and_drop_paste_event():
 
     assert app.result is not None
     assert app.result["action"] == "import"
-    assert app.result["sources"] == ["https://faizpalwala.tech", "/Users/test/dissertation.pdf"]
+    assert app.result["sources"] == ["https://candidate-portfolio.tech", "/Users/test/dissertation.pdf"]
 
 
 

@@ -40,8 +40,6 @@ def _pad_frame(raw_lines: List[str], target_width: int) -> str:
         diff = target_width - cur_len
         if diff > 0:
             out.append(line + (" " * diff))
-        elif diff < 0:
-            out.append(plain[:target_width])
         else:
             out.append(line)
     return "\n".join(out)
@@ -52,77 +50,71 @@ OVEN_FRAMES = [
         "           [#8be9fd](  ([/]",
         "            [#8be9fd])  )[/]  [#ffb86c]~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
-        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  [#f59e0b]░░[/] [bold #f59e0b]( · · )[/] [#f59e0b]░░[/]   \\ [/]   [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/   * ( · · ) *   \ [/] [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "   [#ffb86c]450°F HEARTH • STONE PEEL[/]",
-        ""
-    ], 32),
+        "  [#ffb86c]450°F HEARTH • STONE PEEL[/]"
+    ], 29),
     _pad_frame([
         "            [#8be9fd])  )[/]",
         "           [#8be9fd](  ([/]   [#ffb86c]~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
-        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  [#ffb86c]░░[/] [bold #ffb86c]( 彡 彡 )[/] [#ffb86c]░░[/]  \\ [/]   [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/   * ( ~ ~ ) *   \ [/] [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "   [#ffb86c]450°F HEARTH • CRACKLING[/]",
-        ""
-    ], 32),
+        "  [#ffb86c]450°F HEARTH • CRACKLING [/]"
+    ], 29),
     _pad_frame([
         "           [#8be9fd]~  ~[/]  [#ffb86c]~[/]",
         "            [#8be9fd]~  ~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
-        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  *  [bold #ffb86c]( ◉ ◉ )[/]  *   \\ [/]   [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/   * ( ◉ ◉ ) *   \ [/] [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "  [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]",
-        ""
-    ], 32),
+        "  [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]"
+    ], 29),
     _pad_frame([
         "            [#8be9fd].  .[/]",
         "           [#8be9fd].  .[/]   [#ffb86c]~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
-        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]  [#d18f52]║[/]",
+        "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/  ★  [bold #50fa7b]( ★ ★ )[/]  ★   \\ [/]   [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/   ★ ( ★ ★ ) ★   \ [/] [#d18f52]║[/]",
+        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "  [#ffb86c]450°F HEARTH • CARAMELIZING[/]",
-        ""
-    ], 32)
+        "  [#ffb86c]450°F HEARTH • CARAMELIZING[/]"
+    ], 29)
 ]
 
 OVEN_CELEBRATION_FRAME = _pad_frame([
-    "     [bold #50fa7b]★   ★   ★   ★   ★[/]",
+    "    [bold #50fa7b]★    ★    ★    ★    ★[/]",
     "   [bold #f1fa8c]* DING! FRESH LOAF! *[/]",
     "  [#50fa7b]╔═════════════════════════╗[/]",
     "  [#50fa7b]║[/]  [bold #50fa7b]* MASTERPIECE BAKED *[/]  [#50fa7b]║[/]",
     "  [#50fa7b]║[/]     [#f1fa8c].─────────────.[/]     [#50fa7b]║[/]",
-    r"  [#50fa7b]║[/]    [#f1fa8c]/  ★ [bold #f59e0b]GOLDEN BOULE[/] ★  \\ [/]   [#50fa7b]║[/]",
-    "  [#50fa7b]║[/]   [#f1fa8c]|  READY TO SERVE   |[/]   [#50fa7b]║[/]",
+    r"  [#50fa7b]║[/]  [#f1fa8c]/ ★ GOLDEN BOULE ★ \ [/]  [#50fa7b]║[/]",
+    "  [#50fa7b]║[/]  [#f1fa8c]|   READY TO SERVE  |[/]  [#50fa7b]║[/]",
     "  [#50fa7b]╚═════════════════════════╝[/]",
-    "  [bold #50fa7b]CRUST: *CRUNCH* • 100% DONE[/]",
-    ""
-], 32)
+    " [bold #50fa7b]CRUST: CRUNCH • 100% DONE[/] "
+], 29)
 
 OVEN_BURNT_FRAME = _pad_frame([
-    "        [bold #ff5555]X   X   X   X[/]",
+    "        [bold #ff5555]✕   ✕   ✕   ✕[/]",
     "      [bold #ff5555]* BURNT CRUST! *[/]",
     "  [#ff5555]╔═════════════════════════╗[/]",
-    "  [#ff5555]║[/]  [bold #ff5555]* SMOKE ALARM RINGING *[/][#ff5555]║[/]",
+    "  [#ff5555]║[/] [bold #ff5555]* SMOKE ALARM RINGING *[/] [#ff5555]║[/]",
     "  [#ff5555]║[/]     [#ff5555].─────────────.[/]     [#ff5555]║[/]",
-    r"  [#ff5555]║[/]    [#ff5555]/   [dim]░░░ [bold white]X[/] ░░░[/]   \\ [/]    [#ff5555]║[/]",
-    "  [#ff5555]║[/]   [#ff5555]|   OVEN MALFUNCTION  |[/]   [#ff5555]║[/]",
+    r"  [#ff5555]║[/]    [#ff5555]/  ░░░  ✕  ░░░  \ [/]   [#ff5555]║[/]",
+    "  [#ff5555]║[/]  [#ff5555]|  OVEN MALFUNCTION |[/]  [#ff5555]║[/]",
     "  [#ff5555]╚═════════════════════════╝[/]",
-    "   [bold #ff5555]CHECK LOGS OR RE-ATTEMPT[/]",
-    ""
-], 32)
+    "  [bold #ff5555]CHECK LOGS OR RE-ATTEMPT[/] "
+], 29)
 
 MASCOT_FRAMES = [
     _pad_frame([
@@ -261,9 +253,10 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 }
 
 #baking-modal-container {
-    width: 76;
+    width: 88;
     height: auto;
-    max-height: 92%;
+    max-height: 88vh;
+    overflow-y: auto;
     background: #0d111a;
     border: double #ffb86c;
     padding: 1 2;
@@ -272,7 +265,7 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 #oven-widget {
     text-align: center;
     height: auto;
-    margin: 1 0;
+    margin: 0 0;
 }
 
 #mascot-widget {
@@ -285,7 +278,7 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
     text-align: center;
     color: #f1fa8c;
     text-style: bold;
-    margin: 1 0;
+    margin: 0 0 1 0;
 }
 
 #retro-progress-gauge {
@@ -296,15 +289,15 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 #baking-score-card {
     background: #161c2d;
     border: round #50fa7b;
-    padding: 1;
-    margin: 1 0;
+    padding: 0 1;
+    margin: 0 0 1 0;
     display: none;
 }
 
 #baking-action-bar {
     align: center middle;
     height: 3;
-    margin-top: 1;
+    margin-top: 0;
 }
 """
 
@@ -471,7 +464,7 @@ class BakeryStepper(Static):
         ("[~]", "KNEAD"),
         ("[≡]", "PROOF"),
         ("[▲]", "OVEN"),
-        ("[★]", "GOLDEN LOAF")
+        ("[★]", "LOAF")
     ]
 
     def __init__(self, current_stage: int = 0, id: Optional[str] = None, classes: Optional[str] = "retro-stepper"):
@@ -530,7 +523,7 @@ class BakingModal(ModalScreen):
 
     def __init__(
         self,
-        task_type: str,  # "tailor" or "bake_pdf"
+        task_type: str,  # "tailor" or "bake_pdf" or "ingest"
         target_info: Dict[str, Any],
         on_complete_callback=None
     ):
@@ -544,9 +537,13 @@ class BakingModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="baking-modal-container"):
             header_title = (
-                "[✦] BREADWINNER ARCADE BAKERY [✦]"
-                if self.task_type == "tailor"
-                else "[▲] HEADLESS OVEN PDF BAKE [▲]"
+                "[✦] STOCKING THE CAREER PANTRY [✦]"
+                if self.task_type == "ingest"
+                else (
+                    "[✦] BREADWINNER ARCADE BAKERY [✦]"
+                    if self.task_type == "tailor"
+                    else "[▲] HEADLESS OVEN PDF BAKE [▲]"
+                )
             )
             with Horizontal(classes="modal-header-bar"):
                 yield Label(f"[bold #ffb86c]{header_title}[/bold #ffb86c]", id="baking-title", classes="modal-header-title")

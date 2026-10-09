@@ -201,7 +201,15 @@ async def test_breadwinner_app_ingest_baking_modal_and_auto_interview(monkeypatc
         })
         await pilot.pause(0.2)
 
-        # Ingest modal is pushed
+        # Ingest discovery modal is pushed first (ADR-002 Stage 3)
+        from breadwinner.ui.discovery import IngredientDiscoveryModal
+        assert isinstance(app.screen, IngredientDiscoveryModal)
+
+        # User submits selected ingredients
+        app.screen.action_submit()
+        await pilot.pause(0.2)
+
+        # BakingModal is now active
         assert isinstance(app.screen, BakingModal)
         assert app.screen.task_type == "ingest"
 

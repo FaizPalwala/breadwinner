@@ -670,7 +670,7 @@ class BakeryWelcomeModal(ModalScreen):
                 with Vertical(id="welcome-dropzone-box"):
                     yield Label("UNIVERSAL DOUGH BIN: Drop files or enter website/notes (Enter to add)", classes="dropzone-label")
                     yield UniversalDropzoneInput(
-                        placeholder="e.g. faizpalwala.tech, dissertation.pdf (Enter to queue)...",
+                        placeholder="e.g. https://portfolio.dev, resume.pdf (Enter to queue)...",
                         id="input-welcome-source"
                     )
                     yield Static("[dim]Waiting for ingredients... (type or drop and press Enter to queue)[/dim]", id="ingredient-badge")

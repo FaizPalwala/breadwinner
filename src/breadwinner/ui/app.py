@@ -58,6 +58,7 @@ from breadwinner.ui.retro import (
     RetroProgressBar,
     BakingModal
 )
+from breadwinner.ui.discovery import IngredientDiscoveryModal
 from breadwinner.ui.welcome import (
     BakeryWelcomeModal,
     save_env_config,
@@ -2005,12 +2006,20 @@ class BreadwinnerApp(App):
             sources_to_ingest = sources if sources else [source] if source else []
             if sources_to_ingest:
                 self.push_screen(
-                    BakingModal(
-                        task_type="ingest",
-                        target_info={"sources": sources_to_ingest, "pantry": self.pantry}
-                    ),
-                    self._on_ingest_baking_modal_dismissed
+                    IngredientDiscoveryModal(sources=sources_to_ingest),
+                    self._on_ingredient_discovery_dismissed
                 )
+
+    def _on_ingredient_discovery_dismissed(self, selected_sources: Optional[List[str]]) -> None:
+        if not selected_sources:
+            return
+        self.push_screen(
+            BakingModal(
+                task_type="ingest",
+                target_info={"sources": selected_sources, "pantry": self.pantry}
+            ),
+            self._on_ingest_baking_modal_dismissed
+        )
 
     def _on_ingest_baking_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
         if not result or not result.get("success"):
@@ -3272,10 +3281,28 @@ class BreadwinnerApp(App):
             self.notify("Please ingest a base profile first.", severity="warning")
             return
         profile = self.pantry.load_profile()
+        provider = None
         try:
-            questions = generate_adaptive_questions(profile, provider=None)
+            provider = get_llm_provider()
+        except Exception:
+            pass
+
+        dossier_text = None
+        if hasattr(self.pantry, "get_dossier_summary"):
+            try:
+                dossier_text = self.pantry.get_dossier_summary()
+            except Exception:
+                pass
+
+        try:
+            questions = generate_adaptive_questions(profile, provider=provider, dossier_context=dossier_text)
         except Exception:
             questions = INTERVIEW_QUESTIONS
+
+        if not questions:
+            self.notify("✓ Verified all experience & project details. No clarification needed!", title="Pantry Verified")
+            return
+
         self.push_screen(PantryInterviewModal(questions=questions), self._on_interview_submitted)
 
     def _on_interview_submitted(self, answers: Optional[Dict[str, str]]) -> None:

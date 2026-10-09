@@ -410,9 +410,10 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 }
 
 #baking-modal-container {
-    width: 76;
+    width: 88;
     height: auto;
-    max-height: 92%;
+    max-height: 88vh;
+    overflow-y: auto;
     background: #0d111a;
     border: double #ffb86c;
     padding: 1 2;
@@ -421,7 +422,7 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 #oven-widget {
     text-align: center;
     height: auto;
-    margin: 1 0;
+    margin: 0 0;
 }
 
 #mascot-widget {
@@ -434,7 +435,7 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
     text-align: center;
     color: #f1fa8c;
     text-style: bold;
-    margin: 1 0;
+    margin: 0 0 1 0;
 }
 
 #retro-progress-gauge {
@@ -445,13 +446,61 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 #baking-score-card {
     background: #161c2d;
     border: round #50fa7b;
-    padding: 1;
-    margin: 1 0;
+    padding: 0 1;
+    margin: 0 0 1 0;
     display: none;
 }
 
 #baking-action-bar {
     align: center middle;
     height: 3;
-    margin-top: 1;
+    margin-top: 0;
 }
+
+/* ==========================================================================
+   Ingredient Discovery Modal (ADR-002 Stage 3)
+   ========================================================================== */
+IngredientDiscoveryModal {
+    align: center middle;
+}
+
+#discovery-modal-container {
+    width: 88;
+    height: auto;
+    max-height: 88vh;
+    background: #0d111a;
+    border: double #ffb86c;
+    padding: 1 2;
+}
+
+#discovery-header-bar {
+    height: 1;
+    width: 100%;
+    align: left middle;
+    margin-bottom: 1;
+}
+
+#discovery-title {
+    width: 1fr;
+    color: #ffb86c;
+    text-style: bold;
+}
+
+#discovery-subtitle {
+    color: #8be9fd;
+    margin-bottom: 1;
+}
+
+#discovery-selection-list {
+    height: 12;
+    max-height: 14;
+    border: round #6272a4;
+    background: #161c2d;
+    margin-bottom: 1;
+}
+
+#discovery-actions {
+    height: 3;
+    align: right middle;
+}
+
