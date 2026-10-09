@@ -2022,7 +2022,12 @@ class BreadwinnerApp(App):
         )
 
     def _on_ingest_baking_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
-        if not result or not result.get("success"):
+        if not result:
+            return
+        if result.get("action") == "change_model":
+            self.action_switch_model()
+            return
+        if not result.get("success"):
             return
 
         profile = result.get("profile")
@@ -3189,11 +3194,8 @@ class BreadwinnerApp(App):
             return
 
         self.push_screen(
-            BakingModal(
-                task_type="ingest",
-                target_info={"sources": sources_list, "pantry": self.pantry}
-            ),
-            self._on_ingest_baking_modal_dismissed
+            IngredientDiscoveryModal(sources=sources_list),
+            self._on_ingredient_discovery_dismissed
         )
 
     @work(thread=True)
@@ -3606,13 +3608,26 @@ class BreadwinnerApp(App):
         )
 
     def _on_tailoring_modal_dismissed(self, result: Optional[Dict[str, Any]]) -> None:
-        if not result or not result.get("success"):
+        if not result:
             try:
                 self.set_global_stage(0)
                 oven = self.query_one("#studio-oven", AnimatedOven)
                 oven.set_state("idle")
             except Exception:
                 pass
+            return
+
+        if result.get("action") == "change_model":
+            try:
+                self.set_global_stage(0)
+                oven = self.query_one("#studio-oven", AnimatedOven)
+                oven.set_state("idle")
+            except Exception:
+                pass
+            self.action_switch_model()
+            return
+
+        if not result.get("success"):
             return
 
         app_result = result["app_result"]
