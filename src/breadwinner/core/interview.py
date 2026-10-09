@@ -37,47 +37,71 @@ def generate_gap_interview_questions(
     """Proactively audit candidate profile and dossier to generate targeted gap-filling interview questions.
 
     Identifies:
-    1. Unquantified bullets lacking verified metrics or system scale.
+    1. Unquantified bullets lacking verified metrics or system scale (quotes bullet directly).
     2. Architectural tradeoffs or missing technical scope in projects.
     3. Missing market logistics (visa, notice period, location stance).
     """
-    metric_pattern = re.compile(r"(\d+%?|\$\d+|\b[0-9]+[kKmMbB]?\b|p99|p95|qps|tps|\b[0-9]+\s*(?:ms|sec|min|users|req))", re.IGNORECASE)
+    metric_pattern = re.compile(
+        r"(\d+%\b|\$\d+|\b\d+[kKmMbB]\b|p99|p95|qps|tps|\b\d+\s*(?:ms|sec|min|users|req|members|clients|engineers|people|times|x\b)|\b\d{2,}\b)",
+        re.IGNORECASE
+    )
 
-    # 1. Collect unquantified or vague experiences
+    # 1. Identify genuinely unquantified experiences (bullets lacking scale, numbers, or metrics)
     unquantified_exps = []
     for exp in (profile.experiences or []):
         vague_bullets = [b for b in (exp.bullets or []) if not metric_pattern.search(b)]
-        if vague_bullets or len(exp.bullets or []) <= 1:
+        if vague_bullets:
             unquantified_exps.append({
-                "company": exp.company,
-                "role": exp.role,
-                "bullets": exp.bullets[:2]
+                "company": exp.company or "Recent Role",
+                "role": exp.role or "Engineer",
+                "vague_bullets": vague_bullets[:2]
             })
 
-    # 2. LLM Proactive Audit if provider is available
-    if provider:
+    # 2. Identify genuinely vague projects (short description, no highlights, no metrics)
+    vague_projects = []
+    for p in (profile.projects or []):
+        has_highlights = bool(p.highlights and any(metric_pattern.search(h) or len(h) > 25 for h in p.highlights))
+        has_desc_metric = bool(p.description and metric_pattern.search(p.description))
+        is_rich_desc = bool(p.description and len(p.description.strip()) > 75 and p.tech_stack)
+        if not (has_highlights or has_desc_metric or is_rich_desc):
+            vague_projects.append({
+                "name": p.name or "Project",
+                "description": p.description or "",
+                "tech": p.tech_stack or [],
+                "highlights": p.highlights or []
+            })
+
+    # If the candidate has existing experiences/projects and nothing is vague, no questions needed!
+    has_profile_content = bool(profile.experiences or profile.projects)
+    if has_profile_content and not unquantified_exps and not vague_projects:
+        return []
+
+    # 3. LLM Proactive Audit if provider is available
+    if provider and (unquantified_exps or vague_projects):
         try:
             sys_prompt = (
                 "You are Breadwinner's Senior Career Strategist & Anti-Hallucination Ingestion Auditor. "
-                "Audit the candidate's verified profile and dossier to uncover gaps, unquantified claims, missing architecture, and vague logistics. "
-                "Generate 2 to 4 proactive, high-leverage probing questions. "
-                "Rules:\n"
-                "1. UNQUANTIFIED BULLETS: Target specific vague statements lacking numbers, throughput, latency, or scale. Probe for exact metrics.\n"
-                "2. ARCHITECTURAL TRADEOFFS: Probe for distributed decisions, concurrency models, or database indexing in stated projects.\n"
-                "3. MARKET LOGISTICS: Probe for work authorization, notice period, and hybrid/remote constraints if unstated.\n"
-                "Return JSON matching: {\"questions\": [{\"id\": \"gap_...\", \"title\": \"...\", \"prompt\": \"...\", \"placeholder\": \"...\"}]}"
+                "Audit the candidate's verified profile, projects, and dossier to uncover concrete metric gaps. "
+                "CRITICAL INSTRUCTION: ONLY generate a question if a role bullet or project description is genuinely vague or lacks quantifiable metrics (XYZ formula: Y = measured metric, Z = technical method). "
+                "If an accomplishment or project already specifies concrete metrics, scale, and technical architecture, DO NOT ask about it. "
+                "If all items are already sufficiently detailed and quantified, return an empty list: {\"questions\": []}.\n"
+                "Rules for questions:\n"
+                "1. QUOTE EXACT STATEMENTS: Always quote the candidate's exact bullet or project description.\n"
+                "2. PROBE FOR GOOGLE XYZ METRICS: Ask for missing Y (measured metric: % improvement, QPS, latency, volume, cost) and Z (technical method: algorithm, concurrency, architecture).\n"
+                "3. ACADEMIC & RESEARCH: If a dissertation or thesis is mentioned, ask for empirical scale, dataset size, benchmark evaluation, or production applicability.\n"
+                "4. Return JSON matching: {\"questions\": [{\"id\": \"gap_...\", \"title\": \"...\", \"prompt\": \"...\", \"placeholder\": \"...\"}]}"
             )
             user_prompt = (
                 f"CANDIDATE: {profile.full_name} ({profile.title})\n"
                 f"EXPERIENCES NEEDING QUANTIFICATION:\n{json.dumps(unquantified_exps[:3], indent=2)}\n"
-                f"PROJECTS:\n{json.dumps([{'name': p.name, 'tech': p.tech_stack} for p in (profile.projects or [])[:3]], indent=2)}\n"
+                f"PROJECTS NEEDING SPECIFICS:\n{json.dumps(vague_projects[:3], indent=2)}\n"
             )
             if dossier_context:
-                user_prompt += f"\nDEEP DOSSIER SNIPPET:\n{dossier_context[:1000]}"
+                user_prompt += f"\nDEEP DOSSIER SNIPPET:\n{dossier_context[:1200]}"
 
             res = provider.generate_json(sys_prompt, user_prompt)
             raw_qs = res.get("questions", [])
-            if isinstance(raw_qs, list) and len(raw_qs) >= 2:
+            if isinstance(raw_qs, list):
                 formatted = []
                 for q in raw_qs[:4]:
                     formatted.append({
@@ -86,46 +110,57 @@ def generate_gap_interview_questions(
                         "prompt": q.get("prompt", q.get("question", "")),
                         "placeholder": q.get("placeholder", "e.g., Scaled system to 100k QPS...")
                     })
-                if len(formatted) >= 2:
-                    return formatted
+                return formatted
         except Exception:
             pass
 
-    # 3. Rule-based Heuristic Fallback
+    # 4. Rule-based Heuristic Fallback for genuinely vague items
     questions: List[Dict[str, str]] = []
 
-    for i, exp in enumerate(profile.experiences or []):
-        has_metrics = any(bool(metric_pattern.search(b)) for b in (exp.bullets or []))
-        if not has_metrics or len(exp.bullets or []) <= 1:
-            company = exp.company or "your recent role"
-            role = exp.role or "Engineer"
+    for exp_item in unquantified_exps[:2]:
+        company = exp_item["company"]
+        role = exp_item["role"]
+        for b_sample in exp_item["vague_bullets"][:2]:
+            b_clean = b_sample.strip()
+            if len(b_clean) > 75:
+                b_clean = b_clean[:72] + "..."
+            prompt_str = (
+                f"At {company} as {role}, you mentioned: \"{b_clean}\". "
+                f"What concrete scale or impact did this achieve? (e.g. latency reduction, request throughput, or user volume)?"
+            )
             questions.append({
-                "id": f"metric_gap_{i}",
+                "id": f"metric_gap_{len(questions)}",
                 "title": f"Quantifying Impact at {company}",
-                "prompt": f"At {company} as {role}, what concrete metrics, scale, throughput, or latency did you achieve?",
-                "placeholder": f"e.g. Scaled system throughput to handle peak load at {company}, reducing p99 latency by 35%."
+                "prompt": prompt_str,
+                "placeholder": f"e.g. Handled 50k peak QPS at {company}, reducing p99 latency by 35%."
             })
             if len(questions) >= 2:
                 break
+        if len(questions) >= 2:
+            break
 
-    for j, proj in enumerate(profile.projects or []):
-        pname = proj.name or f"Project #{j+1}"
+    for j, proj_item in enumerate(vague_projects[:2]):
+        pname = proj_item["name"]
+        desc = proj_item["description"].strip()
+        if desc:
+            d_sample = desc if len(desc) <= 75 else desc[:72] + "..."
+            prompt_str = (
+                f"For {pname} (\"{d_sample}\"), what were the critical architectural decisions, "
+                f"tradeoffs, or measured throughput metrics?"
+            )
+        else:
+            prompt_str = f"For {pname}, what were the critical architectural decisions, tradeoffs, or challenges you tackled?"
+
         questions.append({
             "id": f"proj_arch_{j}",
             "title": f"Architecture & Tradeoffs in {pname}",
-            "prompt": f"For {pname}, what were the critical architectural decisions, tradeoffs, or challenges you tackled?",
-            "placeholder": f"e.g. Architected {pname} using event-driven streaming to achieve near-zero latency."
+            "prompt": prompt_str,
+            "placeholder": f"e.g. Architected {pname} using event-driven streaming to achieve sub-10ms latency."
         })
-        if len(questions) >= 4:
-            break
 
-    # Ensure baseline questions fill in if profile was sparse
-    if len(questions) < 2:
-        for q in INTERVIEW_QUESTIONS:
-            if not any(existing["id"] == q["id"] for existing in questions):
-                questions.append(q)
-            if len(questions) >= 3:
-                break
+    # Only fall back to baseline questions if the profile was completely blank
+    if not has_profile_content and not questions:
+        return INTERVIEW_QUESTIONS[:3]
 
     return questions[:4]
 
@@ -133,9 +168,10 @@ def generate_gap_interview_questions(
 def generate_adaptive_questions(
     profile: CandidateProfile,
     provider: Optional[BaseLLMProvider] = None,
+    dossier_context: Optional[str] = None
 ) -> List[Dict[str, str]]:
     """Backward-compatible wrapper for generating gap-filling interview questions."""
-    return generate_gap_interview_questions(profile, provider=provider)
+    return generate_gap_interview_questions(profile, provider=provider, dossier_context=dossier_context)
 
 
 def synthesize_context(

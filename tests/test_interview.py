@@ -60,3 +60,33 @@ def test_generate_gap_interview_questions():
     # 3. Test backward-compatible adaptive wrapper
     adapt_qs = generate_adaptive_questions(profile, provider=mock_provider)
     assert len(adapt_qs) >= 2
+
+
+def test_fully_quantified_profile_returns_no_questions():
+    """Verify that when candidate bullets and projects already have verified metrics, no questions are asked."""
+    profile = CandidateProfile(
+        full_name="Faiz Palwala",
+        title="AI/ML Engineer",
+        experiences=[
+            {
+                "company": "Deloitte",
+                "role": "Software Engineer",
+                "bullets": [
+                    "Architected and scaled resilient enterprise microservices for healthcare platform serving 23M+ members over 4 years."
+                ]
+            }
+        ],
+        projects=[
+            {
+                "name": "SFHQ-VirtualID",
+                "description": "A reproducible pipeline that generates synthetic, identity-conditioned face clusters, released as a citable benchmark for machine unlearning.",
+                "tech_stack": ["Python", "PyTorch", "Diffusers", "InstantID"],
+                "highlights": ["Released as citable benchmark achieving 99% identity erasure."]
+            }
+        ]
+    )
+
+    # Both fallback and provider should acknowledge zero gaps
+    qs_fallback = generate_gap_interview_questions(profile, provider=None)
+    assert len(qs_fallback) == 0
+
