@@ -33,7 +33,8 @@ class PersonaManager:
 
     @classmethod
     def get_user_dir(cls) -> Path:
-        return Path("user_personas")
+        from breadwinner.config import settings
+        return settings.user_personas_dir
 
     @classmethod
     def load_persona(cls, persona_name: str, custom_dir: Optional[Path] = None) -> Persona:

@@ -28,37 +28,48 @@ class IngestionError(Exception):
 
 
 def classify_document(text: str, source_label: str = "") -> str:
-    """Classifies input into: 'project_readme', 'academic', 'portfolio', 'resume', or 'general'."""
+    """Classifies input into: 'academic', 'portfolio', 'project_readme', 'resume', or 'general'."""
     lower_src = source_label.lower()
     lower_text = text.lower()[:5000]
 
-    # Check for project README
-    if "readme" in lower_src or "project" in lower_src:
-        return "project_readme"
-    if ("# " in text or "## " in text) and any(
-        k in lower_text for k in ["installation", "usage", "getting started", "architecture", "license", "contributing", "quickstart"]
-    ):
-        return "project_readme"
-
-    # Check for academic dissertation / thesis / research paper / whitepaper
+    # 1. Academic dissertation / thesis / research paper / whitepaper
     academic_keywords = [
         "dissertation", "thesis", "doctor of philosophy", "ph.d.", "phd thesis",
         "master's thesis", "doctoral dissertation", "advisor:", "adviser:", "committee members",
         "whitepaper", "arxiv:", "doi:"
     ]
-    if any(k in lower_src or k in lower_text for k in academic_keywords):
-        return "academic"
-    if "abstract" in lower_text and any(k in lower_text for k in ["methodology", "literature review", "bibliography", "references", "conclusions"]):
+    if any(k in lower_src for k in academic_keywords) or (
+        any(k in lower_text for k in academic_keywords) and any(k in lower_text for k in ["abstract", "methodology", "literature review", "references", "conclusions"])
+    ):
         return "academic"
 
-    # Check for portfolio or personal site
-    if lower_src.startswith("http://") or lower_src.startswith("https://") or any(
-        k in lower_text for k in ["about me", "my portfolio", "personal blog", "who i am", "get in touch"]
-    ):
+    # 2. Check for explicit README / Repo document
+    if "readme" in lower_src or lower_src.endswith("readme.md") or "raw.githubusercontent.com" in lower_src:
+        return "project_readme"
+
+    # 3. Explicit Resume / CV (filename or standard resume sections)
+    if "resume" in lower_src or "cv" in lower_src or any(k in lower_text for k in ["work experience", "professional experience", "employment history", "curriculum vitae"]):
+        return "resume"
+
+    # 4. Portfolio or personal website (URL or personal domain like faizpalwala.tech)
+    known_doc_exts = {".pdf", ".docx", ".doc", ".txt", ".json", ".md", ".yaml", ".yml", ".rtf"}
+    src_suffix = Path(lower_src).suffix
+    is_domain = (not src_suffix or src_suffix not in known_doc_exts) and bool(re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?$", lower_src))
+    is_web_url = lower_src.startswith("http://") or lower_src.startswith("https://") or is_domain
+    if is_web_url:
         return "portfolio"
 
-    # Check for resume / CV
-    if any(k in lower_text for k in ["work experience", "professional experience", "employment history", "curriculum vitae", "education", "technical skills"]):
+    if any(k in lower_text for k in ["about me", "my portfolio", "personal blog", "who i am", "get in touch"]):
+        return "portfolio"
+
+    # 5. Project README (local files with distinctive software repo sections)
+    if ("# " in text or "## " in text) and any(
+        k in lower_text for k in ["installation\n", "quickstart", "getting started", "contributing\n", "license\n", "npm install", "pip install", "cargo build"]
+    ):
+        return "project_readme"
+
+    # 6. General resume indicators
+    if any(k in lower_text for k in ["education", "technical skills"]):
         return "resume"
 
     return "general"
@@ -266,6 +277,13 @@ class UniversalIngestor:
             link_text = a.get_text(strip=True) or href
             path_lower = parsed_full.path.lower()
 
+            # Anti-ballooning guard: Ignore pagination, query parameters, tags, categories, author pages, and feeds
+            if any(pat in path_lower for pat in [
+                "page=", "?p=", "/page/", "/tag/", "/category/",
+                "/author/", "/archive/", "/feed", "/rss", "?replytocom="
+            ]):
+                continue
+
             if path_lower.endswith(".pdf") or "resume" in path_lower or "cv" in path_lower:
                 discovered.append((full_url, "resume_pdf", link_text or "Download Resume"))
             elif any(k in path_lower for k in ["about", "bio", "experience", "hire"]):
@@ -275,7 +293,10 @@ class UniversalIngestor:
             elif any(k in path_lower for k in ["research", "publication", "paper"]):
                 discovered.append((clean_full, "research", link_text or "Research"))
             elif any(k in path_lower for k in ["blog", "writing", "articles", "noggin", "notes", "posts"]):
-                discovered.append((clean_full, "articles", link_text or "Writing & Technical Blog"))
+                # Anti-ballooning: Limit to top 3 canonical articles
+                existing_articles = sum(1 for _, cat, _ in discovered if cat == "articles")
+                if existing_articles < 3:
+                    discovered.append((clean_full, "articles", link_text or "Writing & Technical Blog"))
 
         # Check standard fallback routes if not found in links
         fallback_checks = [
@@ -518,8 +539,8 @@ class UniversalIngestor:
         if doc_type == "academic":
             return cls._extract_academic_dossier(raw_text, provider, source_label)
 
-        # 3. For long resumes/portfolios (>6,000 chars), use sliding-window map-reduce
-        chunks = chunk_text(raw_text, chunk_size=5000, overlap=400)
+        # 3. For massive documents (>40,000 chars / ~10k tokens), use sliding-window map-reduce
+        chunks = chunk_text(raw_text, chunk_size=35000, overlap=1000)
         if len(chunks) > 1:
             return cls._extract_chunked_profile(chunks, provider, source_label)
 

@@ -92,8 +92,9 @@ def initialize_starter_portfolio(target_dir: Path) -> Path:
 
 def run_setup_wizard(env_file_path: Optional[Path] = None, pantry_dir: Optional[Path] = None) -> bool:
     """Run an interactive onboarding wizard with universal ingestion and interview loop."""
-    env_path = env_file_path or Path(".env")
-    pantry_path = pantry_dir or Path("./pantry")
+    from breadwinner.config import get_env_path
+    env_path = env_file_path or get_env_path()
+    pantry_path = pantry_dir or settings.pantry_dir
 
     console.print(Panel(
         "[bold yellow]🥖 Welcome to Breadwinner![/bold yellow]\n\n"

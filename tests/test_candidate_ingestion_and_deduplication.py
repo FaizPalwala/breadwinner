@@ -21,24 +21,24 @@ from breadwinner.core.models import (
 
 def test_clean_user_input_path():
     """Verify paths dragged from macOS terminal with quotes and spaces are cleaned."""
-    assert clean_user_input_path("'/Users/faiz/Desktop/My Resume.pdf'") == "/Users/faiz/Desktop/My Resume.pdf"
-    assert clean_user_input_path('"file:///Users/faiz/My%20Dissertation.pdf"') == "/Users/faiz/My Dissertation.pdf"
-    assert clean_user_input_path(r"/Users/faiz/My\ Work\ History.docx") == "/Users/faiz/My Work History.docx"
+    assert clean_user_input_path("'/Users/alex/Desktop/My Resume.pdf'") == "/Users/alex/Desktop/My Resume.pdf"
+    assert clean_user_input_path('"file:///Users/alex/My%20Dissertation.pdf"') == "/Users/alex/My Dissertation.pdf"
+    assert clean_user_input_path(r"/Users/alex/My\ Work\ History.docx") == "/Users/alex/My Work History.docx"
 
 
 def test_normalize_source_schemeless_domains():
     """Verify bare domains, URLs, GitHub handles, and local files are classified properly."""
-    label, kind = normalize_source("faizpalwala.tech")
+    label, kind = normalize_source("alex-portfolio.dev")
     assert kind == "url"
-    assert label == "https://faizpalwala.tech"
+    assert label == "https://alex-portfolio.dev"
 
     label, kind = normalize_source("https://example.com/about")
     assert kind == "url"
     assert label == "https://example.com/about"
 
-    label, kind = normalize_source("@faizpalwala")
+    label, kind = normalize_source("@octocat")
     assert kind == "url"
-    assert label == "https://github.com/faizpalwala"
+    assert label == "https://github.com/octocat"
 
     label, kind = normalize_source("Just some raw career notes without domains")
     assert kind == "text"
@@ -57,7 +57,7 @@ def test_merge_profiles_metric_maximization():
         ]
     )
     base_profile = CandidateProfile(
-        full_name="Faiz Palwala",
+        full_name="Alex Mercer",
         title="Staff AI Engineer",
         experiences=[base_exp]
     )
@@ -73,7 +73,7 @@ def test_merge_profiles_metric_maximization():
         ]
     )
     incoming_profile = CandidateProfile(
-        full_name="Faiz Palwala",
+        full_name="Alex Mercer",
         title="Staff AI Engineer",
         experiences=[incoming_exp]
     )
@@ -110,7 +110,7 @@ def test_discover_portfolio_routes():
 
     with patch("requests.get", return_value=mock_resp):
         with patch("requests.head", side_effect=Exception("No head")):
-            routes = UniversalIngestor.discover_portfolio_routes("https://faizpalwala.tech")
+            routes = UniversalIngestor.discover_portfolio_routes("https://alex-portfolio.dev")
 
     cats = {r[1] for r in routes}
     assert "resume_pdf" in cats
@@ -124,11 +124,11 @@ def test_universal_ingest_bare_domain_mock():
     """Verify UniversalIngestor.ingest handles bare domain without throwing scheme errors."""
     mock_provider = MagicMock()
     mock_provider.generate_json.return_value = {
-        "full_name": "Faiz Palwala",
+        "full_name": "Alex Mercer",
         "title": "Lead AI Architect",
         "experiences": [
             {
-                "company": "Deloitte",
+                "company": "Acme Corp",
                 "role": "Senior Consultant",
                 "start_date": "2021",
                 "end_date": "2023",
@@ -141,8 +141,8 @@ def test_universal_ingest_bare_domain_mock():
     }
 
     with patch.object(UniversalIngestor, "extract_deep_portfolio", return_value=("Homepage text", {})):
-        profile = UniversalIngestor.ingest("faizpalwala.tech", mock_provider)
+        profile = UniversalIngestor.ingest("alex-portfolio.dev", mock_provider)
 
-    assert profile.full_name == "Faiz Palwala"
+    assert profile.full_name == "Alex Mercer"
     assert len(profile.experiences) == 1
-    assert profile.experiences[0].company == "Deloitte"
+    assert profile.experiences[0].company == "Acme Corp"
