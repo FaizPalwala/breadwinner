@@ -107,14 +107,14 @@ OVEN_CELEBRATION_FRAME = _pad_frame([
 
 OVEN_BURNT_FRAME = _pad_frame([
     "        [bold #ff5555]✕   ✕   ✕   ✕[/]",
-    "      [bold #ff5555]* BURNT CRUST! *[/]",
+    "      [bold #ff5555]* SMOKE ALARM RINGING *[/]",
     "  [#ff5555]╔═════════════════════════╗[/]",
-    "  [#ff5555]║[/] [bold #ff5555]* SMOKE ALARM RINGING *[/] [#ff5555]║[/]",
+    "  [#ff5555]║[/]   [bold #ff5555]* HEARTH OFF-LINE *[/]   [#ff5555]║[/]",
     "  [#ff5555]║[/]     [#ff5555].─────────────.[/]     [#ff5555]║[/]",
     r"  [#ff5555]║[/]    [#ff5555]/  ░░░  ✕  ░░░  \ [/]   [#ff5555]║[/]",
     "  [#ff5555]║[/]    [#ff5555]|   BURNT CRUST |[/]    [#ff5555]║[/]",
     "  [#ff5555]╚═════════════════════════╝[/]",
-    "  [bold #ff5555]450°F HEARTH • BURNT CRUST [/]"
+    "  [bold #ff5555]450°F HEARTH • COOLDOWN    [/]"
 ], 29)
 
 MASCOT_FRAMES = [
@@ -258,6 +258,12 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
     height: auto;
     max-height: 88vh;
     overflow-y: auto;
+    scrollbar-size-vertical: 1;
+    scrollbar-background: #0d111a;
+    scrollbar-color: #6272a4;
+    scrollbar-color-hover: #ffb86c;
+    scrollbar-color-active: #f1fa8c;
+    scrollbar-corner-color: #0d111a;
     background: #0d111a;
     border: double #ffb86c;
     padding: 1 2;
@@ -603,10 +609,9 @@ def clean_error_message(raw_msg: str) -> Tuple[str, str]:
 
     # 1. Quota / Rate limit (429)
     if "429" in msg_str or "RESOURCE_EXHAUSTED" in msg_str or "quota" in msg_str.lower():
-        headline = "API Rate Limit / Quota Exceeded (HTTP 429)"
+        headline = "API Quota Exceeded (HTTP 429)"
         detail = (
-            f"[bold red]{clean_snippet}[/bold red]\n\n"
-            f"[dim]The active model reached its request or per-minute token quota limit.[/dim]\n"
+            f"[bold #ff5555]{clean_snippet}[/bold #ff5555]\n\n"
             f"[bold #ffb86c]Recommendation:[/] Click 'Change Model' below to switch to another active model or retry in a moment."
         )
         return headline, detail
@@ -615,8 +620,7 @@ def clean_error_message(raw_msg: str) -> Tuple[str, str]:
     if "404" in msg_str or "NOT_FOUND" in msg_str or "not found" in msg_str.lower():
         headline = "Model Not Found / Retired (HTTP 404)"
         detail = (
-            f"[bold red]{clean_snippet}[/bold red]\n\n"
-            f"[dim]The configured model is no longer active on this API endpoint.[/dim]\n"
+            f"[bold #ff5555]{clean_snippet}[/bold #ff5555]\n\n"
             f"[bold #ffb86c]Recommendation:[/] Click 'Change Model' below to choose an active model in Settings."
         )
         return headline, detail
@@ -625,8 +629,7 @@ def clean_error_message(raw_msg: str) -> Tuple[str, str]:
     if any(k in msg_str for k in ["401", "403", "API_KEY_INVALID", "invalid_api_key", "Unauthorized"]):
         headline = "Authentication Failed (HTTP 401/403)"
         detail = (
-            f"[bold red]{clean_snippet}[/bold red]\n\n"
-            f"[dim]The API key is invalid or unauthorized.[/dim]\n"
+            f"[bold #ff5555]{clean_snippet}[/bold #ff5555]\n\n"
             f"[bold #ffb86c]Recommendation:[/] Verify your API key or configure a different provider in Settings."
         )
         return headline, detail
@@ -635,18 +638,16 @@ def clean_error_message(raw_msg: str) -> Tuple[str, str]:
     if any(k in msg_str.lower() for k in ["connection", "timeout", "timed out", "max retries", "network"]):
         headline = "Network / Connection Timeout"
         detail = (
-            f"[bold red]{clean_snippet}[/bold red]\n\n"
-            f"[dim]Failed to connect to the target endpoint or host.[/dim]\n"
+            f"[bold #ff5555]{clean_snippet}[/bold #ff5555]\n\n"
             f"[bold #ffb86c]Recommendation:[/] Check internet connection or target site availability."
         )
         return headline, detail
 
     # 5. Ingestion / Remote Service (500 / 503)
     if any(k in msg_str.lower() for k in ["ingestionerror", "500", "503", "service unavailable"]):
-        headline = "Hearth Ingestion / Remote Service Error"
+        headline = "Remote Service Error (HTTP 500/503)"
         detail = (
-            f"[bold red]{clean_snippet}[/bold red]\n\n"
-            f"[dim]The remote server failed to provide content or returned an error status.[/dim]\n"
+            f"[bold #ff5555]{clean_snippet}[/bold #ff5555]\n\n"
             f"[bold #ffb86c]Recommendation:[/] Verify the URL or try again shortly."
         )
         return headline, detail
@@ -654,8 +655,7 @@ def clean_error_message(raw_msg: str) -> Tuple[str, str]:
     # 6. Fallback generic
     headline = "Baking Hearth Malfunction"
     detail = (
-        f"[bold red]{clean_snippet}[/bold red]\n\n"
-        f"[dim]An unexpected error occurred during processing.[/dim]\n"
+        f"[bold #ff5555]{clean_snippet}[/bold #ff5555]\n\n"
         f"[bold #ffb86c]Recommendation:[/] Click 'Change Model' to try another model or check logs."
     )
     return headline, detail
@@ -1084,12 +1084,18 @@ class BakingModal(ModalScreen):
         headline, detail = clean_error_message(error_msg)
 
         status_lbl = self.query_one("#baking-status-text", Label)
-        status_lbl.update(f"[bold #ff5555][✕] BURNT CRUST: {headline} [✕][/bold #ff5555]")
+        status_lbl.update("[bold #ff5555][✕] Baking Halted — Hearth Malfunction [✕][/bold #ff5555]")
 
-        # Hide progress gauge on failure so diagnosis card has ample vertical space
+        # Hide progress gauge & stepper on failure so diagnosis card has ample vertical space and no scrollbars
         try:
             gauge = self.query_one("#retro-progress-gauge", RetroProgressBar)
             gauge.display = False
+        except Exception:
+            pass
+
+        try:
+            stepper = self.query_one("#modal-stepper", BakeryStepper)
+            stepper.display = False
         except Exception:
             pass
 
@@ -1098,7 +1104,7 @@ class BakingModal(ModalScreen):
         score_card.display = True
 
         score_title = self.query_one("#score-card-title", Label)
-        score_title.update("[bold #ff5555][!] Hearth Malfunction Diagnosis[/bold #ff5555]")
+        score_title.update(f"[bold #ff5555][!] {headline}[/bold #ff5555]")
 
         score_details = self.query_one("#score-card-details", Label)
         score_details.update(detail)
@@ -1111,7 +1117,6 @@ class BakingModal(ModalScreen):
         change_btn.label = "Change Model"
 
         try:
-            score_card.scroll_visible()
             change_btn.focus()
         except Exception:
             pass

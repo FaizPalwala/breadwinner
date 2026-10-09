@@ -414,6 +414,12 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
     height: auto;
     max-height: 88vh;
     overflow-y: auto;
+    scrollbar-size-vertical: 1;
+    scrollbar-background: #0d111a;
+    scrollbar-color: #6272a4;
+    scrollbar-color-hover: #ffb86c;
+    scrollbar-color-active: #f1fa8c;
+    scrollbar-corner-color: #0d111a;
     background: #0d111a;
     border: double #ffb86c;
     padding: 1 2;

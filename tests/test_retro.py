@@ -13,7 +13,7 @@ from breadwinner.ui.retro import (
     MASCOT_FRAMES
 )
 from textual.app import App, ComposeResult
-from textual.widgets import Button
+from textual.widgets import Button, Label
 
 
 def test_animated_oven_frames_and_states():
@@ -195,20 +195,31 @@ async def test_baking_modal_error_state_and_change_model():
         modal._show_error_screen("Error code: 429 - [{'error': {'code': 429, 'message': 'Quota exceeded'}}]")
         await pilot.pause(0.1)
 
-        # Verify change model button is now displayed
-        change_btn = modal.query_one("#btn-modal-change-model", Button)
-        assert change_btn.display is True
-        assert change_btn.label.plain == "Change Model"
+        # Verify stepper and gauge are hidden to save vertical space
+        assert modal.query_one("#modal-stepper").display is False
+        assert modal.query_one("#retro-progress-gauge").display is False
+
+        # Verify status text is clean and doesn't repeat 429
+        status_lbl = modal.query_one("#baking-status-text", Label)
+        assert "Baking Halted — Hearth Malfunction" in str(status_lbl.render())
+        assert "429" not in str(status_lbl.render())
 
         # Verify score card displays clean error
         card = modal.query_one("#baking-score-card")
         assert card.display is True
         assert "error-card" in card.classes
 
+        score_title = modal.query_one("#score-card-title", Label)
+        assert "429" in str(score_title.render())
+
         cancel_btn = modal.query_one("#btn-modal-cancel", Button)
         assert "Dismiss (Esc)" in cancel_btn.label.plain
 
         # Click change model button and verify dismiss action
+        change_btn = modal.query_one("#btn-modal-change-model", Button)
+        assert change_btn.display is True
+        assert change_btn.label.plain == "Change Model"
+
         dismissed_payload = None
         orig_dismiss = modal.dismiss
         def mock_dismiss(result=None):
