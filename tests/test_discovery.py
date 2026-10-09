@@ -152,3 +152,89 @@ def test_provider_discovery_filters_non_chat_gemini_models(monkeypatch):
     # Usable models must be preserved in ranked order
     assert model_ids == ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
 
+
+def test_discover_all_ingredients_bracketed_titles_do_not_vanish(monkeypatch):
+    from breadwinner.core.ingestor import UniversalIngestor
+    from rich.text import Text
+
+    # Simulate portfolio returning raw bracketed markdown-style navigation titles
+    monkeypatch.setattr(
+        UniversalIngestor,
+        "discover_portfolio_routes",
+        lambda base_url, timeout=4: [
+            (f"{base_url}/about", "about", "[hire_me]"),
+            (f"{base_url}/projects", "projects", "[./projects]"),
+            (f"{base_url}/noggin", "articles", "[noggin]"),
+            (f"{base_url}/thesis", "research", "[thesis]"),
+            (f"{base_url}/projects/graphcontext", "projects", "GraphContext MCP"),
+        ]
+    )
+
+    items = discover_all_ingredients(["https://faizpalwala.tech"])
+    for item in items:
+        # Render the label with Rich to verify no tags get stripped into empty dashes
+        rendered = Text.from_markup(item.label).plain
+        assert "—" in rendered
+        title_part = rendered.split("—", 1)[1].strip()
+        assert len(title_part) > 0, f"Title vanished after dash in label: {item.label}"
+        assert not title_part.startswith("[]"), f"Uncleaned brackets in: {title_part}"
+
+
+def test_discover_portfolio_routes_scans_projects_index(monkeypatch):
+    import requests
+    from breadwinner.core.ingestor import UniversalIngestor
+
+    homepage_html = """
+    <html>
+      <body>
+        <a href="/about">[hire_me]</a>
+        <a href="/projects">[./projects]</a>
+        <a href="/projects/sfhq"><h3>SFHQ-VirtualID</h3><p>Synthetic identity benchmark</p></a>
+        <a href="/projects/graphcontext"><h3>GraphContext MCP</h3><p>Privacy-first assistant</p></a>
+        <a href="/projects/calendar"><h3>Serverless GitHub Calendar</h3><p>Architecture for React</p></a>
+        <a href="/projects/unlearning"><h3>MSc Project: Unlearning</h3><p>Evaluation framework</p></a>
+      </body>
+    </html>
+    """
+
+    projects_page_html = """
+    <html>
+      <body>
+        <a href="/projects/sfhq"><h3>SFHQ-VirtualID</h3></a>
+        <a href="/projects/graphcontext"><h3>GraphContext MCP</h3></a>
+        <a href="/projects/calendar"><h3>Serverless GitHub Calendar</h3></a>
+        <a href="/projects/unlearning"><h3>MSc Project: Unlearning</h3></a>
+        <a href="/projects/breadwinner"><h3>Breadwinner</h3><p>Anti-hallucination studio</p></a>
+        <a href="/projects/portfolio"><h3>This Portfolio</h3><p>Astro + Tailwind</p></a>
+      </body>
+    </html>
+    """
+
+    class MockResp:
+        def __init__(self, text):
+            self.text = text
+            self.status_code = 200
+        def raise_for_status(self):
+            pass
+
+    def mock_get(url, *args, **kwargs):
+        if url.rstrip("/").endswith("/projects"):
+            return MockResp(projects_page_html)
+        return MockResp(homepage_html)
+
+    monkeypatch.setattr(requests, "get", mock_get)
+
+    routes = UniversalIngestor.discover_portfolio_routes("https://faizpalwala.tech")
+    proj_routes = [r for r in routes if r[1] == "projects"]
+    
+    # All 6 projects + projects index must be discovered
+    proj_titles = [r[2] for r in proj_routes]
+    assert "SFHQ-VirtualID" in proj_titles
+    assert "GraphContext MCP" in proj_titles
+    assert "Serverless GitHub Calendar" in proj_titles
+    assert "Breadwinner" in proj_titles
+    assert "This Portfolio" in proj_titles
+    assert any("Unlearning" in t for t in proj_titles)
+    # Total projects: index + 6 projects = 7
+    assert len(proj_routes) >= 7
+

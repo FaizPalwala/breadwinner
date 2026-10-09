@@ -274,7 +274,16 @@ class UniversalIngestor:
                 continue
             seen_urls.add(clean_full)
 
-            link_text = a.get_text(strip=True) or href
+            # Extract clean title: prefer heading child tag, or use space separator
+            heading = a.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+            if heading:
+                link_text = heading.get_text(separator=" ", strip=True)
+            else:
+                full_text = a.get_text(separator=" ", strip=True)
+                lines = [l.strip() for l in full_text.splitlines() if l.strip()]
+                link_text = lines[0] if lines else href
+
+            clean_title = link_text.strip().strip("[]").strip(".").strip("/").strip()
             path_lower = parsed_full.path.lower()
 
             # Anti-ballooning guard: Ignore pagination, query parameters, tags, categories, author pages, and feeds
@@ -285,25 +294,64 @@ class UniversalIngestor:
                 continue
 
             if path_lower.endswith(".pdf") or "resume" in path_lower or "cv" in path_lower:
-                discovered.append((full_url, "resume_pdf", link_text or "Download Resume"))
+                pdf_name = Path(parsed_full.path).stem.replace("_", " ").replace("-", " ").title()
+                pdf_title = clean_title if clean_title and clean_title.lower() not in ("pdf", "download", "download resume") else pdf_name
+                discovered.append((full_url, "resume_pdf", pdf_title or "Download Resume (PDF)"))
             elif any(k in path_lower for k in ["about", "bio", "experience", "hire"]):
-                discovered.append((clean_full, "about", link_text or "About & Career"))
+                about_title = clean_title if clean_title.lower() not in ("about", "bio", "hire_me", "hire-me", "hire me") else "About & Experience"
+                discovered.append((clean_full, "about", about_title or "About & Experience"))
             elif any(k in path_lower for k in ["project", "work", "portfolio", "showcase"]):
-                discovered.append((clean_full, "projects", link_text or "Projects"))
-            elif any(k in path_lower for k in ["research", "publication", "paper"]):
-                discovered.append((clean_full, "research", link_text or "Research"))
+                proj_title = clean_title if clean_title.lower() not in ("projects", "work", "portfolio", "showcase") else "All Projects Index"
+                discovered.append((clean_full, "projects", proj_title or "Projects"))
+            elif any(k in path_lower for k in ["research", "publication", "paper", "thesis", "dissertation"]):
+                res_title = clean_title if clean_title.lower() not in ("research", "thesis", "dissertation") else "Research & Thesis"
+                discovered.append((clean_full, "research", res_title or "Research"))
             elif any(k in path_lower for k in ["blog", "writing", "articles", "noggin", "notes", "posts"]):
                 # Anti-ballooning: Limit to top 3 canonical articles
                 existing_articles = sum(1 for _, cat, _ in discovered if cat == "articles")
                 if existing_articles < 3:
-                    discovered.append((clean_full, "articles", link_text or "Writing & Technical Blog"))
+                    art_title = clean_title if clean_title.lower() not in ("blog", "writing", "articles", "noggin", "posts") else "Technical Writing / Blog"
+                    discovered.append((clean_full, "articles", art_title or "Technical Writing"))
+
+        # Probe dedicated projects index page if found (to discover all individual projects)
+        project_index_urls = [
+            r[0] for r in discovered
+            if r[1] == "projects" and r[0] != base_url and r[0].rstrip("/").split("/")[-1] in ("projects", "work", "portfolio", "showcase")
+        ]
+        for proj_idx_url in project_index_urls[:2]:
+            try:
+                p_resp = requests.get(proj_idx_url, headers=headers, timeout=timeout)
+                if p_resp.status_code == 200:
+                    p_soup = BeautifulSoup(p_resp.text, "html.parser")
+                    for p_a in p_soup.find_all("a", href=True):
+                        p_href = p_a["href"].strip()
+                        if not p_href or p_href.startswith("#") or p_href.startswith("mailto:") or p_href.startswith("javascript:"):
+                            continue
+                        p_full = urljoin(proj_idx_url, p_href)
+                        p_parsed = urlparse(p_full)
+                        p_clean = p_full.split("#")[0].rstrip("/")
+                        if p_clean in seen_urls:
+                            continue
+                        # Discover project subpages on the same domain
+                        if p_parsed.netloc == parsed_base.netloc and any(sub in p_parsed.path.lower() for sub in ["/projects/", "/work/", "/portfolio/"]):
+                            seen_urls.add(p_clean)
+                            p_head = p_a.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+                            p_t = p_head.get_text(separator=" ", strip=True) if p_head else p_a.get_text(separator=" ", strip=True)
+                            p_lines = [l.strip() for l in p_t.splitlines() if l.strip()]
+                            p_title = p_lines[0] if p_lines else p_href
+                            p_title = p_title.strip().strip("[]").strip(".").strip("/").strip()
+                            if not p_title or len(p_title) < 2:
+                                p_title = p_parsed.path.strip("/").split("/")[-1].replace("-", " ").replace("_", " ").title()
+                            discovered.append((p_clean, "projects", p_title or "Project"))
+            except Exception:
+                pass
 
         # Check standard fallback routes if not found in links
         fallback_checks = [
-            ("/about", "about", "About"),
+            ("/about", "about", "About & Experience"),
             ("/resume.pdf", "resume_pdf", "Resume PDF"),
             ("/projects", "projects", "Projects"),
-            ("/research", "research", "Research"),
+            ("/research", "research", "Research & Thesis"),
         ]
         for route_path, cat, default_title in fallback_checks:
             probe_url = urljoin(base_url, route_path)

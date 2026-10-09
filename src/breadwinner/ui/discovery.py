@@ -11,6 +11,8 @@ from textual.widgets.selection_list import Selection
 from textual.screen import ModalScreen
 from textual.binding import Binding
 
+from rich.markup import escape
+
 from breadwinner.core.ingestor import (
     UniversalIngestor,
     classify_document,
@@ -54,9 +56,10 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
             root_url = clean_item.rstrip("/")
             if root_url not in seen_values:
                 seen_values.add(root_url)
+                esc_root = escape(root_url)
                 discovered.append(
                     DiscoveredIngredient(
-                        label=f"[bold #50fa7b][WEB][/bold #50fa7b] Portfolio Homepage — [cyan]{root_url}[/cyan]",
+                        label=f"[bold #50fa7b][WEB][/bold #50fa7b] Portfolio Homepage — [cyan]{esc_root}[/cyan]",
                         value=root_url,
                         category="web",
                         is_default=True
@@ -72,24 +75,32 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                         continue
                     seen_values.add(r_clean)
 
+                    raw_title = str(title).strip() if title else ""
+                    clean_title = raw_title.strip("[]").strip(".").strip("/").strip()
+                    if not clean_title or len(clean_title) < 2:
+                        clean_title = r_clean.split("/")[-1].replace("-", " ").replace("_", " ").title() or "Page"
+
+                    esc_title = escape(clean_title)
+                    esc_url = escape(r_url)
+
                     if cat == "resume_pdf":
                         badge = "[bold #ffb86c][RESUME][/bold #ffb86c]"
-                        lbl = f"{badge} Discovered PDF — [cyan]{title}[/cyan] ({r_url})"
+                        lbl = f"{badge} Discovered PDF — [cyan]{esc_title}[/cyan] [dim]({esc_url})[/dim]"
                     elif cat == "about":
                         badge = "[bold #8be9fd][BIO][/bold #8be9fd]"
-                        lbl = f"{badge} About & Experience — [cyan]{title}[/cyan]"
+                        lbl = f"{badge} About & Experience — [cyan]{esc_title}[/cyan]"
                     elif cat == "projects":
                         badge = "[bold #bd93f9][PROJECT][/bold #bd93f9]"
-                        lbl = f"{badge} Projects & Showcase — [cyan]{title}[/cyan]"
+                        lbl = f"{badge} Projects & Showcase — [cyan]{esc_title}[/cyan]"
                     elif cat == "research":
                         badge = "[bold #f1fa8c][RESEARCH][/bold #f1fa8c]"
-                        lbl = f"{badge} Research & Thesis — [cyan]{title}[/cyan]"
+                        lbl = f"{badge} Research & Thesis — [cyan]{esc_title}[/cyan]"
                     elif cat == "articles":
                         badge = "[bold #ff79c6][DOSSIER][/bold #ff79c6]"
-                        lbl = f"{badge} Technical Writing / Blog — [cyan]{title}[/cyan]"
+                        lbl = f"{badge} Technical Writing / Blog — [cyan]{esc_title}[/cyan]"
                     else:
                         badge = "[dim][PAGE][/dim]"
-                        lbl = f"{badge} Subpage — [cyan]{title}[/cyan]"
+                        lbl = f"{badge} Subpage — [cyan]{esc_title}[/cyan]"
 
                     discovered.append(
                         DiscoveredIngredient(
@@ -116,14 +127,15 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                     except Exception:
                         doc_type = "general"
 
+                    esc_pname = escape(p.name)
                     if doc_type == "academic":
-                        lbl = f"[bold #f1fa8c][RESEARCH][/bold #f1fa8c] Academic Thesis / Dissertation — [yellow]{p.name}[/yellow]"
+                        lbl = f"[bold #f1fa8c][RESEARCH][/bold #f1fa8c] Academic Thesis / Dissertation — [yellow]{esc_pname}[/yellow]"
                     elif doc_type == "resume":
-                        lbl = f"[bold #ffb86c][RESUME][/bold #ffb86c] Resume / CV Document — [green]{p.name}[/green]"
+                        lbl = f"[bold #ffb86c][RESUME][/bold #ffb86c] Resume / CV Document — [green]{esc_pname}[/green]"
                     elif doc_type == "project_readme":
-                        lbl = f"[bold #bd93f9][PROJECT][/bold #bd93f9] Project Documentation — [cyan]{p.name}[/cyan]"
+                        lbl = f"[bold #bd93f9][PROJECT][/bold #bd93f9] Project Documentation — [cyan]{esc_pname}[/cyan]"
                     else:
-                        lbl = f"[bold #8be9fd][DOC][/bold #8be9fd] Document ({p.suffix.upper().lstrip('.') or 'FILE'}) — [white]{p.name}[/white]"
+                        lbl = f"[bold #8be9fd][DOC][/bold #8be9fd] Document ({p.suffix.upper().lstrip('.') or 'FILE'}) — [white]{esc_pname}[/white]"
 
                     discovered.append(
                         DiscoveredIngredient(
@@ -134,9 +146,10 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                         )
                     )
                 elif p.is_dir():
+                    esc_dname = escape(p.name)
                     discovered.append(
                         DiscoveredIngredient(
-                            label=f"[bold #8be9fd][FOLDER][/bold #8be9fd] Local Directory — [white]{p.name}/[/white]",
+                            label=f"[bold #8be9fd][FOLDER][/bold #8be9fd] Local Directory — [white]{esc_dname}/[/white]",
                             value=val,
                             category="directory",
                             is_default=True
@@ -149,7 +162,7 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
         if val not in seen_values:
             seen_values.add(val)
             char_count = len(clean_item)
-            preview = clean_item[:50].replace("\n", " ")
+            preview = escape(clean_item[:50].replace("\n", " "))
             discovered.append(
                 DiscoveredIngredient(
                     label=f"[bold #50fa7b][NOTES][/bold #50fa7b] Manual Notes / Bio ({char_count} chars) — [dim]\"{preview}...\"[/dim]",
