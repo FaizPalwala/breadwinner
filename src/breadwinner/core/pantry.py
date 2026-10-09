@@ -22,13 +22,27 @@ class PantryManager:
     """Manages the candidate's canonical career context, snapshots, and two-way sync."""
 
     def __init__(self, pantry_dir: Optional[Path] = None):
-        self.pantry_dir = Path(pantry_dir or "./pantry").resolve()
+        from breadwinner.config import settings
+        self.pantry_dir = Path(pantry_dir or settings.pantry_dir).resolve()
         self.profile_path = self.pantry_dir / "profile.json"
         self.profile_yaml_path = self.pantry_dir / "profile.yaml"
         self.context_path = self.pantry_dir / "context.md"
         self.source_path = self.pantry_dir / "source.json"
         self.dossier_dir = self.pantry_dir / "dossier"
         self.history_dir = self.pantry_dir / ".history"
+
+    def clear(self) -> None:
+        """Purge all stored profiles, context, source metadata, dossiers, and history."""
+        for f in [self.profile_path, self.profile_yaml_path, self.context_path, self.source_path]:
+            if f.exists():
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+        if self.history_dir.exists():
+            shutil.rmtree(self.history_dir, ignore_errors=True)
+        if self.dossier_dir.exists():
+            shutil.rmtree(self.dossier_dir, ignore_errors=True)
 
     def is_initialized(self) -> bool:
         """Check if Pantry has a valid canonical profile."""

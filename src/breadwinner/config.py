@@ -1,13 +1,55 @@
 """Configuration module for Breadwinner using Pydantic Settings."""
 
+import os
 from pathlib import Path
 from typing import Optional, Literal
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def get_breadwinner_home() -> Path:
+    """Return the canonical home directory for Breadwinner data and configs.
+
+    Precedence:
+    1. BREADWINNER_HOME environment variable
+    2. ~/.breadwinner
+    """
+    if os.environ.get("BREADWINNER_HOME"):
+        p = Path(os.environ["BREADWINNER_HOME"]).expanduser().resolve()
+    else:
+        p = (Path.home() / ".breadwinner").resolve()
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return p
+
+
+def _is_readable_file(path: Path) -> bool:
+    try:
+        with open(path, "r", encoding="utf-8") as _:
+            return True
+    except Exception:
+        return False
+
+
+def _resolve_env_files() -> tuple[str, ...]:
+    files = []
+    try:
+        home_env = get_breadwinner_home() / ".env"
+        if _is_readable_file(home_env):
+            files.append(str(home_env))
+    except Exception:
+        pass
+    local_env = Path(".env").resolve()
+    if _is_readable_file(local_env) and str(local_env) not in files:
+        files.append(str(local_env))
+    return tuple(files) if files else (".env",)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_resolve_env_files(),
         env_file_encoding="utf-8",
         extra="ignore"
     )
@@ -19,7 +61,7 @@ class Settings(BaseSettings):
 
     # Google Gemini
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.8-flash"
 
     # OpenRouter (Multi-model aggregator)
     openrouter_api_key: Optional[str] = None
@@ -55,17 +97,18 @@ class Settings(BaseSettings):
 
 
     # Portfolio & Sources
-    portfolio_path: Path = Path("./portfolio")
-    pantry_dir: Path = Path("./pantry")
+    portfolio_path: Path = Field(default_factory=lambda: get_breadwinner_home() / "portfolio")
+    pantry_dir: Path = Field(default_factory=lambda: get_breadwinner_home() / "pantry")
 
     # Personas & Templates
     default_persona: str = "tech_ai"
     default_template: str = "jakes"
 
     # Storage paths
-    applications_dir: Path = Path("./applications")
-    database_path: Path = Path("./tracker.db")
-    csv_tracker_path: Optional[Path] = Path("./job_tracker.csv")
+    applications_dir: Path = Field(default_factory=lambda: get_breadwinner_home() / "applications")
+    database_path: Path = Field(default_factory=lambda: get_breadwinner_home() / "tracker.db")
+    csv_tracker_path: Optional[Path] = Field(default_factory=lambda: get_breadwinner_home() / "job_tracker.csv")
+    user_personas_dir: Path = Field(default_factory=lambda: get_breadwinner_home() / "user_personas")
 
     # PDF & Browser
     browser_path: Optional[str] = None
@@ -89,30 +132,42 @@ def save_env_config(env_vars: dict, env_path: Optional[Path] = None) -> None:
     import os
     import stat
 
-    path = env_path or Path(".env")
-    existing_env: dict[str, str] = {}
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                existing_env[k.strip()] = v.strip().strip('"').strip("'")
+    target_paths: list[Path] = [env_path] if env_path else []
+    if not target_paths:
+        primary = get_env_path()
+        target_paths.append(primary)
+        home = get_breadwinner_home() / ".env"
+        if home.resolve() != primary.resolve() and home.exists():
+            target_paths.append(home)
 
-    existing_env.update({k: str(v) for k, v in env_vars.items()})
+    for path in target_paths:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            existing_env: dict[str, str] = {}
+            if path.exists():
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        existing_env[k.strip()] = v.strip().strip('"').strip("'")
 
-    env_lines = [
-        "# Breadwinner Configuration (Auto-generated)",
-        "# Permissions: 0600 (Private)",
-        ""
-    ]
-    for k, v in existing_env.items():
-        env_lines.append(f'{k}="{v}"')
+            existing_env.update({k: str(v) for k, v in env_vars.items()})
 
-    path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
-    try:
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-    except Exception:
-        pass
+            env_lines = [
+                "# Breadwinner Configuration (Auto-generated)",
+                "# Permissions: 0600 (Private)",
+                ""
+            ]
+            for k, v in existing_env.items():
+                env_lines.append(f'{k}="{v}"')
+
+            path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+            try:
+                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     for k, v in env_vars.items():
         os.environ[k] = str(v)
@@ -122,6 +177,22 @@ def save_env_config(env_vars: dict, env_path: Optional[Path] = None) -> None:
 
 
 def get_env_path() -> Path:
-    """Return the path to the local .env configuration file."""
-    return Path(".env").resolve()
+    """Return the path to the active .env configuration file (local first, fallback to canonical home)."""
+    local_env = Path(".env").resolve()
+    if local_env.is_file():
+        return local_env
+    try:
+        home_env = get_breadwinner_home() / ".env"
+        if home_env.is_file():
+            return home_env
+    except Exception:
+        pass
+    # If running directly inside user home directory, prefer home_env to avoid polluting ~
+    try:
+        if Path.cwd().resolve() == Path.home().resolve():
+            return get_breadwinner_home() / ".env"
+    except Exception:
+        pass
+    return local_env
+
 

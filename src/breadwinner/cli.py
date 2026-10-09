@@ -1,5 +1,5 @@
-"""Production-grade Rich CLI interface for Breadwinner."""
-
+import os
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +13,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt, Confirm
 from rich import box
 
-from breadwinner.config import settings
+from breadwinner.config import settings, get_breadwinner_home, get_env_path
 from breadwinner.db.repository import JobRecord, JobRepository
 from breadwinner.core.portfolio import get_profile_source
 from breadwinner.core.scraper import JobScraper
@@ -746,6 +746,228 @@ def ui_cmd(url: Optional[str]):
     app.run()
 
 
+@main.command(name="where")
+def where_cmd():
+    """Display active Breadwinner storage paths, home directory, and environment diagnostics."""
+    home_dir = get_breadwinner_home()
+    env_file = get_env_path()
+    pantry = PantryManager(settings.pantry_dir)
+
+    table = Table(title="🥖 Breadwinner Storage & Environment Map", border_style="#d4a373", box=box.ROUNDED)
+    table.add_column("Component", style="bold cyan", width=22)
+    table.add_column("Location / Value", style="white")
+    table.add_column("Status", style="yellow")
+
+    # Breadwinner Home
+    table.add_row("Breadwinner Home", str(home_dir), "[green]Active[/green]")
+
+    # Pantry
+    if pantry.is_initialized():
+        try:
+            profile = pantry.load_profile()
+            snapshots = pantry.list_snapshots()
+            pantry_status = f"[green]Initialized[/green] ({profile.full_name}, {len(profile.experiences)} roles, {len(snapshots)} snapshots)"
+        except Exception as e:
+            pantry_status = f"[red]Error loading profile ({e})[/red]"
+    else:
+        pantry_status = "[dim]Empty / Not Initialized[/dim]"
+    table.add_row("Career Pantry", str(settings.pantry_dir), pantry_status)
+
+    # Database
+    if settings.database_path.exists():
+        try:
+            repo = JobRepository(settings.database_path)
+            jobs = repo.get_all_jobs()
+            db_status = f"[green]Active[/green] ({len(jobs)} tracked jobs)"
+        except Exception:
+            db_status = "[green]Active[/green] (SQLite file present)"
+    else:
+        db_status = "[dim]Not Created Yet[/dim]"
+    table.add_row("Tracking Database", str(settings.database_path), db_status)
+
+    # CSV Tracker
+    if settings.csv_tracker_path and settings.csv_tracker_path.exists():
+        csv_status = "[green]Active[/green]"
+    else:
+        csv_status = "[dim]Not Created Yet[/dim]"
+    table.add_row("CSV Tracker", str(settings.csv_tracker_path) if settings.csv_tracker_path else "None", csv_status)
+
+    # Applications
+    try:
+        if settings.applications_dir.exists():
+            apps = [p for p in settings.applications_dir.iterdir() if p.is_dir() and not p.name.startswith(".")]
+            app_status = f"[green]Active[/green] ({len(apps)} applications)"
+        else:
+            app_status = "[dim]Empty / Not Created[/dim]"
+    except Exception as e:
+        app_status = f"[yellow]Restricted / Present ({e})[/yellow]"
+    table.add_row("Applications Dir", str(settings.applications_dir), app_status)
+
+    # User Personas
+    try:
+        if settings.user_personas_dir.exists():
+            personas = [p.stem for p in settings.user_personas_dir.glob("*.yaml")]
+            persona_status = f"[green]Active[/green] ({len(personas)} custom: {', '.join(personas) if personas else 'none'})"
+        else:
+            persona_status = "[dim]Default Only[/dim]"
+    except Exception as e:
+        persona_status = f"[yellow]Restricted / Default Only ({e})[/yellow]"
+    table.add_row("User Personas", str(settings.user_personas_dir), persona_status)
+
+    # Configuration .env
+    try:
+        env_status = "[green]Present[/green]" if env_file.exists() else "[dim]Not Found (Using Defaults)[/dim]"
+    except Exception:
+        env_status = "[dim]Not Found (Using Defaults)[/dim]"
+    table.add_row("Environment (.env)", str(env_file), env_status)
+
+    # LLM Provider
+    provider = settings.breadwinner_llm_provider
+    key_found = False
+    if provider == "gemini" and settings.gemini_api_key:
+        key_found = True
+    elif provider == "openrouter" and settings.openrouter_api_key:
+        key_found = True
+    elif provider == "anthropic" and settings.anthropic_api_key:
+        key_found = True
+    elif provider == "openai" and settings.openai_api_key:
+        key_found = True
+    elif provider == "groq" and settings.groq_api_key:
+        key_found = True
+    elif provider in ("mock", "lmstudio", "ollama"):
+        key_found = True
+
+    key_status = "[green]API Key Configured[/green]" if key_found else "[red]Missing API Key[/red]"
+    table.add_row("LLM Provider", f"{provider}", key_status)
+
+    console.print(table)
+
+    # Stray directory check
+    stray_warnings = []
+    try:
+        stray_pantry_cwd = Path("./pantry").resolve()
+        if stray_pantry_cwd != settings.pantry_dir.resolve() and stray_pantry_cwd.exists():
+            stray_warnings.append(f"Stray pantry directory detected in CWD: {stray_pantry_cwd}")
+    except Exception:
+        pass
+
+    try:
+        stray_pantry_home = (Path.home() / "pantry").resolve()
+        if stray_pantry_home != settings.pantry_dir.resolve() and stray_pantry_home.exists():
+            stray_warnings.append(f"Stray pantry directory detected in user home: {stray_pantry_home}")
+    except Exception:
+        pass
+
+    if stray_warnings:
+        console.print(Panel(
+            "\n".join(f"⚠️  {w}" for w in stray_warnings) + "\n\n"
+            "[dim]Run 'breadwinner reset --all' to purge stray directories and harmonize storage.[/dim]",
+            title="Storage Warning",
+            border_style="yellow"
+        ))
+
+
+@main.command(name="reset")
+@click.option("--all", "reset_all", is_flag=True, default=False, help="Reset pantry, applications, database, and personas (preserves API keys)")
+@click.option("--pantry", "reset_pantry", is_flag=True, default=False, help="Clear pantry profile, context, and snapshots")
+@click.option("--db", "reset_db", is_flag=True, default=False, help="Delete tracking database and CSV export")
+@click.option("--applications", "reset_apps", is_flag=True, default=False, help="Delete generated applications")
+@click.option("--personas", "reset_personas", is_flag=True, default=False, help="Delete custom user personas")
+@click.option("--keys", "reset_keys", is_flag=True, default=False, help="Purge API keys from .env")
+@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt")
+def reset_cmd(reset_all: bool, reset_pantry: bool, reset_db: bool, reset_apps: bool, reset_personas: bool, reset_keys: bool, yes: bool):
+    """Reset Breadwinner data, career pantry, applications, or database."""
+    if not (reset_all or reset_pantry or reset_db or reset_apps or reset_personas or reset_keys):
+        reset_all = True
+
+    items_to_reset = []
+    if reset_all or reset_pantry:
+        items_to_reset.append("Career Pantry (profile.json, context.md, snapshots)")
+    if reset_all or reset_db:
+        items_to_reset.append("Job Tracking Database & CSV Tracker")
+    if reset_all or reset_apps:
+        items_to_reset.append("Generated Applications Directory")
+    if reset_all or reset_personas:
+        items_to_reset.append("Custom User Personas")
+    if reset_keys:
+        items_to_reset.append("API Keys & Environment Credentials")
+
+    console.print(Panel(
+        "[bold red]⚠️  Breadwinner Reset Operation[/bold red]\n\n"
+        "The following components will be cleared:\n" +
+        "\n".join(f"  • {item}" for item in items_to_reset),
+        border_style="red"
+    ))
+
+    if not yes:
+        if not Confirm.ask("[bold red]Are you sure you want to proceed with this reset?[/bold red]", default=False):
+            console.print("[yellow]Reset cancelled.[/yellow]")
+            return
+
+    # 1. Pantry
+    if reset_all or reset_pantry:
+        pantry = PantryManager(settings.pantry_dir)
+        pantry.clear()
+        stray_home = (Path.home() / "pantry").resolve()
+        if stray_home.exists() and stray_home != settings.pantry_dir.resolve():
+            shutil.rmtree(stray_home, ignore_errors=True)
+        stray_cwd = Path("./pantry").resolve()
+        if stray_cwd.exists() and stray_cwd != settings.pantry_dir.resolve():
+            shutil.rmtree(stray_cwd, ignore_errors=True)
+        console.print("[bold green]✓ Career Pantry cleared.[/bold green]")
+
+    # 2. Database & CSV
+    if reset_all or reset_db:
+        if settings.database_path.exists():
+            try:
+                settings.database_path.unlink()
+            except Exception:
+                pass
+        stray_db_home = (Path.home() / "tracker.db").resolve()
+        if stray_db_home.exists() and stray_db_home != settings.database_path.resolve():
+            try:
+                stray_db_home.unlink()
+            except Exception:
+                pass
+        stray_db_cwd = Path("./tracker.db").resolve()
+        if stray_db_cwd.exists() and stray_db_cwd != settings.database_path.resolve():
+            try:
+                stray_db_cwd.unlink()
+            except Exception:
+                pass
+        if settings.csv_tracker_path and settings.csv_tracker_path.exists():
+            try:
+                settings.csv_tracker_path.unlink()
+            except Exception:
+                pass
+        console.print("[bold green]✓ Tracking database and CSV reset.[/bold green]")
+
+    # 3. Applications
+    if reset_all or reset_apps:
+        if settings.applications_dir.exists():
+            for child in settings.applications_dir.iterdir():
+                if child.is_dir():
+                    shutil.rmtree(child, ignore_errors=True)
+                elif child.is_file() and not child.name.startswith("."):
+                    child.unlink()
+        console.print("[bold green]✓ Applications directory cleared.[/bold green]")
+
+    # 4. Personas
+    if reset_all or reset_personas:
+        if settings.user_personas_dir.exists():
+            for p in settings.user_personas_dir.glob("*.yaml"):
+                p.unlink()
+        console.print("[bold green]✓ Custom user personas cleared.[/bold green]")
+
+    # 5. Keys
+    if reset_keys:
+        env_file = get_env_path()
+        if env_file.exists():
+            env_file.unlink()
+        console.print("[bold green]✓ API keys and .env removed.[/bold green]")
+
+    console.print("[bold green]✓ Reset operation complete.[/bold green]")
+
 
 # ==============================================================================
 # PANTRY COMMANDS (Canonical Knowledge Base & Sync)
@@ -755,6 +977,19 @@ def ui_cmd(url: Optional[str]):
 def pantry_group():
     """Manage your canonical career knowledge base, snapshots, and two-way sync."""
     pass
+
+
+@pantry_group.command(name="clear")
+@click.option("--yes", "-y", is_flag=True, default=False, help="Skip confirmation prompt")
+def pantry_clear_cmd(yes: bool):
+    """Clear canonical pantry profile, context, and snapshots."""
+    pantry = PantryManager(settings.pantry_dir)
+    if not yes:
+        if not Confirm.ask("Are you sure you want to clear your Career Pantry?", default=False):
+            console.print("[yellow]Pantry clear cancelled.[/yellow]")
+            return
+    pantry.clear()
+    console.print(f"[bold green]✓ Pantry at {settings.pantry_dir} cleared successfully.[/bold green]")
 
 
 @pantry_group.command(name="show")
