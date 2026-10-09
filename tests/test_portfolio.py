@@ -117,3 +117,36 @@ def test_pantry_profile_adapter(tmp_path: Path, monkeypatch):
     assert profile.full_name == "Jordan Lee"
     assert "Remote only" in profile.raw_context.get("personal_context", "")
 
+
+def test_discover_portfolio_routes_captures_github_repositories(monkeypatch):
+    import requests
+    from breadwinner.core.ingestor import UniversalIngestor
+
+    html_content = """
+    <html>
+        <body>
+            <h1>Portfolio</h1>
+            <a href="/about">About Me</a>
+            <a href="https://github.com/FaizPalwala/GraphContext-MCP">GraphContext MCP</a>
+            <a href="https://github.com/FaizPalwala/serverless-github-calendar">Serverless Calendar</a>
+            <a href="https://github.com/features">Features</a>
+        </body>
+    </html>
+    """
+
+    class MockResponse:
+        status_code = 200
+        text = html_content
+        def raise_for_status(self): pass
+
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: MockResponse())
+    routes = UniversalIngestor.discover_portfolio_routes("https://faizpalwala.tech")
+
+    project_routes = [r for r in routes if r[1] == "projects"]
+    assert len(project_routes) >= 2
+    urls = [r[0] for r in project_routes]
+    assert "https://github.com/FaizPalwala/GraphContext-MCP" in urls
+    assert "https://github.com/FaizPalwala/serverless-github-calendar" in urls
+    # Verify non-repo links like /features are not captured as projects
+    assert not any("github.com/features" in r[0] for r in routes)
+

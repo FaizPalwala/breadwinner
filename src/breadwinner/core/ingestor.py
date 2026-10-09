@@ -265,8 +265,17 @@ class UniversalIngestor:
             parsed_full = urlparse(full_url)
             parsed_base = urlparse(base_url)
 
-            # Keep only same domain links or relevant resumes
-            if parsed_full.netloc != parsed_base.netloc and not href.endswith(".pdf"):
+            # Check if this is an external GitHub project repository
+            is_github_repo = False
+            gh_segments = [s for s in parsed_full.path.strip("/").split("/") if s]
+            if parsed_full.netloc.endswith("github.com") and len(gh_segments) == 2:
+                if gh_segments[0].lower() not in (
+                    "features", "pricing", "explore", "topics", "collections", "trending", "events", "sponsors", "about", "site", "readme", "contact"
+                ):
+                    is_github_repo = True
+
+            # Keep only same domain links, relevant resumes, or GitHub project repositories
+            if parsed_full.netloc != parsed_base.netloc and not href.endswith(".pdf") and not is_github_repo:
                 continue
 
             clean_full = full_url.split("#")[0].rstrip("/")
@@ -293,7 +302,11 @@ class UniversalIngestor:
             ]):
                 continue
 
-            if path_lower.endswith(".pdf") or "resume" in path_lower or "cv" in path_lower:
+            if is_github_repo:
+                repo_title = gh_segments[1].replace("-", " ").replace("_", " ").title()
+                proj_title = clean_title if clean_title and clean_title.lower() not in ("github", "view on github", "code", "repo", "source", "link") else repo_title
+                discovered.append((clean_full, "projects", proj_title or repo_title))
+            elif path_lower.endswith(".pdf") or "resume" in path_lower or "cv" in path_lower:
                 pdf_name = Path(parsed_full.path).stem.replace("_", " ").replace("-", " ").title()
                 pdf_title = clean_title if clean_title and clean_title.lower() not in ("pdf", "download", "download resume") else pdf_name
                 discovered.append((full_url, "resume_pdf", pdf_title or "Download Resume (PDF)"))
@@ -332,15 +345,28 @@ class UniversalIngestor:
                         p_clean = p_full.split("#")[0].rstrip("/")
                         if p_clean in seen_urls:
                             continue
-                        # Discover project subpages on the same domain
-                        if p_parsed.netloc == parsed_base.netloc and any(sub in p_parsed.path.lower() for sub in ["/projects/", "/work/", "/portfolio/"]):
+                        
+                        p_is_gh = False
+                        p_gh_segs = [s for s in p_parsed.path.strip("/").split("/") if s]
+                        if p_parsed.netloc.endswith("github.com") and len(p_gh_segs) == 2:
+                            if p_gh_segs[0].lower() not in (
+                                "features", "pricing", "explore", "topics", "collections", "trending", "events", "sponsors", "about", "site", "readme", "contact"
+                            ):
+                                p_is_gh = True
+
+                        # Discover project subpages on the same domain or GitHub project repositories
+                        if (p_parsed.netloc == parsed_base.netloc and any(sub in p_parsed.path.lower() for sub in ["/projects/", "/work/", "/portfolio/"])) or p_is_gh:
                             seen_urls.add(p_clean)
                             p_head = p_a.find(["h1", "h2", "h3", "h4", "h5", "h6"])
                             p_t = p_head.get_text(separator=" ", strip=True) if p_head else p_a.get_text(separator=" ", strip=True)
                             p_lines = [l.strip() for l in p_t.splitlines() if l.strip()]
                             p_title = p_lines[0] if p_lines else p_href
                             p_title = p_title.strip().strip("[]").strip(".").strip("/").strip()
-                            if not p_title or len(p_title) < 2:
+                            if p_is_gh:
+                                repo_name = p_gh_segs[1].replace("-", " ").replace("_", " ").title()
+                                if not p_title or p_title.lower() in ("github", "view on github", "code", "repo", "source", "link"):
+                                    p_title = repo_name
+                            elif not p_title or len(p_title) < 2:
                                 p_title = p_parsed.path.strip("/").split("/")[-1].replace("-", " ").replace("_", " ").title()
                             discovered.append((p_clean, "projects", p_title or "Project"))
             except Exception:
@@ -407,7 +433,7 @@ class UniversalIngestor:
 
         # Ingest key career pages into composite fact text
         career_routes = [r for r in routes if r[1] in ("about", "projects", "research")]
-        for r_url, cat, title in career_routes[:4]:
+        for r_url, cat, title in career_routes[:8]:
             try:
                 page_text = cls.extract_text_from_url(r_url, timeout=timeout)
                 composite_texts.append(f"=== {cat.upper()}: {title} ({r_url}) ===\n{page_text}")
