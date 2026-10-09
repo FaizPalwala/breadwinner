@@ -230,5 +230,6 @@ async def test_baking_modal_error_state_and_change_model():
 
         change_btn.press()
         await pilot.pause(0.1)
-        assert dismissed_payload == {"action": "change_model"}
+        assert dismissed_payload.get("action") == "change_model"
+        assert dismissed_payload.get("task_type") == "bake_pdf"
 

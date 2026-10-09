@@ -506,3 +506,45 @@ async def test_breadwinner_app_settings_modal(tmp_path, monkeypatch):
         assert not isinstance(app.screen, BakerySettingsModal)
         assert conf.settings.default_template == "modern"
 
+
+@pytest.mark.anyio
+async def test_breadwinner_app_error_change_model_auto_retries():
+    from breadwinner.ui.app import ModelQuickSwitcherModal
+    from breadwinner.ui.retro import BakingModal
+
+    app = BreadwinnerApp()
+    async with app.run_test(size=(120, 36)) as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        pushed_screens = []
+        orig_push_screen = app.push_screen
+        def tracking_push_screen(screen, callback=None):
+            pushed_screens.append(screen)
+            return orig_push_screen(screen, callback)
+        app.push_screen = tracking_push_screen
+
+        # Simulate ingest modal dismissing with change_model
+        app._on_ingest_baking_modal_dismissed({
+            "action": "change_model",
+            "target_info": {"sources": ["test_source.pdf"], "pantry": app.pantry}
+        })
+        await pilot.pause(0.1)
+
+        # Quick switcher modal should be active and retry recorded
+        assert isinstance(app.screen, ModelQuickSwitcherModal)
+        assert app._pending_bake_retry is not None
+        assert app._pending_bake_retry["task_type"] == "ingest"
+
+        # Simulate selecting a new model in the switcher
+        app._on_model_switched({"provider": "gemini", "model": "gemini-2.5-flash"})
+        await pilot.pause(0.1)
+
+        # Pending retry should be cleared and BakingModal should have been re-pushed
+        assert app._pending_bake_retry is None
+        assert any(isinstance(s, BakingModal) for s in pushed_screens)
+        if isinstance(app.screen, BakingModal):
+            app.screen.dismiss(None)
+
+

@@ -1684,6 +1684,7 @@ class BreadwinnerApp(App):
         self.layout_preset: str = "normal"
         self.sidebar_collapsed: bool = False
         self._last_width: Optional[int] = None
+        self._pending_bake_retry: Optional[Dict[str, Any]] = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="app-header-deck"):
@@ -2025,6 +2026,10 @@ class BreadwinnerApp(App):
         if not result:
             return
         if result.get("action") == "change_model":
+            self._pending_bake_retry = {
+                "task_type": "ingest",
+                "target_info": result.get("target_info") or {"sources": result.get("sources", []), "pantry": self.pantry}
+            }
             self.action_switch_model()
             return
         if not result.get("success"):
@@ -2124,6 +2129,7 @@ class BreadwinnerApp(App):
 
     def _on_model_switched(self, result: Optional[Dict[str, str]]) -> None:
         if not result:
+            self._pending_bake_retry = None
             return
         prov = result.get("provider", "").upper()
         model = result.get("model", "")
@@ -2136,6 +2142,27 @@ class BreadwinnerApp(App):
         except Exception:
             pass
         self.notify(f"✓ AI Engine Switched: {prov} ({model})", title="Engine Activated")
+
+        # Automatically retry pending bake if initiated from an error recovery flow
+        if getattr(self, "_pending_bake_retry", None):
+            retry_info = self._pending_bake_retry
+            self._pending_bake_retry = None
+            task_type = retry_info.get("task_type")
+            target_info = retry_info.get("target_info", {})
+            if task_type == "ingest":
+                sources = target_info.get("sources", [])
+                if sources:
+                    self.notify(f"Re-firing hearth with {model}...", title="Retrying Ingestion")
+                    self.push_screen(
+                        BakingModal(task_type="ingest", target_info=target_info),
+                        self._on_ingest_baking_modal_dismissed
+                    )
+            elif task_type == "tailor":
+                self.notify(f"Re-firing hearth with {model}...", title="Retrying Bake")
+                self.push_screen(
+                    BakingModal(task_type="tailor", target_info=target_info),
+                    self._on_tailoring_modal_dismissed
+                )
 
     def action_open_settings(self) -> None:
         self.push_screen(BakerySettingsModal(), self._on_settings_closed)
@@ -3624,6 +3651,10 @@ class BreadwinnerApp(App):
                 oven.set_state("idle")
             except Exception:
                 pass
+            self._pending_bake_retry = {
+                "task_type": "tailor",
+                "target_info": result.get("target_info") or {}
+            }
             self.action_switch_model()
             return
 

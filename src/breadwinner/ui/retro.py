@@ -48,8 +48,8 @@ def _pad_frame(raw_lines: List[str], target_width: int) -> str:
 
 OVEN_FRAMES = [
     _pad_frame([
-        "           [#8be9fd](  ([/]",
-        "            [#8be9fd])  )[/]  [#ffb86c]~[/]",
+        "           [#ffb86c](  ([/]",
+        "            [#ffb86c])  )[/]  [#ffb86c]~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
@@ -59,8 +59,8 @@ OVEN_FRAMES = [
         "  [#ffb86c]450°F HEARTH • STONE PEEL  [/]"
     ], 29),
     _pad_frame([
-        "            [#8be9fd])  )[/]",
-        "           [#8be9fd](  ([/]   [#ffb86c]~[/]",
+        "            [#ffb86c])  )[/]",
+        "           [#ffb86c](  ([/]   [#ffb86c]~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
@@ -70,8 +70,8 @@ OVEN_FRAMES = [
         "  [#ffb86c]450°F HEARTH • CRACKLING   [/]"
     ], 29),
     _pad_frame([
-        "           [#8be9fd]~  ~[/]  [#ffb86c]~[/]",
-        "            [#8be9fd]~  ~[/]",
+        "           [#ffb86c]~  ~[/]  [#ffb86c]~[/]",
+        "            [#ffb86c]~  ~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
@@ -81,8 +81,8 @@ OVEN_FRAMES = [
         "  [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]"
     ], 29),
     _pad_frame([
-        "            [#8be9fd].  .[/]",
-        "           [#8be9fd].  .[/]   [#ffb86c]~[/]",
+        "            [#ffb86c].  .[/]",
+        "           [#ffb86c].  .[/]   [#ffb86c]~[/]",
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
@@ -1130,7 +1130,11 @@ class BakingModal(ModalScreen):
         if bid in ("btn-modal-cancel", "btn-modal-close"):
             self.dismiss(None)
         elif bid == "btn-modal-change-model":
-            self.dismiss({"action": "change_model"})
+            self.dismiss({
+                "action": "change_model",
+                "task_type": self.task_type,
+                "target_info": self.target_info
+            })
         elif bid == "btn-modal-collect":
             self.dismiss(self.baking_result)
         elif bid == "btn-modal-view-pdf":
