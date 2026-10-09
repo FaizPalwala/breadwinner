@@ -26,17 +26,13 @@ COMMON_EXCLUDED_PATTERNS = [
 ]
 
 DEPRECATED_MODELS = {
-    # Gemini retired models that return 404
+    # Non-existent or legacy models that return 404
     "gemini-2.5-flash",
     "gemini-2.5-pro",
     "gemini-2.5-flash-preview-tts",
     "gemini-2.5-pro-preview-tts",
     "gemini-2.5-flash-lite",
     "gemini-2.5-flash-image",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
     "gemini-1.0-pro",
     # OpenAI retired / completion-only models
     "text-davinci-003",
@@ -88,54 +84,8 @@ class ProviderStatus(BaseModel):
     active_model: Optional[str] = None
 
 
+# Mock provider offline catalog only (zero speculative cloud catalogs)
 PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
-    "gemini": [
-        ("Gemini 3.8 Flash (Fastest, latest generation - Recommended)", "gemini-3.8-flash"),
-        ("Gemini 3.5 Flash (High throughput & reliable)", "gemini-3.5-flash"),
-        ("Gemini Flash Latest (Dynamic latest alias)", "gemini-flash-latest"),
-        ("Gemini Flash-Lite Latest (Ultra-fast, lowest latency)", "gemini-flash-lite-latest"),
-    ],
-    "openrouter": [
-        ("Claude 3.7 Sonnet (Anthropic flagship via OpenRouter)", "anthropic/claude-3.7-sonnet"),
-        ("Claude 3.5 Sonnet (High intelligence via OpenRouter)", "anthropic/claude-3.5-sonnet"),
-        ("GPT-4o (OpenAI flagship via OpenRouter)", "openai/gpt-4o"),
-        ("Gemini 2.0 Flash (Google via OpenRouter)", "google/gemini-2.0-flash-001"),
-        ("DeepSeek R1 (Chain of thought logic via OpenRouter)", "deepseek/deepseek-r1"),
-        ("Llama 3.3 70B (Meta open weights via OpenRouter)", "meta-llama/llama-3.3-70b-instruct"),
-    ],
-    "anthropic": [
-        ("Claude 3.7 Sonnet (Hybrid fast/extended reasoning - Recommended)", "claude-3-7-sonnet-20250219"),
-        ("Claude 3.5 Sonnet (Gold standard prose & precision)", "claude-3-5-sonnet-20241022"),
-        ("Claude 3.5 Haiku (Fast & affordable lightweight model)", "claude-3-5-haiku-20241022"),
-    ],
-    "openai": [
-        ("GPT-4o (Flagship multimodal intelligence - Recommended)", "gpt-4o"),
-        ("GPT-4o Mini (High-speed & cost-efficient)", "gpt-4o-mini"),
-        ("o3-mini (High-speed STEM & logic reasoning)", "o3-mini"),
-        ("o1 (Deep analytical complex reasoning)", "o1"),
-    ],
-    "deepseek": [
-        ("DeepSeek-V3 Chat (Fast reasoning & coding - Default)", "deepseek-chat"),
-        ("DeepSeek-R1 Reasoner (Chain-of-thought logic)", "deepseek-reasoner"),
-    ],
-    "groq": [
-        ("Llama 3.3 70B Versatile (Ultra-fast - Default)", "llama-3.3-70b-versatile"),
-        ("Llama 3.1 8B Instant (Sub-second speed)", "llama-3.1-8b-instant"),
-        ("Qwen 2.5 32B (Advanced reasoning)", "qwen-2.5-32b"),
-    ],
-    "mistral": [
-        ("Mistral Large (Premier frontier reasoning)", "mistral-large-latest"),
-        ("Codestral (State-of-the-art coding)", "codestral-latest"),
-        ("Mistral Small (Fast & responsive)", "mistral-small-latest"),
-    ],
-    "lmstudio": [
-        ("local-model (Active loaded model in LM Studio)", "local-model"),
-    ],
-    "ollama": [
-        ("llama3.2 (Standard Llama 3.2)", "llama3.2"),
-        ("qwen2.5-coder (Qwen 2.5 Coder)", "qwen2.5-coder"),
-        ("deepseek-r1 (DeepSeek R1 Distill)", "deepseek-r1"),
-    ],
     "mock": [
         ("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic"),
     ],
@@ -239,30 +189,14 @@ class ProviderDiscovery:
             except Exception:
                 pass
 
-        if not models:
-            known_models = [
-                ("deepseek-chat", "DeepSeek-V3 (High-throughput reasoning & coding)"),
-                ("deepseek-reasoner", "DeepSeek-R1 (Chain-of-thought reasoning model)")
-            ]
-            models = [
-                ModelInfo(
-                    id=mid,
-                    name=mname,
-                    provider="deepseek",
-                    is_active=(is_active_provider and mid == settings.deepseek_model),
-                    description=mname
-                )
-                for mid, mname in known_models
-            ]
-
-        status_text = "🟢 Configured (DeepSeek Key)" if key_configured else "⚪ Missing DEEPSEEK_API_KEY in .env"
+        status_text = "🟢 Configured (DeepSeek Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="DeepSeek",
             slug="deepseek",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.deepseek_model if key_configured else None
+            active_model=settings.deepseek_model if (key_configured and models) else None
         )
 
     @classmethod
@@ -296,56 +230,28 @@ class ProviderDiscovery:
                     
                     def _gemini_sort_rank(m_info: ModelInfo) -> Tuple[int, str]:
                         mid = m_info.id.lower()
-                        if "3.8-flash" in mid:
+                        if "2.0-flash" in mid:
                             return (0, mid)
-                        if "3.7-flash" in mid:
+                        if "1.5-flash" in mid:
                             return (1, mid)
-                        if "3.6-flash" in mid:
-                            return (2, mid)
-                        if "3.5-flash" in mid:
-                            return (3, mid)
-                        if "flash-latest" in mid:
-                            return (4, mid)
-                        if "flash-lite-latest" in mid:
-                            return (5, mid)
-                        if "pro-latest" in mid:
-                            return (6, mid)
                         if "flash" in mid:
-                            return (7, mid)
+                            return (2, mid)
                         if "pro" in mid:
-                            return (8, mid)
-                        return (9, mid)
+                            return (3, mid)
+                        return (4, mid)
 
                     models.sort(key=_gemini_sort_rank)
             except Exception:
                 pass
 
-        if not models:
-            known_models = PROVIDER_MODELS.get("gemini", [
-                ("Gemini 3.8 Flash (Fastest, latest generation - Recommended)", "gemini-3.8-flash"),
-                ("Gemini 3.5 Flash (High throughput & reliable)", "gemini-3.5-flash"),
-                ("Gemini Flash Latest (Dynamic latest alias)", "gemini-flash-latest"),
-                ("Gemini Flash-Lite Latest (Ultra-fast, lowest latency)", "gemini-flash-lite-latest"),
-            ])
-            models = [
-                ModelInfo(
-                    id=mid,
-                    name=mname,
-                    provider="gemini",
-                    is_active=(is_active_provider and mid == settings.gemini_model),
-                    description=mname
-                )
-                for mname, mid in known_models
-            ]
-
-        status_text = "🟢 Configured (AI Studio Key)" if key_configured else "⚪ Missing GEMINI_API_KEY in .env"
+        status_text = "🟢 Configured (AI Studio Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="Google Gemini",
             slug="gemini",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.gemini_model if key_configured else None
+            active_model=settings.gemini_model if (key_configured and models) else None
         )
 
     @classmethod
@@ -385,32 +291,15 @@ class ProviderDiscovery:
             except Exception:
                 pass
 
-        if not models:
-            known_models = [
-                ("llama-3.3-70b-versatile", "Llama 3.3 70B (High speed)"),
-                ("qwen-2.5-32b", "Qwen 2.5 32B (Advanced reasoning)"),
-                ("llama-3.1-8b-instant", "Llama 3.1 8B (Sub-second speed)")
-            ]
-            models = [
-                ModelInfo(
-                    id=mid,
-                    name=mname,
-                    provider="groq",
-                    is_active=(is_active_provider and mid == settings.groq_model)
-                )
-                for mid, mname in known_models
-            ]
-
-        status_text = "🟢 Configured (Groq Key)" if key_configured else "⚪ Missing GROQ_API_KEY in .env"
+        status_text = "🟢 Configured (Groq Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="Groq Cloud",
             slug="groq",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.groq_model if key_configured else None
+            active_model=settings.groq_model if (key_configured and models) else None
         )
-
 
     @classmethod
     def check_ollama(cls) -> ProviderStatus:
@@ -434,7 +323,7 @@ class ProviderDiscovery:
                 return ProviderStatus(
                     name="Ollama (Local)",
                     slug="ollama",
-                    is_available=True,
+                    is_available=len(models) > 0,
                     status_text="🟢 Online (Local)",
                     base_url=base_url,
                     models=models,
@@ -480,71 +369,62 @@ class ProviderDiscovery:
                                     is_active=(is_active_provider and mid == settings.openrouter_model),
                                     description=m.get("description", mname)
                                 ))
-                    models = models[:20]  # Cap at top 20 active models
+                    models = models[:25]
             except Exception:
                 pass
 
-        if not models:
-            known_models = [
-                ("anthropic/claude-3.7-sonnet", "Claude 3.7 Sonnet (Anthropic flagship)"),
-                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet (High intelligence)"),
-                ("openai/gpt-4o", "GPT-4o (OpenAI Omni flagship)"),
-                ("google/gemini-2.0-flash-001", "Gemini 2.0 Flash (Fast & reliable)"),
-                ("deepseek/deepseek-r1", "DeepSeek R1 (Chain of thought logic)"),
-                ("meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B (Open weights)"),
-            ]
-            models = [
-                ModelInfo(
-                    id=mid,
-                    name=mname,
-                    provider="openrouter",
-                    is_active=(is_active_provider and mid == settings.openrouter_model),
-                    description=mname
-                )
-                for mid, mname in known_models
-            ]
-
-        status_text = "🟢 Configured (OpenRouter Key)" if key_configured else "⚪ Missing OPENROUTER_API_KEY in .env"
+        status_text = "🟢 Configured (OpenRouter Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="OpenRouter (Universal Gateway)",
             slug="openrouter",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.openrouter_model if key_configured else None
+            active_model=settings.openrouter_model if (key_configured and models) else None
         )
 
     @classmethod
     def check_anthropic(cls) -> ProviderStatus:
-        """Check Anthropic Claude API configuration."""
+        """Check Anthropic Claude API configuration and dynamically fetch available models."""
         key_configured = bool(settings.anthropic_api_key and settings.anthropic_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "anthropic"
 
-        known_models = [
-            ("claude-3-7-sonnet-20250219", "Claude 3.7 Sonnet (Flagship hybrid reasoning)"),
-            ("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet (Gold standard prose)"),
-            ("claude-3-5-haiku-20241022", "Claude 3.5 Haiku (Fast & affordable)")
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    "https://api.anthropic.com/v1/models",
+                    headers={
+                        "x-api-key": settings.anthropic_api_key.strip(),
+                        "anthropic-version": "2023-06-01"
+                    },
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    for m in raw:
+                        if isinstance(m, dict) and "id" in m:
+                            mid = m["id"]
+                            if is_usable_chat_model(mid):
+                                mname = m.get("display_name") or mid
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mname,
+                                    provider="anthropic",
+                                    is_active=(is_active_provider and mid == settings.anthropic_model),
+                                    description=mname
+                                ))
+            except Exception:
+                pass
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="anthropic",
-                is_active=(is_active_provider and mid == settings.anthropic_model),
-                description=mname
-            )
-            for mid, mname in known_models
-        ]
-
-        status_text = "🟢 Configured (Anthropic Key)" if key_configured else "⚪ Missing ANTHROPIC_API_KEY in .env"
+        status_text = "🟢 Configured (Anthropic Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="Anthropic Claude",
             slug="anthropic",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.anthropic_model if key_configured else None
+            active_model=settings.anthropic_model if (key_configured and models) else None
         )
 
     @classmethod
@@ -585,32 +465,14 @@ class ProviderDiscovery:
             except Exception:
                 pass
 
-        if not models:
-            known_models = [
-                ("gpt-4o", "GPT-4o (Flagship omni model)"),
-                ("gpt-4o-mini", "GPT-4o Mini (Fast & cost efficient)"),
-                ("o3-mini", "o3-mini (High-speed reasoning)"),
-                ("o1", "o1 (Deep analytical reasoning)")
-            ]
-            models = [
-                ModelInfo(
-                    id=mid,
-                    name=mname,
-                    provider="openai",
-                    is_active=(is_active_provider and mid == settings.openai_model),
-                    description=mname
-                )
-                for mid, mname in known_models
-            ]
-
-        status_text = "🟢 Configured (OpenAI Key)" if key_configured else "⚪ Missing OPENAI_API_KEY in .env"
+        status_text = "🟢 Configured (OpenAI Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="OpenAI",
             slug="openai",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.openai_model if key_configured else None
+            active_model=settings.openai_model if (key_configured and models) else None
         )
 
     @classmethod
@@ -643,31 +505,14 @@ class ProviderDiscovery:
             except Exception:
                 pass
 
-        if not models:
-            known_models = [
-                ("mistral-large-latest", "Mistral Large (Premier frontier reasoning)"),
-                ("codestral-latest", "Codestral (State of the art coding)"),
-                ("mistral-small-latest", "Mistral Small (Fast & responsive)")
-            ]
-            models = [
-                ModelInfo(
-                    id=mid,
-                    name=mname,
-                    provider="mistral",
-                    is_active=(is_active_provider and mid == settings.mistral_model),
-                    description=mname
-                )
-                for mid, mname in known_models
-            ]
-
-        status_text = "🟢 Configured (Mistral Key)" if key_configured else "⚪ Missing MISTRAL_API_KEY in .env"
+        status_text = "🟢 Configured (Mistral Key)" if key_configured else "○ UNCONFIGURED (Missing API Key)"
         return ProviderStatus(
             name="Mistral AI",
             slug="mistral",
-            is_available=key_configured,
+            is_available=key_configured and len(models) > 0,
             status_text=status_text,
             models=models,
-            active_model=settings.mistral_model if key_configured else None
+            active_model=settings.mistral_model if (key_configured and models) else None
         )
 
 
@@ -790,19 +635,17 @@ class ProviderDiscovery:
                                 mname = m.get("displayName") or mid
                                 live.append((f"{mname} ({mid})", mid))
                     if live:
-                        # Prioritize 3.8-flash, 3.5-flash, and flash-latest
+                        # Prioritize 2.0-flash, 1.5-flash, flash, and pro
                         def _gemini_sort(item: Tuple[str, str]) -> int:
                             m_id = item[1].lower()
-                            if "3.8-flash" in m_id:
+                            if "2.0-flash" in m_id:
                                 return 0
-                            if "3.5-flash" in m_id:
+                            if "1.5-flash" in m_id:
                                 return 1
-                            if "flash-latest" in m_id:
+                            if "flash" in m_id:
                                 return 2
-                            if "3." in m_id and "flash" in m_id:
+                            if "pro" in m_id:
                                 return 3
-                            if "3." in m_id:
-                                return 4
                             return 10
                         live.sort(key=_gemini_sort)
                         return live, True
@@ -947,7 +790,10 @@ class ProviderDiscovery:
             except Exception:
                 pass
 
-        return fallbacks.get(prov, [("Default Model", "default")]), False
+        if prov == "mock":
+            return fallbacks.get("mock", [("mock-deterministic (Offline Anti-Slop Engine)", "mock-deterministic")]), True
+
+        return [], False
 
     @classmethod
     def fetch_models_for_provider(cls, provider: str, api_key: Optional[str] = None) -> List[Tuple[str, str]]:

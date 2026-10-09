@@ -80,7 +80,7 @@ def test_is_usable_chat_model():
 
     # Should reject deprecated models
     assert not is_usable_chat_model("gemini-2.5-flash")
-    assert not is_usable_chat_model("gemini-2.0-flash")
+    assert not is_usable_chat_model("gemini-1.0-pro")
     assert not is_usable_chat_model("text-davinci-003")
 
     # Should reject TTS, audio, transcription, and speech
@@ -103,8 +103,8 @@ def test_is_usable_chat_model():
     assert not is_usable_chat_model("gemini-2.5-computer-use-preview-10-2025")
 
     # Should accept valid text/chat instruction models
-    assert is_usable_chat_model("gemini-3.8-flash")
-    assert is_usable_chat_model("gemini-3.5-flash")
+    assert is_usable_chat_model("gemini-2.0-flash")
+    assert is_usable_chat_model("gemini-1.5-flash")
     assert is_usable_chat_model("gemini-flash-latest")
     assert is_usable_chat_model("gpt-4o")
     assert is_usable_chat_model("gpt-4o-mini")
@@ -127,8 +127,8 @@ def test_provider_discovery_filters_non_chat_gemini_models(monkeypatch):
         {"name": "models/gemini-3.8-flash-tts", "displayName": "Gemini 3.8 Flash TTS", "supportedGenerationMethods": ["generateContent"]},
         {"name": "models/nano-banana-pro-preview", "displayName": "Nano Banana Pro", "supportedGenerationMethods": ["generateContent"]},
         {"name": "models/gemini-embedding-2", "displayName": "Gemini Embedding 2", "supportedGenerationMethods": ["embedContent"]},
-        {"name": "models/gemini-3.8-flash", "displayName": "Gemini 3.8 Flash", "supportedGenerationMethods": ["generateContent"]},
-        {"name": "models/gemini-3.5-flash", "displayName": "Gemini 3.5 Flash", "supportedGenerationMethods": ["generateContent"]},
+        {"name": "models/gemini-2.0-flash", "displayName": "Gemini 2.0 Flash", "supportedGenerationMethods": ["generateContent"]},
+        {"name": "models/gemini-1.5-flash", "displayName": "Gemini 1.5 Flash", "supportedGenerationMethods": ["generateContent"]},
         {"name": "models/gemini-flash-latest", "displayName": "Gemini Flash Latest", "supportedGenerationMethods": ["generateContent"]},
     ]
 
@@ -150,7 +150,7 @@ def test_provider_discovery_filters_non_chat_gemini_models(monkeypatch):
     assert "gemini-embedding-2" not in model_ids
 
     # Usable models must be preserved in ranked order
-    assert model_ids == ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+    assert model_ids == ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
 
 
 def test_discover_all_ingredients_bracketed_titles_do_not_vanish(monkeypatch):

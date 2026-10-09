@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # Google Gemini
     gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-2.0-flash"
 
     # OpenRouter (Multi-model aggregator)
     openrouter_api_key: Optional[str] = None
