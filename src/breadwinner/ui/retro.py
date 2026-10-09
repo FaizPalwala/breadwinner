@@ -294,20 +294,81 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 #baking-score-card {
     background: #161c2d;
     border: round #50fa7b;
-    padding: 0 1;
-    margin: 0 0 1 0;
+    padding: 1 2;
+    margin: 1 0;
+    height: auto;
+    min-height: 4;
     display: none;
 }
 
 #baking-score-card.error-card {
-    background: #1a1118;
+    background: #1e131d;
     border: round #ff5555;
+    padding: 1 2;
+    margin: 1 0;
+    height: auto;
+    min-height: 5;
+}
+
+#baking-score-card Label {
+    width: 100%;
+    height: auto;
 }
 
 #baking-action-bar {
     align: center middle;
     height: 3;
-    margin-top: 0;
+    margin-top: 1;
+    width: 100%;
+}
+
+#baking-action-bar Button {
+    margin: 0 1;
+    height: 3;
+    min-width: 18;
+    border: round #6272a4;
+    background: #212638;
+    color: #f8f8f2;
+}
+
+#btn-modal-cancel {
+    background: #212638;
+    color: #f8f8f2;
+    border: round #6272a4;
+}
+
+#btn-modal-cancel:hover {
+    background: #2d1a22;
+    border: round #ff5555;
+    color: #ff5555;
+    text-style: bold;
+}
+
+#btn-modal-change-model {
+    background: #d4a373;
+    color: #0d111a;
+    border: round #ffb86c;
+    text-style: bold;
+}
+
+#btn-modal-change-model:hover {
+    background: #ffb86c;
+    color: #000000;
+    border: round #f1fa8c;
+    text-style: bold;
+}
+
+#btn-modal-collect {
+    background: #50fa7b;
+    color: #0d111a;
+    border: round #50fa7b;
+    text-style: bold;
+}
+
+#btn-modal-collect:hover {
+    background: #69ff94;
+    color: #000000;
+    border: round #f1fa8c;
 }
 """
 
@@ -528,36 +589,76 @@ class RetroProgressBar(Static):
 
 def clean_error_message(raw_msg: str) -> Tuple[str, str]:
     """Extracts a clean user-facing headline and detailed explanation from raw provider errors."""
-    msg_str = str(raw_msg)
+    msg_str = str(raw_msg).strip()
+
+    # Extract embedded JSON error message if present
+    match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
+    if match:
+        clean_snippet = match.group(1).split(". For more information")[0].strip()
+    else:
+        # Strip long stacktrace or common prefixes
+        clean_snippet = msg_str.split("\n")[0].strip()
+        if len(clean_snippet) > 180:
+            clean_snippet = clean_snippet[:177] + "..."
 
     # 1. Quota / Rate limit (429)
     if "429" in msg_str or "RESOURCE_EXHAUSTED" in msg_str or "quota" in msg_str.lower():
         headline = "API Rate Limit / Quota Exceeded (HTTP 429)"
-        match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
-        if match:
-            clean_sub = match.group(1).split(". For more information")[0].strip()
-            detail = f"{clean_sub}.\n\nTip: Switch to a different model (or provider) or wait a moment."
-        else:
-            detail = "The AI model has exhausted requests or per-minute token quota.\n\nTip: Switch to a different model or wait a moment."
+        detail = (
+            f"[bold red]{clean_snippet}[/bold red]\n\n"
+            f"[dim]The active model reached its request or per-minute token quota limit.[/dim]\n"
+            f"[bold #ffb86c]Recommendation:[/] Click 'Change Model' below to switch to another active model or retry in a moment."
+        )
         return headline, detail
 
     # 2. Not found / Retired (404)
     if "404" in msg_str or "NOT_FOUND" in msg_str or "not found" in msg_str.lower():
         headline = "Model Not Found / Retired (HTTP 404)"
-        match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
-        detail = match.group(1) if match else "The configured model is no longer active on this endpoint."
-        detail += "\n\nTip: Switch to an active model in Model Settings."
+        detail = (
+            f"[bold red]{clean_snippet}[/bold red]\n\n"
+            f"[dim]The configured model is no longer active on this API endpoint.[/dim]\n"
+            f"[bold #ffb86c]Recommendation:[/] Click 'Change Model' below to choose an active model in Settings."
+        )
         return headline, detail
 
     # 3. Auth / Invalid Key (401 / 403)
     if any(k in msg_str for k in ["401", "403", "API_KEY_INVALID", "invalid_api_key", "Unauthorized"]):
         headline = "Authentication Failed (HTTP 401/403)"
-        return headline, "The API key is invalid or unauthorized.\n\nTip: Verify your API key or configure a different provider."
+        detail = (
+            f"[bold red]{clean_snippet}[/bold red]\n\n"
+            f"[dim]The API key is invalid or unauthorized.[/dim]\n"
+            f"[bold #ffb86c]Recommendation:[/] Verify your API key or configure a different provider in Settings."
+        )
+        return headline, detail
 
-    # 4. Fallback generic clean error
-    match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
-    extracted = match.group(1) if match else msg_str[:160]
-    return "Baking Hearth Malfunction", f"{extracted}\n\nTip: Check provider connection or switch models."
+    # 4. Connection / Network errors
+    if any(k in msg_str.lower() for k in ["connection", "timeout", "timed out", "max retries", "network"]):
+        headline = "Network / Connection Timeout"
+        detail = (
+            f"[bold red]{clean_snippet}[/bold red]\n\n"
+            f"[dim]Failed to connect to the target endpoint or host.[/dim]\n"
+            f"[bold #ffb86c]Recommendation:[/] Check internet connection or target site availability."
+        )
+        return headline, detail
+
+    # 5. Ingestion / Remote Service (500 / 503)
+    if any(k in msg_str.lower() for k in ["ingestionerror", "500", "503", "service unavailable"]):
+        headline = "Hearth Ingestion / Remote Service Error"
+        detail = (
+            f"[bold red]{clean_snippet}[/bold red]\n\n"
+            f"[dim]The remote server failed to provide content or returned an error status.[/dim]\n"
+            f"[bold #ffb86c]Recommendation:[/] Verify the URL or try again shortly."
+        )
+        return headline, detail
+
+    # 6. Fallback generic
+    headline = "Baking Hearth Malfunction"
+    detail = (
+        f"[bold red]{clean_snippet}[/bold red]\n\n"
+        f"[dim]An unexpected error occurred during processing.[/dim]\n"
+        f"[bold #ffb86c]Recommendation:[/] Click 'Change Model' to try another model or check logs."
+    )
+    return headline, detail
 
 
 class BakingModal(ModalScreen):
@@ -985,25 +1086,32 @@ class BakingModal(ModalScreen):
         status_lbl = self.query_one("#baking-status-text", Label)
         status_lbl.update(f"[bold #ff5555][✕] BURNT CRUST: {headline} [✕][/bold #ff5555]")
 
+        # Hide progress gauge on failure so diagnosis card has ample vertical space
+        try:
+            gauge = self.query_one("#retro-progress-gauge", RetroProgressBar)
+            gauge.display = False
+        except Exception:
+            pass
+
         score_card = self.query_one("#baking-score-card", Vertical)
         score_card.add_class("error-card")
         score_card.display = True
 
         score_title = self.query_one("#score-card-title", Label)
-        score_title.update(f"[bold #ff5555][!] {headline}[/bold #ff5555]")
+        score_title.update("[bold #ff5555][!] Hearth Malfunction Diagnosis[/bold #ff5555]")
 
         score_details = self.query_one("#score-card-details", Label)
-        score_details.update(f"[white]{detail}[/white]")
+        score_details.update(detail)
 
         cancel_btn = self.query_one("#btn-modal-cancel", Button)
         cancel_btn.label = "Dismiss (Esc)"
-        cancel_btn.variant = "default"
 
         change_btn = self.query_one("#btn-modal-change-model", Button)
         change_btn.display = True
         change_btn.label = "Change Model"
-        change_btn.variant = "warning"
+
         try:
+            score_card.scroll_visible()
             change_btn.focus()
         except Exception:
             pass

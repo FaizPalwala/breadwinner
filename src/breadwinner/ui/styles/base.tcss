@@ -450,20 +450,81 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 #baking-score-card {
     background: #161c2d;
     border: round #50fa7b;
-    padding: 0 1;
-    margin: 0 0 1 0;
+    padding: 1 2;
+    margin: 1 0;
+    height: auto;
+    min-height: 4;
     display: none;
 }
 
 #baking-score-card.error-card {
-    background: #1a1118;
+    background: #1e131d;
     border: round #ff5555;
+    padding: 1 2;
+    margin: 1 0;
+    height: auto;
+    min-height: 5;
+}
+
+#baking-score-card Label {
+    width: 100%;
+    height: auto;
 }
 
 #baking-action-bar {
     align: center middle;
     height: 3;
-    margin-top: 0;
+    margin-top: 1;
+    width: 100%;
+}
+
+#baking-action-bar Button {
+    margin: 0 1;
+    height: 3;
+    min-width: 18;
+    border: round #6272a4;
+    background: #212638;
+    color: #f8f8f2;
+}
+
+#btn-modal-cancel {
+    background: #212638;
+    color: #f8f8f2;
+    border: round #6272a4;
+}
+
+#btn-modal-cancel:hover {
+    background: #2d1a22;
+    border: round #ff5555;
+    color: #ff5555;
+    text-style: bold;
+}
+
+#btn-modal-change-model {
+    background: #d4a373;
+    color: #0d111a;
+    border: round #ffb86c;
+    text-style: bold;
+}
+
+#btn-modal-change-model:hover {
+    background: #ffb86c;
+    color: #000000;
+    border: round #f1fa8c;
+    text-style: bold;
+}
+
+#btn-modal-collect {
+    background: #50fa7b;
+    color: #0d111a;
+    border: round #50fa7b;
+    text-style: bold;
+}
+
+#btn-modal-collect:hover {
+    background: #69ff94;
+    color: #000000;
+    border: round #f1fa8c;
 }
 
 /* ==========================================================================

@@ -151,13 +151,13 @@ def test_clean_error_message():
     h_429, d_429 = clean_error_message(raw_429)
     assert "429" in h_429
     assert "You exceeded your current quota" in d_429
-    assert "Switch to a different model" in d_429
+    assert "Change Model" in d_429
 
     # Test 404 / Retired
     raw_404 = "Error code: 404 - models/gemini-2.5-flash is not found for API version v1beta"
     h_404, d_404 = clean_error_message(raw_404)
     assert "404" in h_404
-    assert "Switch to an active model" in d_404
+    assert "Change Model" in d_404
 
     # Test 401 / Auth
     raw_401 = "401 Unauthorized: API_KEY_INVALID"
@@ -166,9 +166,9 @@ def test_clean_error_message():
     assert "API key" in d_401
 
     # Test generic fallback
-    h_gen, d_gen = clean_error_message("Unexpected connection reset by peer")
+    h_gen, d_gen = clean_error_message("RuntimeError: Internal arithmetic calculation failed")
     assert "Hearth Malfunction" in h_gen
-    assert "Unexpected connection reset" in d_gen
+    assert "Internal arithmetic calculation failed" in d_gen
 
 
 def test_all_oven_frames_exact_cell_width():
@@ -209,16 +209,15 @@ async def test_baking_modal_error_state_and_change_model():
         assert "Dismiss (Esc)" in cancel_btn.label.plain
 
         # Click change model button and verify dismiss action
-        modal.dismiss_mock = None
-        orig_dismiss = modal.dismiss
         dismissed_payload = None
+        orig_dismiss = modal.dismiss
         def mock_dismiss(result=None):
             nonlocal dismissed_payload
             dismissed_payload = result
             orig_dismiss(result)
         modal.dismiss = mock_dismiss
 
-        await pilot.click("#btn-modal-change-model")
+        change_btn.press()
         await pilot.pause(0.1)
         assert dismissed_payload == {"action": "change_model"}
 
