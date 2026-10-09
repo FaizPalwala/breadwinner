@@ -33,18 +33,18 @@ def _is_readable_file(path: Path) -> bool:
         return False
 
 
+def get_env_path() -> Path:
+    """Return the path to the canonical Breadwinner .env configuration file in user home."""
+    if os.environ.get("BREADWINNER_ENV_FILE"):
+        return Path(os.environ["BREADWINNER_ENV_FILE"]).expanduser().resolve()
+    return (get_breadwinner_home() / ".env").resolve()
+
+
 def _resolve_env_files() -> tuple[str, ...]:
-    files = []
-    try:
-        home_env = get_breadwinner_home() / ".env"
-        if _is_readable_file(home_env):
-            files.append(str(home_env))
-    except Exception:
-        pass
-    local_env = Path(".env").resolve()
-    if _is_readable_file(local_env) and str(local_env) not in files:
-        files.append(str(local_env))
-    return tuple(files) if files else (".env",)
+    target = get_env_path()
+    if _is_readable_file(target):
+        return (str(target),)
+    return ()
 
 
 class Settings(BaseSettings):
@@ -132,67 +132,54 @@ def save_env_config(env_vars: dict, env_path: Optional[Path] = None) -> None:
     import os
     import stat
 
-    target_paths: list[Path] = [env_path] if env_path else []
-    if not target_paths:
-        primary = get_env_path()
-        target_paths.append(primary)
-        home = get_breadwinner_home() / ".env"
-        if home.resolve() != primary.resolve() and home.exists():
-            target_paths.append(home)
+    target_path = env_path or get_env_path()
+    try:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        existing_env: dict[str, str] = {}
+        if target_path.exists():
+            for line in target_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    existing_env[k.strip()] = v.strip().strip('"').strip("'")
 
-    for path in target_paths:
+        existing_env.update({k: str(v) for k, v in env_vars.items()})
+
+        env_lines = [
+            "# Breadwinner Configuration (Auto-generated)",
+            "# Permissions: 0600 (Private)",
+            ""
+        ]
+        for k, v in existing_env.items():
+            env_lines.append(f'{k}="{v}"')
+
+        target_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            existing_env: dict[str, str] = {}
-            if path.exists():
-                for line in path.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
-                        existing_env[k.strip()] = v.strip().strip('"').strip("'")
-
-            existing_env.update({k: str(v) for k, v in env_vars.items()})
-
-            env_lines = [
-                "# Breadwinner Configuration (Auto-generated)",
-                "# Permissions: 0600 (Private)",
-                ""
-            ]
-            for k, v in existing_env.items():
-                env_lines.append(f'{k}="{v}"')
-
-            path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
-            try:
-                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-            except Exception:
-                pass
+            os.chmod(target_path, stat.S_IRUSR | stat.S_IWUSR)
         except Exception:
             pass
+    except Exception:
+        pass
 
     for k, v in env_vars.items():
         os.environ[k] = str(v)
 
+    # 1. Mutate existing singleton in-place so all modules importing `settings` see changes immediately!
     global settings
-    settings = Settings()
-
-
-def get_env_path() -> Path:
-    """Return the path to the active .env configuration file (local first, fallback to canonical home)."""
-    local_env = Path(".env").resolve()
-    if local_env.is_file():
-        return local_env
-    try:
-        home_env = get_breadwinner_home() / ".env"
-        if home_env.is_file():
-            return home_env
-    except Exception:
-        pass
-    # If running directly inside user home directory, prefer home_env to avoid polluting ~
-    try:
-        if Path.cwd().resolve() == Path.home().resolve():
-            return get_breadwinner_home() / ".env"
-    except Exception:
-        pass
-    return local_env
+    for k, v in env_vars.items():
+        attr = k.lower()
+        if hasattr(settings, attr):
+            current_val = getattr(settings, attr)
+            if isinstance(current_val, bool):
+                setattr(settings, attr, str(v).lower() in ("true", "1", "yes"))
+            elif isinstance(current_val, int):
+                try:
+                    setattr(settings, attr, int(v))
+                except Exception:
+                    setattr(settings, attr, v)
+            elif isinstance(current_val, Path):
+                setattr(settings, attr, Path(v))
+            else:
+                setattr(settings, attr, v)
 
 

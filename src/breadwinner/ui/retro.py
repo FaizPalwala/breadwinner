@@ -945,7 +945,8 @@ class BakingModal(ModalScreen):
                 "[bold #ffb86c][~] Extracting documents, route discovery, and text streams...[/bold #ffb86c]"
             )
 
-            provider = get_llm_provider()
+            target_prov = self.target_info.get("provider") or settings.breadwinner_llm_provider
+            provider = get_llm_provider(provider_name=target_prov)
             existing_profile = pantry.load_profile() if pantry and pantry.is_initialized() else None
 
             # STAGE 2: LLM FACT PARSING & METRIC EXTRACTION

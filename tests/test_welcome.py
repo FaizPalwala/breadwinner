@@ -134,7 +134,8 @@ async def test_welcome_modal_raw_bio_dough_bin():
 @pytest.mark.anyio
 async def test_welcome_modal_ai_setup_flow(tmp_path, monkeypatch):
     """Verify Step 1 AI keys -> Step 2 Model discovery -> Step 3 Pantry flow."""
-    env_file = tmp_path / ".env"
+    from breadwinner.config import get_env_path
+    env_file = get_env_path()
     monkeypatch.chdir(tmp_path)
 
     monkeypatch.setattr(
@@ -360,7 +361,8 @@ async def test_welcome_modal_exit_button():
 @pytest.mark.anyio
 async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
     """Verify Option C: user can choose Custom Model ID on Step 2 and enter custom model."""
-    env_file = tmp_path / ".env"
+    from breadwinner.config import get_env_path
+    env_file = get_env_path()
     monkeypatch.chdir(tmp_path)
 
     monkeypatch.setattr(
@@ -424,7 +426,8 @@ async def test_welcome_modal_custom_model_option_c(tmp_path, monkeypatch):
 @pytest.mark.anyio
 async def test_welcome_modal_openrouter_setup(tmp_path, monkeypatch):
     """Verify setting up OpenRouter provider and advancing through Step 1 and Step 2."""
-    env_file = tmp_path / ".env"
+    from breadwinner.config import get_env_path
+    env_file = get_env_path()
     monkeypatch.chdir(tmp_path)
 
     monkeypatch.setattr(
@@ -495,7 +498,8 @@ async def test_welcome_modal_back_to_keys(tmp_path, monkeypatch):
 @pytest.mark.anyio
 async def test_welcome_modal_multi_provider_key_configuration(tmp_path, monkeypatch):
     """Verify entering multiple keys using provider switcher pills and saving all to .env."""
-    env_file = tmp_path / ".env"
+    from breadwinner.config import get_env_path
+    env_file = get_env_path()
     monkeypatch.chdir(tmp_path)
 
     mock_pantry = MagicMock()

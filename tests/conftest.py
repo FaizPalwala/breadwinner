@@ -22,4 +22,12 @@ def isolate_breadwinner_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "database_path", test_home / "tracker.db")
     monkeypatch.setattr(settings, "csv_tracker_path", test_home / "job_tracker.csv")
     monkeypatch.setattr(settings, "user_personas_dir", test_home / "user_personas")
+    monkeypatch.setattr(settings, "breadwinner_llm_provider", "gemini")
+    monkeypatch.setattr(settings, "gemini_api_key", None)
+    monkeypatch.setattr(settings, "openrouter_api_key", None)
+    monkeypatch.setattr(settings, "anthropic_api_key", None)
+    monkeypatch.setattr(settings, "openai_api_key", None)
+    monkeypatch.setattr(settings, "deepseek_api_key", None)
+    monkeypatch.setattr(settings, "groq_api_key", None)
+    monkeypatch.setattr(settings, "mistral_api_key", None)
     yield test_home

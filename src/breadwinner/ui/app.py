@@ -2017,6 +2017,14 @@ class BreadwinnerApp(App):
                 pass
             self.notify("✓ Fresh Demo Loaf loaded! Explore the Studio and bake a test resume.", title="Pantry Stocked")
         elif action == "import":
+            prov = str(result.get("provider") or settings.breadwinner_llm_provider).upper()
+            try:
+                chip_text = self.get_active_model_chip_text()
+                self.query_one("#btn-active-model-chip", Button).label = chip_text
+                self.query_one("#btn-sidebar-model", Button).label = chip_text
+                self.query_one("#blade-sidebar-engine", VerticalEngineBlade).update_provider(prov)
+            except Exception:
+                pass
             sources = result.get("sources")
             source = result.get("source")
             sources_to_ingest = sources if sources else [source] if source else []
@@ -2032,7 +2040,11 @@ class BreadwinnerApp(App):
         self.push_screen(
             BakingModal(
                 task_type="ingest",
-                target_info={"sources": selected_sources, "pantry": self.pantry}
+                target_info={
+                    "sources": selected_sources,
+                    "pantry": self.pantry,
+                    "provider": settings.breadwinner_llm_provider
+                }
             ),
             self._on_ingest_baking_modal_dismissed
         )
