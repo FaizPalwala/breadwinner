@@ -421,17 +421,20 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 
 #oven-widget {
     text-align: center;
+    width: 100%;
     height: auto;
     margin: 0 0;
 }
 
 #mascot-widget {
     height: auto;
+    width: 100%;
     text-align: center;
     margin-bottom: 1;
 }
 
 #baking-status-text {
+    width: 100%;
     text-align: center;
     color: #f1fa8c;
     text-style: bold;
@@ -439,6 +442,7 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 }
 
 #retro-progress-gauge {
+    width: 100%;
     text-align: center;
     margin-bottom: 1;
 }
@@ -449,6 +453,11 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
     padding: 0 1;
     margin: 0 0 1 0;
     display: none;
+}
+
+#baking-score-card.error-card {
+    background: #1a1118;
+    border: round #ff5555;
 }
 
 #baking-action-bar {

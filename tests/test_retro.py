@@ -142,3 +142,83 @@ async def test_baking_modal_in_app():
         await pilot.pause()
         assert not isinstance(app.screen, BakingModal)
 
+
+def test_clean_error_message():
+    from breadwinner.ui.retro import clean_error_message
+
+    # Test 429 / Quota
+    raw_429 = "Error code: 429 - [{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information...', 'status': 'RESOURCE_EXHAUSTED'}}]"
+    h_429, d_429 = clean_error_message(raw_429)
+    assert "429" in h_429
+    assert "You exceeded your current quota" in d_429
+    assert "Switch to a different model" in d_429
+
+    # Test 404 / Retired
+    raw_404 = "Error code: 404 - models/gemini-2.5-flash is not found for API version v1beta"
+    h_404, d_404 = clean_error_message(raw_404)
+    assert "404" in h_404
+    assert "Switch to an active model" in d_404
+
+    # Test 401 / Auth
+    raw_401 = "401 Unauthorized: API_KEY_INVALID"
+    h_401, d_401 = clean_error_message(raw_401)
+    assert "401" in h_401
+    assert "API key" in d_401
+
+    # Test generic fallback
+    h_gen, d_gen = clean_error_message("Unexpected connection reset by peer")
+    assert "Hearth Malfunction" in h_gen
+    assert "Unexpected connection reset" in d_gen
+
+
+def test_all_oven_frames_exact_cell_width():
+    from rich.cells import cell_len
+    from rich.text import Text
+
+    all_frames = list(OVEN_FRAMES) + [OVEN_CELEBRATION_FRAME, OVEN_BURNT_FRAME]
+    for idx, frame_str in enumerate(all_frames):
+        for line_num, line in enumerate(frame_str.split("\n")):
+            plain = Text.from_markup(line).plain
+            width = cell_len(plain)
+            assert width == 29, f"Frame {idx} line {line_num} width is {width} != 29: {plain!r}"
+
+
+@pytest.mark.anyio
+async def test_baking_modal_error_state_and_change_model():
+    app = DummyModalApp()
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.click("#btn-open")
+        modal = app.screen
+        assert isinstance(modal, BakingModal)
+
+        # Trigger error screen with simulated 429
+        modal._show_error_screen("Error code: 429 - [{'error': {'code': 429, 'message': 'Quota exceeded'}}]")
+        await pilot.pause(0.1)
+
+        # Verify change model button is now displayed
+        change_btn = modal.query_one("#btn-modal-change-model", Button)
+        assert change_btn.display is True
+        assert change_btn.label.plain == "Change Model"
+
+        # Verify score card displays clean error
+        card = modal.query_one("#baking-score-card")
+        assert card.display is True
+        assert "error-card" in card.classes
+
+        cancel_btn = modal.query_one("#btn-modal-cancel", Button)
+        assert "Dismiss (Esc)" in cancel_btn.label.plain
+
+        # Click change model button and verify dismiss action
+        modal.dismiss_mock = None
+        orig_dismiss = modal.dismiss
+        dismissed_payload = None
+        def mock_dismiss(result=None):
+            nonlocal dismissed_payload
+            dismissed_payload = result
+            orig_dismiss(result)
+        modal.dismiss = mock_dismiss
+
+        await pilot.click("#btn-modal-change-model")
+        await pilot.pause(0.1)
+        assert dismissed_payload == {"action": "change_model"}
+

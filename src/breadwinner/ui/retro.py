@@ -1,7 +1,8 @@
 """8-bit Retro Bakery Aesthetic and Animated TUI Sprites for Breadwinner."""
 
+import re
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 
 from textual.app import ComposeResult
@@ -52,10 +53,10 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/   * ( · · ) *   \ [/] [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  * ( · · ) *  \ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]    [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]    [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "  [#ffb86c]450°F HEARTH • STONE PEEL[/]"
+        "  [#ffb86c]450°F HEARTH • STONE PEEL  [/]"
     ], 29),
     _pad_frame([
         "            [#8be9fd])  )[/]",
@@ -63,10 +64,10 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/   * ( ~ ~ ) *   \ [/] [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  * ( ~ ~ ) *  \ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]    [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]    [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "  [#ffb86c]450°F HEARTH • CRACKLING [/]"
+        "  [#ffb86c]450°F HEARTH • CRACKLING   [/]"
     ], 29),
     _pad_frame([
         "           [#8be9fd]~  ~[/]  [#ffb86c]~[/]",
@@ -74,8 +75,8 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/   * ( ◉ ◉ ) *   \ [/] [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  * ( ◉ ◉ ) *  \ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]    [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]    [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
         "  [#ffb86c]450°F HEARTH • GOLDEN CRUST[/]"
     ], 29),
@@ -85,10 +86,10 @@ OVEN_FRAMES = [
         "  [#d18f52]╔═════════════════════════╗[/]",
         "  [#d18f52]║[/]  [#ffb86c]* BREADWINNER OVEN *[/]   [#d18f52]║[/]",
         "  [#d18f52]║[/]     [#ff5555].─────────────.[/]     [#d18f52]║[/]",
-        r"  [#d18f52]║[/]    [#ff5555]/   ★ ( ★ ★ ) ★   \ [/] [#d18f52]║[/]",
-        "  [#d18f52]║[/]   [#ff5555]|    ▲ ▲ ▲ ▲ ▲    |[/]   [#d18f52]║[/]",
+        r"  [#d18f52]║[/]    [#ff5555]/  ★ ( ★ ★ ) ★  \ [/]   [#d18f52]║[/]",
+        "  [#d18f52]║[/]    [#ff5555]|   ▲ ▲ ▲ ▲ ▲   |[/]    [#d18f52]║[/]",
         "  [#d18f52]╚═════════════════════════╝[/]",
-        "  [#ffb86c]450°F HEARTH • CARAMELIZING[/]"
+        "  [#ffb86c]450°F HEARTH • CARAMELIZE  [/]"
     ], 29)
 ]
 
@@ -98,10 +99,10 @@ OVEN_CELEBRATION_FRAME = _pad_frame([
     "  [#50fa7b]╔═════════════════════════╗[/]",
     "  [#50fa7b]║[/]  [bold #50fa7b]* MASTERPIECE BAKED *[/]  [#50fa7b]║[/]",
     "  [#50fa7b]║[/]     [#f1fa8c].─────────────.[/]     [#50fa7b]║[/]",
-    r"  [#50fa7b]║[/]  [#f1fa8c]/ ★ GOLDEN BOULE ★ \ [/]  [#50fa7b]║[/]",
-    "  [#50fa7b]║[/]  [#f1fa8c]|   READY TO SERVE  |[/]  [#50fa7b]║[/]",
+    r"  [#50fa7b]║[/]    [#f1fa8c]/  GOLDEN LOAF  \ [/]   [#50fa7b]║[/]",
+    "  [#50fa7b]║[/]    [#f1fa8c]| READY TO SERVE|[/]    [#50fa7b]║[/]",
     "  [#50fa7b]╚═════════════════════════╝[/]",
-    " [bold #50fa7b]CRUST: CRUNCH • 100% DONE[/] "
+    " [bold #50fa7b]CRUST: CRUNCH • 100% DONE   [/]"
 ], 29)
 
 OVEN_BURNT_FRAME = _pad_frame([
@@ -111,9 +112,9 @@ OVEN_BURNT_FRAME = _pad_frame([
     "  [#ff5555]║[/] [bold #ff5555]* SMOKE ALARM RINGING *[/] [#ff5555]║[/]",
     "  [#ff5555]║[/]     [#ff5555].─────────────.[/]     [#ff5555]║[/]",
     r"  [#ff5555]║[/]    [#ff5555]/  ░░░  ✕  ░░░  \ [/]   [#ff5555]║[/]",
-    "  [#ff5555]║[/]  [#ff5555]|  OVEN MALFUNCTION |[/]  [#ff5555]║[/]",
+    "  [#ff5555]║[/]    [#ff5555]|   BURNT CRUST |[/]    [#ff5555]║[/]",
     "  [#ff5555]╚═════════════════════════╝[/]",
-    "  [bold #ff5555]CHECK LOGS OR RE-ATTEMPT[/] "
+    "  [bold #ff5555]450°F HEARTH • BURNT CRUST [/]"
 ], 29)
 
 MASCOT_FRAMES = [
@@ -264,17 +265,20 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 
 #oven-widget {
     text-align: center;
+    width: 100%;
     height: auto;
     margin: 0 0;
 }
 
 #mascot-widget {
     height: auto;
+    width: 100%;
     text-align: center;
     margin-bottom: 1;
 }
 
 #baking-status-text {
+    width: 100%;
     text-align: center;
     color: #f1fa8c;
     text-style: bold;
@@ -282,6 +286,7 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
 }
 
 #retro-progress-gauge {
+    width: 100%;
     text-align: center;
     margin-bottom: 1;
 }
@@ -292,6 +297,11 @@ Button.modal-close-btn:hover, .modal-close-btn:hover, #btn-modal-close:hover {
     padding: 0 1;
     margin: 0 0 1 0;
     display: none;
+}
+
+#baking-score-card.error-card {
+    background: #1a1118;
+    border: round #ff5555;
 }
 
 #baking-action-bar {
@@ -516,6 +526,40 @@ class RetroProgressBar(Static):
 # BAKING RETRO MODAL SCREEN
 # ==============================================================================
 
+def clean_error_message(raw_msg: str) -> Tuple[str, str]:
+    """Extracts a clean user-facing headline and detailed explanation from raw provider errors."""
+    msg_str = str(raw_msg)
+
+    # 1. Quota / Rate limit (429)
+    if "429" in msg_str or "RESOURCE_EXHAUSTED" in msg_str or "quota" in msg_str.lower():
+        headline = "API Rate Limit / Quota Exceeded (HTTP 429)"
+        match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
+        if match:
+            clean_sub = match.group(1).split(". For more information")[0].strip()
+            detail = f"{clean_sub}.\n\nTip: Switch to a different model (or provider) or wait a moment."
+        else:
+            detail = "The AI model has exhausted requests or per-minute token quota.\n\nTip: Switch to a different model or wait a moment."
+        return headline, detail
+
+    # 2. Not found / Retired (404)
+    if "404" in msg_str or "NOT_FOUND" in msg_str or "not found" in msg_str.lower():
+        headline = "Model Not Found / Retired (HTTP 404)"
+        match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
+        detail = match.group(1) if match else "The configured model is no longer active on this endpoint."
+        detail += "\n\nTip: Switch to an active model in Model Settings."
+        return headline, detail
+
+    # 3. Auth / Invalid Key (401 / 403)
+    if any(k in msg_str for k in ["401", "403", "API_KEY_INVALID", "invalid_api_key", "Unauthorized"]):
+        headline = "Authentication Failed (HTTP 401/403)"
+        return headline, "The API key is invalid or unauthorized.\n\nTip: Verify your API key or configure a different provider."
+
+    # 4. Fallback generic clean error
+    match = re.search(r"['\"]message['\"]:\s*['\"]([^'\"]+)['\"]", msg_str)
+    extracted = match.group(1) if match else msg_str[:160]
+    return "Baking Hearth Malfunction", f"{extracted}\n\nTip: Check provider connection or switch models."
+
+
 class BakingModal(ModalScreen):
     """Full retro 8-bit arcade baking modal dialog with animated oven & progress tracker."""
 
@@ -559,12 +603,14 @@ class BakingModal(ModalScreen):
 
             with Horizontal(id="baking-action-bar"):
                 yield Button("Cancel Bake", variant="error", id="btn-modal-cancel")
+                yield Button("Change Model", variant="warning", id="btn-modal-change-model", classes="hidden")
                 yield Button("Collect Loaf (Inspect)", variant="success", id="btn-modal-collect", classes="hidden")
                 yield Button("View PDF (v)", variant="primary", id="btn-modal-view-pdf", classes="hidden")
                 yield Button("Open Folder (o)", variant="default", id="btn-modal-open-folder", classes="hidden")
 
     def on_mount(self) -> None:
         # Hide finished buttons initially
+        self.query_one("#btn-modal-change-model", Button).display = False
         self.query_one("#btn-modal-collect", Button).display = False
         self.query_one("#btn-modal-view-pdf", Button).display = False
         self.query_one("#btn-modal-open-folder", Button).display = False
@@ -934,11 +980,33 @@ class BakingModal(ModalScreen):
         oven = self.query_one("#oven-widget", AnimatedOven)
         oven.set_state("burnt")
 
+        headline, detail = clean_error_message(error_msg)
+
         status_lbl = self.query_one("#baking-status-text", Label)
-        status_lbl.update(f"[bold #ff5555]BURNT CRUST: {error_msg}[/bold #ff5555]")
+        status_lbl.update(f"[bold #ff5555][✕] BURNT CRUST: {headline} [✕][/bold #ff5555]")
+
+        score_card = self.query_one("#baking-score-card", Vertical)
+        score_card.add_class("error-card")
+        score_card.display = True
+
+        score_title = self.query_one("#score-card-title", Label)
+        score_title.update(f"[bold #ff5555][!] {headline}[/bold #ff5555]")
+
+        score_details = self.query_one("#score-card-details", Label)
+        score_details.update(f"[white]{detail}[/white]")
 
         cancel_btn = self.query_one("#btn-modal-cancel", Button)
         cancel_btn.label = "Dismiss (Esc)"
+        cancel_btn.variant = "default"
+
+        change_btn = self.query_one("#btn-modal-change-model", Button)
+        change_btn.display = True
+        change_btn.label = "Change Model"
+        change_btn.variant = "warning"
+        try:
+            change_btn.focus()
+        except Exception:
+            pass
 
     # --------------------------------------------------------------------------
     # BUTTON INTERACTIONS
@@ -948,6 +1016,8 @@ class BakingModal(ModalScreen):
         bid = event.button.id
         if bid in ("btn-modal-cancel", "btn-modal-close"):
             self.dismiss(None)
+        elif bid == "btn-modal-change-model":
+            self.dismiss({"action": "change_model"})
         elif bid == "btn-modal-collect":
             self.dismiss(self.baking_result)
         elif bid == "btn-modal-view-pdf":
