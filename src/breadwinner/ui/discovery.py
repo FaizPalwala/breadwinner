@@ -56,10 +56,10 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
             root_url = clean_item.rstrip("/")
             if root_url not in seen_values:
                 seen_values.add(root_url)
-                esc_root = escape(root_url)
+                display_host = root_url.replace("https://", "").replace("http://", "")
                 discovered.append(
                     DiscoveredIngredient(
-                        label=f"[bold #50fa7b][WEB][/bold #50fa7b] Portfolio Homepage — [cyan]{esc_root}[/cyan]",
+                        label=f"[bold #50fa7b][WEB][/bold #50fa7b] Portfolio Homepage — [bold #fefae0]{escape(display_host)}[/bold #fefae0]",
                         value=root_url,
                         category="web",
                         is_default=True
@@ -81,26 +81,29 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                         clean_title = r_clean.split("/")[-1].replace("-", " ").replace("_", " ").title() or "Page"
 
                     esc_title = escape(clean_title)
-                    esc_url = escape(r_url)
+                    path_preview = r_clean.replace(root_url, "") if root_url in r_clean else r_clean.split("/")[-1]
+                    if len(path_preview) > 36:
+                        path_preview = path_preview[:33] + "..."
+                    esc_path = escape(path_preview)
 
                     if cat == "resume_pdf":
                         badge = "[bold #ffb86c][RESUME][/bold #ffb86c]"
-                        lbl = f"{badge} Discovered PDF — [cyan]{esc_title}[/cyan] [dim]({esc_url})[/dim]"
+                        lbl = f"{badge} Discovered PDF — [bold #fefae0]{esc_title}[/bold #fefae0] [dim]({esc_path})[/dim]"
                     elif cat == "about":
                         badge = "[bold #8be9fd][BIO][/bold #8be9fd]"
-                        lbl = f"{badge} About & Experience — [cyan]{esc_title}[/cyan]"
+                        lbl = f"{badge} About & Experience — [bold #fefae0]{esc_title}[/bold #fefae0]"
                     elif cat == "projects":
                         badge = "[bold #bd93f9][PROJECT][/bold #bd93f9]"
-                        lbl = f"{badge} Projects & Showcase — [cyan]{esc_title}[/cyan]"
+                        lbl = f"{badge} Projects & Showcase — [bold #fefae0]{esc_title}[/bold #fefae0]"
                     elif cat == "research":
                         badge = "[bold #f1fa8c][RESEARCH][/bold #f1fa8c]"
-                        lbl = f"{badge} Research & Thesis — [cyan]{esc_title}[/cyan]"
+                        lbl = f"{badge} Research & Thesis — [bold #fefae0]{esc_title}[/bold #fefae0]"
                     elif cat == "articles":
                         badge = "[bold #ff79c6][DOSSIER][/bold #ff79c6]"
-                        lbl = f"{badge} Technical Writing / Blog — [cyan]{esc_title}[/cyan]"
+                        lbl = f"{badge} Technical Writing / Blog — [bold #fefae0]{esc_title}[/bold #fefae0]"
                     else:
                         badge = "[dim][PAGE][/dim]"
-                        lbl = f"{badge} Subpage — [cyan]{esc_title}[/cyan]"
+                        lbl = f"{badge} Subpage — [bold #fefae0]{esc_title}[/bold #fefae0]"
 
                     discovered.append(
                         DiscoveredIngredient(
@@ -129,13 +132,13 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
 
                     esc_pname = escape(p.name)
                     if doc_type == "academic":
-                        lbl = f"[bold #f1fa8c][RESEARCH][/bold #f1fa8c] Academic Thesis / Dissertation — [yellow]{esc_pname}[/yellow]"
+                        lbl = f"[bold #f1fa8c][RESEARCH][/bold #f1fa8c] Academic Thesis / Dissertation — [bold #fefae0]{esc_pname}[/bold #fefae0]"
                     elif doc_type == "resume":
-                        lbl = f"[bold #ffb86c][RESUME][/bold #ffb86c] Resume / CV Document — [green]{esc_pname}[/green]"
+                        lbl = f"[bold #ffb86c][RESUME][/bold #ffb86c] Resume / CV Document — [bold #fefae0]{esc_pname}[/bold #fefae0]"
                     elif doc_type == "project_readme":
-                        lbl = f"[bold #bd93f9][PROJECT][/bold #bd93f9] Project Documentation — [cyan]{esc_pname}[/cyan]"
+                        lbl = f"[bold #bd93f9][PROJECT][/bold #bd93f9] Project Documentation — [bold #fefae0]{esc_pname}[/bold #fefae0]"
                     else:
-                        lbl = f"[bold #8be9fd][DOC][/bold #8be9fd] Document ({p.suffix.upper().lstrip('.') or 'FILE'}) — [white]{esc_pname}[/white]"
+                        lbl = f"[bold #8be9fd][DOC][/bold #8be9fd] Document ({p.suffix.upper().lstrip('.') or 'FILE'}) — [bold #fefae0]{esc_pname}[/bold #fefae0]"
 
                     discovered.append(
                         DiscoveredIngredient(
@@ -149,7 +152,7 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                     esc_dname = escape(p.name)
                     discovered.append(
                         DiscoveredIngredient(
-                            label=f"[bold #8be9fd][FOLDER][/bold #8be9fd] Local Directory — [white]{esc_dname}/[/white]",
+                            label=f"[bold #8be9fd][FOLDER][/bold #8be9fd] Local Directory — [bold #fefae0]{esc_dname}/[/bold #fefae0]",
                             value=val,
                             category="directory",
                             is_default=True
@@ -162,10 +165,10 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
         if val not in seen_values:
             seen_values.add(val)
             char_count = len(clean_item)
-            preview = escape(clean_item[:50].replace("\n", " "))
+            preview = escape(clean_item[:32].replace("\n", " "))
             discovered.append(
                 DiscoveredIngredient(
-                    label=f"[bold #50fa7b][NOTES][/bold #50fa7b] Manual Notes / Bio ({char_count} chars) — [dim]\"{preview}...\"[/dim]",
+                    label=f"[bold #50fa7b][NOTES][/bold #50fa7b] Manual Notes / Bio ({char_count} chars) — [bold #fefae0]\"{preview}...\"[/bold #fefae0]",
                     value=val,
                     category="notes",
                     is_default=True
@@ -177,6 +180,122 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
 
 class IngredientDiscoveryModal(ModalScreen[Optional[List[str]]]):
     """Interactive modal screen for reviewing and selecting discovered ingredients before baking."""
+
+    DEFAULT_CSS = """
+    IngredientDiscoveryModal {
+        align: center middle;
+        background: rgba(11, 14, 23, 0.85);
+    }
+
+    #discovery-modal-container {
+        width: 88;
+        max-width: 94;
+        height: 32;
+        max-height: 85%;
+        background: #10141f;
+        border: heavy #d4a373;
+        padding: 1 2;
+    }
+
+    #discovery-header-bar {
+        height: 3;
+        align: center middle;
+        border-bottom: heavy #3d271d;
+        margin-bottom: 0;
+    }
+
+    #discovery-title {
+        width: 1fr;
+        text-align: center;
+        color: #ffb86c;
+        text-style: bold;
+    }
+
+    #btn-modal-close {
+        dock: right;
+        min-width: 4;
+        width: 4;
+        height: 1;
+        background: transparent;
+        color: #a89f91;
+        border: none;
+    }
+
+    #btn-modal-close:hover {
+        color: #ff5555;
+        text-style: bold;
+    }
+
+    #discovery-subtitle {
+        text-align: center;
+        color: #a89f91;
+        margin-top: 0;
+        margin-bottom: 1;
+        height: 1;
+    }
+
+    #discovery-selection-list {
+        height: 1fr;
+        background: #0b0e17;
+        border: round #3d271d;
+        padding: 0 1;
+        margin-bottom: 1;
+        scrollbar-color: #d4a373 #10141f;
+    }
+
+    #discovery-selection-list:focus {
+        border: round #d4a373;
+    }
+
+    #discovery-counter-bar {
+        height: 1;
+        text-align: center;
+        color: #f4a261;
+        margin-bottom: 1;
+    }
+
+    #discovery-actions {
+        height: 3;
+        align: center middle;
+    }
+
+    #discovery-actions Button {
+        margin: 0 1;
+        height: 3;
+        min-width: 14;
+    }
+
+    #btn-disc-bake {
+        background: #1b4332;
+        color: #d8f3dc;
+        border: heavy #52b788;
+        text-style: bold;
+    }
+
+    #btn-disc-bake:hover {
+        background: #2d6a4f;
+    }
+
+    #btn-disc-all, #btn-disc-none {
+        background: #1e293b;
+        color: #cbd5e1;
+        border: heavy #475569;
+    }
+
+    #btn-disc-all:hover, #btn-disc-none:hover {
+        background: #334155;
+    }
+
+    #btn-disc-cancel {
+        background: #3f1d1d;
+        color: #fca5a5;
+        border: heavy #7f1d1d;
+    }
+
+    #btn-disc-cancel:hover {
+        background: #5f2525;
+    }
+    """
 
     BINDINGS = [
         Binding("enter", "submit", "Bake Selected", priority=True),
@@ -197,16 +316,18 @@ class IngredientDiscoveryModal(ModalScreen[Optional[List[str]]]):
                 yield Button("✕", id="btn-modal-close", classes="modal-close-btn")
 
             yield Label(
-                "[dim]Review detected documents, subpages, and files. Select what to bake into your Canonical Pantry.[/dim]",
+                "[dim]Review detected documents, subpages, and files. Select what to bake into your Career Pantry.[/dim]",
                 id="discovery-subtitle"
             )
 
             yield SelectionList[str](id="discovery-selection-list")
 
+            yield Label("", id="discovery-counter-bar")
+
             with Horizontal(id="discovery-actions"):
                 yield Button("Select All (a)", variant="default", id="btn-disc-all")
                 yield Button("Clear All (c)", variant="default", id="btn-disc-none")
-                yield Button("Cancel", variant="error", id="btn-disc-cancel")
+                yield Button("Cancel (Esc)", variant="error", id="btn-disc-cancel")
                 yield Button("Bake Selected (Enter)", variant="success", id="btn-disc-bake")
 
     def on_mount(self) -> None:
@@ -223,20 +344,36 @@ class IngredientDiscoveryModal(ModalScreen[Optional[List[str]]]):
                 )
             )
 
+        self._update_counter_label()
         try:
             sel_list.focus()
+        except Exception:
+            pass
+
+    def on_selection_list_selected_changed(self, event: SelectionList.SelectedChanged) -> None:
+        self._update_counter_label()
+
+    def _update_counter_label(self) -> None:
+        try:
+            sel_list = self.query_one("#discovery-selection-list", SelectionList)
+            count = len(sel_list.selected)
+            total = len(self.discovered_ingredients)
+            lbl = self.query_one("#discovery-counter-bar", Label)
+            lbl.update(f"◈ [bold #50fa7b]{count}[/bold #50fa7b] of [bold]{total}[/bold] ingredients selected for kneading")
         except Exception:
             pass
 
     def action_select_all(self) -> None:
         try:
             self.query_one("#discovery-selection-list", SelectionList).select_all()
+            self._update_counter_label()
         except Exception:
             pass
 
     def action_clear_all(self) -> None:
         try:
             self.query_one("#discovery-selection-list", SelectionList).deselect_all()
+            self._update_counter_label()
         except Exception:
             pass
 
