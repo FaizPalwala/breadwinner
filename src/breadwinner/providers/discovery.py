@@ -17,6 +17,67 @@ class ModelInfo(BaseModel):
     description: Optional[str] = None
 
 
+COMMON_EXCLUDED_PATTERNS = [
+    r"tts", r"audio", r"voice", r"transcribe", r"whisper", r"lyria",
+    r"image", r"banana", r"imagen", r"dall-e", r"veo", r"video",
+    r"embed", r"embedding", r"moderation", r"clip", r"robotics",
+    r"computer-use", r"reward", r"rerank", r"aqa", r"realtime",
+    r"preview-customtools", r"antigravity-preview", r"deep-research"
+]
+
+DEPRECATED_MODELS = {
+    # Gemini retired models that return 404
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-pro-preview-tts",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-image",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-1.0-pro",
+    # OpenAI retired / completion-only models
+    "text-davinci-003",
+    "text-davinci-002",
+    "text-curie-001",
+    "text-babbage-001",
+    "text-ada-001",
+    "davinci-002",
+    "babbage-002",
+}
+
+# Backward compatibility alias
+DEPRECATED_GEMINI_MODELS = DEPRECATED_MODELS
+
+
+def is_usable_chat_model(model_id: str, supported_methods: Optional[List[str]] = None) -> bool:
+    """Determine whether a model is suitable for Breadwinner's text/chat/JSON workflow.
+    
+    Excludes:
+    - Deprecated models returning 404
+    - Text-to-speech (TTS), audio, transcription, and whisper models
+    - Image and video generation models (Imagen, Dall-E, Veo, Banana)
+    - Embedding and vector representations
+    - Robotics, computer-use, and internal agent test harnesses
+    """
+    mid = model_id.lower().replace("models/", "")
+
+    if mid in DEPRECATED_MODELS:
+        return False
+
+    if supported_methods is not None and len(supported_methods) > 0:
+        if "generateContent" not in supported_methods and "chat" not in supported_methods:
+            return False
+
+    for pat in COMMON_EXCLUDED_PATTERNS:
+        if re.search(r'(^|[-_./])' + pat + r'([-_./]|$)', mid) or pat in mid:
+            return False
+
+    return True
+
+
 class ProviderStatus(BaseModel):
     name: str
     slug: str
@@ -29,10 +90,10 @@ class ProviderStatus(BaseModel):
 
 PROVIDER_MODELS: Dict[str, List[Tuple[str, str]]] = {
     "gemini": [
-        ("Gemini 2.0 Flash (Fastest, 1M context - Recommended)", "gemini-2.0-flash"),
-        ("Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)", "gemini-2.0-flash-lite"),
-        ("Gemini 1.5 Pro (Deep reasoning & 2M context)", "gemini-1.5-pro"),
-        ("Gemini 1.5 Flash (Ultra-low latency legacy)", "gemini-1.5-flash"),
+        ("Gemini 3.8 Flash (Fastest, latest generation - Recommended)", "gemini-3.8-flash"),
+        ("Gemini 3.5 Flash (High throughput & reliable)", "gemini-3.5-flash"),
+        ("Gemini Flash Latest (Dynamic latest alias)", "gemini-flash-latest"),
+        ("Gemini Flash-Lite Latest (Ultra-fast, lowest latency)", "gemini-flash-lite-latest"),
     ],
     "openrouter": [
         ("Claude 3.7 Sonnet (Anthropic flagship via OpenRouter)", "anthropic/claude-3.7-sonnet"),
@@ -150,25 +211,49 @@ class ProviderDiscovery:
 
     @classmethod
     def check_deepseek(cls) -> ProviderStatus:
-        """Check DeepSeek API configuration."""
+        """Check DeepSeek API configuration and dynamically fetch available models."""
         key_configured = bool(settings.deepseek_api_key and settings.deepseek_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "deepseek"
 
-        known_models = [
-            ("deepseek-chat", "DeepSeek-V3 (High-throughput reasoning & coding)"),
-            ("deepseek-reasoner", "DeepSeek-R1 (Chain-of-thought reasoning model)")
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    "https://api.deepseek.com/models",
+                    headers={"Authorization": f"Bearer {settings.deepseek_api_key.strip()}"},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    for m in raw:
+                        if isinstance(m, dict):
+                            mid = m.get("id", "")
+                            if is_usable_chat_model(mid):
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mid,
+                                    provider="deepseek",
+                                    is_active=(is_active_provider and mid == settings.deepseek_model),
+                                    description=f"DeepSeek {mid}"
+                                ))
+            except Exception:
+                pass
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="deepseek",
-                is_active=(is_active_provider and mid == settings.deepseek_model),
-                description=mname
-            )
-            for mid, mname in known_models
-        ]
+        if not models:
+            known_models = [
+                ("deepseek-chat", "DeepSeek-V3 (High-throughput reasoning & coding)"),
+                ("deepseek-reasoner", "DeepSeek-R1 (Chain-of-thought reasoning model)")
+            ]
+            models = [
+                ModelInfo(
+                    id=mid,
+                    name=mname,
+                    provider="deepseek",
+                    is_active=(is_active_provider and mid == settings.deepseek_model),
+                    description=mname
+                )
+                for mid, mname in known_models
+            ]
 
         status_text = "🟢 Configured (DeepSeek Key)" if key_configured else "⚪ Missing DEEPSEEK_API_KEY in .env"
         return ProviderStatus(
@@ -182,30 +267,24 @@ class ProviderDiscovery:
 
     @classmethod
     def check_gemini(cls) -> ProviderStatus:
-        """Check Google Gemini API configuration."""
+        """Check Google Gemini API configuration and dynamically discover available text/chat models."""
         key_configured = bool(settings.gemini_api_key and settings.gemini_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "gemini"
-
-        known_models = [
-            ("gemini-2.0-flash", "Gemini 2.0 Flash (Fastest, 1M context - Recommended)"),
-            ("gemini-2.0-flash-lite", "Gemini 2.0 Flash-Lite (Ultra-fast, lowest latency)"),
-            ("gemini-1.5-pro", "Gemini 1.5 Pro (Deep reasoning & 2M context)"),
-            ("gemini-1.5-flash", "Gemini 1.5 Flash (Ultra-low latency legacy)"),
-        ]
 
         models = []
         if key_configured:
             try:
                 resp = requests.get(
                     f"https://generativelanguage.googleapis.com/v1beta/models?key={settings.gemini_api_key.strip()}",
-                    timeout=2.0
+                    timeout=3.0
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("models", [])
                     for m in raw:
-                        if isinstance(m, dict) and "generateContent" in m.get("supportedGenerationMethods", []):
-                            mid = m["name"].replace("models/", "")
-                            if mid.startswith("gemini-"):
+                        if isinstance(m, dict):
+                            mid = m.get("name", "").replace("models/", "")
+                            methods = m.get("supportedGenerationMethods", [])
+                            if is_usable_chat_model(mid, methods):
                                 mname = m.get("displayName", mid)
                                 models.append(ModelInfo(
                                     id=mid,
@@ -214,10 +293,40 @@ class ProviderDiscovery:
                                     is_active=(is_active_provider and mid == settings.gemini_model),
                                     description=m.get("description", mname)
                                 ))
+                    
+                    def _gemini_sort_rank(m_info: ModelInfo) -> Tuple[int, str]:
+                        mid = m_info.id.lower()
+                        if "3.8-flash" in mid:
+                            return (0, mid)
+                        if "3.7-flash" in mid:
+                            return (1, mid)
+                        if "3.6-flash" in mid:
+                            return (2, mid)
+                        if "3.5-flash" in mid:
+                            return (3, mid)
+                        if "flash-latest" in mid:
+                            return (4, mid)
+                        if "flash-lite-latest" in mid:
+                            return (5, mid)
+                        if "pro-latest" in mid:
+                            return (6, mid)
+                        if "flash" in mid:
+                            return (7, mid)
+                        if "pro" in mid:
+                            return (8, mid)
+                        return (9, mid)
+
+                    models.sort(key=_gemini_sort_rank)
             except Exception:
                 pass
 
         if not models:
+            known_models = PROVIDER_MODELS.get("gemini", [
+                ("Gemini 3.8 Flash (Fastest, latest generation - Recommended)", "gemini-3.8-flash"),
+                ("Gemini 3.5 Flash (High throughput & reliable)", "gemini-3.5-flash"),
+                ("Gemini Flash Latest (Dynamic latest alias)", "gemini-flash-latest"),
+                ("Gemini Flash-Lite Latest (Ultra-fast, lowest latency)", "gemini-flash-lite-latest"),
+            ])
             models = [
                 ModelInfo(
                     id=mid,
@@ -226,7 +335,7 @@ class ProviderDiscovery:
                     is_active=(is_active_provider and mid == settings.gemini_model),
                     description=mname
                 )
-                for mid, mname in known_models
+                for mname, mid in known_models
             ]
 
         status_text = "🟢 Configured (AI Studio Key)" if key_configured else "⚪ Missing GEMINI_API_KEY in .env"
@@ -241,25 +350,56 @@ class ProviderDiscovery:
 
     @classmethod
     def check_groq(cls) -> ProviderStatus:
-        """Check Groq Cloud configuration."""
+        """Check Groq Cloud configuration and dynamically fetch available models."""
         key_configured = bool(settings.groq_api_key and settings.groq_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "groq"
 
-        known_models = [
-            ("llama-3.3-70b-versatile", "Llama 3.3 70B (High speed)"),
-            ("qwen-2.5-32b", "Qwen 2.5 32B (Advanced reasoning)"),
-            ("llama-3.1-8b-instant", "Llama 3.1 8B (Sub-second speed)")
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {settings.groq_api_key.strip()}"},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    for m in raw:
+                        if isinstance(m, dict):
+                            mid = m.get("id", "")
+                            if is_usable_chat_model(mid):
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mid,
+                                    provider="groq",
+                                    is_active=(is_active_provider and mid == settings.groq_model),
+                                    description=f"Groq {mid}"
+                                ))
+                    def _groq_sort_rank(m_info: ModelInfo) -> Tuple[int, str]:
+                        mid = m_info.id.lower()
+                        if "llama-3.3-70b" in mid: return (0, mid)
+                        if "qwen-2.5-32b" in mid: return (1, mid)
+                        if "llama-3.1-8b" in mid: return (2, mid)
+                        return (3, mid)
+                    models.sort(key=_groq_sort_rank)
+            except Exception:
+                pass
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="groq",
-                is_active=(is_active_provider and mid == settings.groq_model)
-            )
-            for mid, mname in known_models
-        ]
+        if not models:
+            known_models = [
+                ("llama-3.3-70b-versatile", "Llama 3.3 70B (High speed)"),
+                ("qwen-2.5-32b", "Qwen 2.5 32B (Advanced reasoning)"),
+                ("llama-3.1-8b-instant", "Llama 3.1 8B (Sub-second speed)")
+            ]
+            models = [
+                ModelInfo(
+                    id=mid,
+                    name=mname,
+                    provider="groq",
+                    is_active=(is_active_provider and mid == settings.groq_model)
+                )
+                for mid, mname in known_models
+            ]
 
         status_text = "🟢 Configured (Groq Key)" if key_configured else "⚪ Missing GROQ_API_KEY in .env"
         return ProviderStatus(
@@ -314,29 +454,55 @@ class ProviderDiscovery:
 
     @classmethod
     def check_openrouter(cls) -> ProviderStatus:
-        """Check OpenRouter multi-model gateway configuration."""
+        """Check OpenRouter multi-model gateway configuration and dynamically discover models."""
         key_configured = bool(settings.openrouter_api_key and settings.openrouter_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "openrouter"
 
-        known_models = [
-            ("anthropic/claude-3.7-sonnet", "Claude 3.7 Sonnet (Anthropic flagship)"),
-            ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet (High intelligence)"),
-            ("openai/gpt-4o", "GPT-4o (OpenAI Omni flagship)"),
-            ("google/gemini-2.0-flash-001", "Gemini 2.0 Flash (Fast & reliable)"),
-            ("deepseek/deepseek-r1", "DeepSeek R1 (Chain of thought logic)"),
-            ("meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B (Open weights)"),
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    "https://openrouter.ai/api/v1/models",
+                    headers={"Authorization": f"Bearer {settings.openrouter_api_key.strip()}"},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    for m in raw:
+                        if isinstance(m, dict):
+                            mid = m.get("id", "")
+                            if is_usable_chat_model(mid):
+                                mname = m.get("name", mid)
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mname,
+                                    provider="openrouter",
+                                    is_active=(is_active_provider and mid == settings.openrouter_model),
+                                    description=m.get("description", mname)
+                                ))
+                    models = models[:20]  # Cap at top 20 active models
+            except Exception:
+                pass
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="openrouter",
-                is_active=(is_active_provider and mid == settings.openrouter_model),
-                description=mname
-            )
-            for mid, mname in known_models
-        ]
+        if not models:
+            known_models = [
+                ("anthropic/claude-3.7-sonnet", "Claude 3.7 Sonnet (Anthropic flagship)"),
+                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet (High intelligence)"),
+                ("openai/gpt-4o", "GPT-4o (OpenAI Omni flagship)"),
+                ("google/gemini-2.0-flash-001", "Gemini 2.0 Flash (Fast & reliable)"),
+                ("deepseek/deepseek-r1", "DeepSeek R1 (Chain of thought logic)"),
+                ("meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B (Open weights)"),
+            ]
+            models = [
+                ModelInfo(
+                    id=mid,
+                    name=mname,
+                    provider="openrouter",
+                    is_active=(is_active_provider and mid == settings.openrouter_model),
+                    description=mname
+                )
+                for mid, mname in known_models
+            ]
 
         status_text = "🟢 Configured (OpenRouter Key)" if key_configured else "⚪ Missing OPENROUTER_API_KEY in .env"
         return ProviderStatus(
@@ -383,27 +549,59 @@ class ProviderDiscovery:
 
     @classmethod
     def check_openai(cls) -> ProviderStatus:
-        """Check OpenAI API configuration."""
+        """Check OpenAI API configuration and dynamically fetch available models."""
         key_configured = bool(settings.openai_api_key and settings.openai_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "openai"
 
-        known_models = [
-            ("gpt-4o", "GPT-4o (Flagship omni model)"),
-            ("gpt-4o-mini", "GPT-4o Mini (Fast & cost efficient)"),
-            ("o3-mini", "o3-mini (High-speed reasoning)"),
-            ("o1", "o1 (Deep analytical reasoning)")
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    "https://api.openai.com/v1/models",
+                    headers={"Authorization": f"Bearer {settings.openai_api_key.strip()}"},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    for m in raw:
+                        if isinstance(m, dict):
+                            mid = m.get("id", "")
+                            if is_usable_chat_model(mid) and any(mid.startswith(pfx) for pfx in ("gpt-", "o1", "o3", "chatgpt-")):
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mid,
+                                    provider="openai",
+                                    is_active=(is_active_provider and mid == settings.openai_model),
+                                    description=f"OpenAI {mid}"
+                                ))
+                    def _openai_sort_rank(m_info: ModelInfo) -> Tuple[int, str]:
+                        mid = m_info.id.lower()
+                        if mid == "gpt-4o": return (0, mid)
+                        if mid == "gpt-4o-mini": return (1, mid)
+                        if mid.startswith("o3-mini"): return (2, mid)
+                        if mid.startswith("o1"): return (3, mid)
+                        return (4, mid)
+                    models.sort(key=_openai_sort_rank)
+            except Exception:
+                pass
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="openai",
-                is_active=(is_active_provider and mid == settings.openai_model),
-                description=mname
-            )
-            for mid, mname in known_models
-        ]
+        if not models:
+            known_models = [
+                ("gpt-4o", "GPT-4o (Flagship omni model)"),
+                ("gpt-4o-mini", "GPT-4o Mini (Fast & cost efficient)"),
+                ("o3-mini", "o3-mini (High-speed reasoning)"),
+                ("o1", "o1 (Deep analytical reasoning)")
+            ]
+            models = [
+                ModelInfo(
+                    id=mid,
+                    name=mname,
+                    provider="openai",
+                    is_active=(is_active_provider and mid == settings.openai_model),
+                    description=mname
+                )
+                for mid, mname in known_models
+            ]
 
         status_text = "🟢 Configured (OpenAI Key)" if key_configured else "⚪ Missing OPENAI_API_KEY in .env"
         return ProviderStatus(
@@ -417,26 +615,50 @@ class ProviderDiscovery:
 
     @classmethod
     def check_mistral(cls) -> ProviderStatus:
-        """Check Mistral AI configuration."""
+        """Check Mistral AI configuration and dynamically fetch available models."""
         key_configured = bool(settings.mistral_api_key and settings.mistral_api_key.strip())
         is_active_provider = settings.breadwinner_llm_provider == "mistral"
 
-        known_models = [
-            ("mistral-large-latest", "Mistral Large (Premier frontier reasoning)"),
-            ("codestral-latest", "Codestral (State of the art coding)"),
-            ("mistral-small-latest", "Mistral Small (Fast & responsive)")
-        ]
+        models = []
+        if key_configured:
+            try:
+                resp = requests.get(
+                    "https://api.mistral.ai/v1/models",
+                    headers={"Authorization": f"Bearer {settings.mistral_api_key.strip()}"},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    raw = resp.json().get("data", [])
+                    for m in raw:
+                        if isinstance(m, dict):
+                            mid = m.get("id", "")
+                            if is_usable_chat_model(mid):
+                                models.append(ModelInfo(
+                                    id=mid,
+                                    name=mid,
+                                    provider="mistral",
+                                    is_active=(is_active_provider and mid == settings.mistral_model),
+                                    description=f"Mistral {mid}"
+                                ))
+            except Exception:
+                pass
 
-        models = [
-            ModelInfo(
-                id=mid,
-                name=mname,
-                provider="mistral",
-                is_active=(is_active_provider and mid == settings.mistral_model),
-                description=mname
-            )
-            for mid, mname in known_models
-        ]
+        if not models:
+            known_models = [
+                ("mistral-large-latest", "Mistral Large (Premier frontier reasoning)"),
+                ("codestral-latest", "Codestral (State of the art coding)"),
+                ("mistral-small-latest", "Mistral Small (Fast & responsive)")
+            ]
+            models = [
+                ModelInfo(
+                    id=mid,
+                    name=mname,
+                    provider="mistral",
+                    is_active=(is_active_provider and mid == settings.mistral_model),
+                    description=mname
+                )
+                for mid, mname in known_models
+            ]
 
         status_text = "🟢 Configured (Mistral Key)" if key_configured else "⚪ Missing MISTRAL_API_KEY in .env"
         return ProviderStatus(
@@ -447,6 +669,7 @@ class ProviderDiscovery:
             models=models,
             active_model=settings.mistral_model if key_configured else None
         )
+
 
     @classmethod
     def check_mock(cls) -> ProviderStatus:
@@ -563,21 +786,23 @@ class ProviderDiscovery:
                     for m in raw:
                         if isinstance(m, dict) and "generateContent" in m.get("supportedGenerationMethods", []):
                             mid = m["name"].replace("models/", "")
-                            if mid.startswith("gemini-"):
+                            if mid.startswith("gemini-") and mid not in DEPRECATED_GEMINI_MODELS:
                                 mname = m.get("displayName") or mid
                                 live.append((f"{mname} ({mid})", mid))
                     if live:
-                        # Prioritize 2.0-flash and modern models
+                        # Prioritize 3.8-flash, 3.5-flash, and flash-latest
                         def _gemini_sort(item: Tuple[str, str]) -> int:
                             m_id = item[1].lower()
-                            if "2.0-flash" in m_id:
+                            if "3.8-flash" in m_id:
                                 return 0
-                            if "2.0" in m_id:
+                            if "3.5-flash" in m_id:
                                 return 1
-                            if "1.5-pro" in m_id:
+                            if "flash-latest" in m_id:
                                 return 2
-                            if "1.5-flash" in m_id:
+                            if "3." in m_id and "flash" in m_id:
                                 return 3
+                            if "3." in m_id:
+                                return 4
                             return 10
                         live.sort(key=_gemini_sort)
                         return live, True

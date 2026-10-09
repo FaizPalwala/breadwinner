@@ -28,12 +28,26 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             timeout=self.timeout
         )
 
+    def _call_with_retry(self, **kwargs):
+        import time
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except Exception as e:
+                err_str = str(e).lower()
+                is_transient = "503" in err_str or "429" in err_str or "high demand" in err_str or "rate limit" in err_str
+                if is_transient and attempt < max_retries:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+
     def generate_text(self, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> str:
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        response = self.client.chat.completions.create(
+        response = self._call_with_retry(
             model=self.model,
             messages=messages,
             temperature=temperature
@@ -46,10 +60,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             {"role": "system", "content": system_with_json},
             {"role": "user", "content": user_prompt}
         ]
-        
+
         try:
             # Try response_format if supported
-            response = self.client.chat.completions.create(
+            response = self._call_with_retry(
                 model=self.model,
                 messages=messages,
                 response_format={"type": "json_object"},
@@ -59,7 +73,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             return json.loads(content)
         except Exception:
             # Fallback without response_format (some local models / older endpoints don't support it)
-            response = self.client.chat.completions.create(
+            response = self._call_with_retry(
                 model=self.model,
                 messages=messages,
                 temperature=0.1
