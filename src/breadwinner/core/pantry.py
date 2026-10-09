@@ -160,13 +160,15 @@ class PantryManager:
         if context is not None:
             self.context_path.write_text(context.strip() + "\n", encoding="utf-8")
         elif not self.context_path.exists():
-            # Create starter context if none exists
+            # Create starter context if none exists (clean structure without fabricated PII or assumptions)
             default_context = (
                 "# Personal Directives & Guardrails\n\n"
+                "## Engineering Philosophy & Narrative\n"
+                "(Document your core technical principles, career narrative, and domain strengths here)\n\n"
                 "## Target Roles & Preferences\n"
-                "- Open to senior and staff level technical positions.\n\n"
+                "(Specify target role scope and technical directions here)\n\n"
                 "## Work Boundaries & Logistics\n"
-                "- Location: Hybrid or Remote.\n"
+                "(Specify work authorization, notice period, or location constraints here)\n"
             )
             self.context_path.write_text(default_context, encoding="utf-8")
 

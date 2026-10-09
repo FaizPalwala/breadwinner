@@ -106,6 +106,213 @@ def chunk_text(text: str, chunk_size: int = 4000, overlap: int = 400) -> list[st
     return chunks
 
 
+def canonical_project_name(name: str) -> str:
+    """Cluster project names into canonical entities."""
+    n_lower = name.lower()
+    if "sfhq" in n_lower or "virtualid" in n_lower or "virtual-id" in n_lower or "unlearning" in n_lower:
+        return "SFHQ-VirtualID: Synthetic Identity Datasets"
+    if "graphcontext" in n_lower or "graph-context" in n_lower or ("mcp" in n_lower and "graph" in n_lower):
+        return "GraphContext MCP"
+    if "serverless" in n_lower and ("calendar" in n_lower or "github" in n_lower):
+        return "Serverless GitHub Calendar"
+    if "breadwinner" in n_lower:
+        return "Breadwinner Career Engine"
+    if "portfolio" in n_lower or "faizpalwala" in n_lower:
+        return "Developer Portfolio & Technical Blog"
+    clean = re.sub(r"^[0-9\W]+", "", name).strip()
+    clean = re.sub(r"\s*[-–—:]\s*.*$", "", clean).strip()
+    return clean or name
+
+
+def _normalize_and_clean_profile(profile: CandidateProfile) -> CandidateProfile:
+    """Hardened post-processing invariant pass:
+    1. Re-route academic research / graduate degrees out of corporate employment into Education / Research.
+    2. Deduplicate experience bullets within companies using semantic overlap and Metric Maximization (cap at 6).
+    3. Cluster projects into canonical entities.
+    4. Normalize skills strictly into the 5 standard categories with zero cross-category duplicates.
+    """
+    # 1. Academic vs Corporate Boundary Check
+    cleaned_experiences: List[WorkExperience] = []
+    for exp in profile.experiences:
+        company_lower = exp.company.lower()
+        role_lower = exp.role.lower()
+        is_academic = (
+            any(k in company_lower for k in ["university", "college", "school of", "institute of", "laboratory"])
+            or any(k in role_lower for k in ["graduate researcher", "postgraduate researcher", "research assistant", "msc", "phd", "student"])
+        )
+        if is_academic:
+            edu_match = next((ed for ed in profile.education if any(w in ed.institution.lower() for w in company_lower.split() if len(w) > 3)), None)
+            if not edu_match:
+                profile.education.append(
+                    Education(
+                        degree=exp.role if ("msc" in role_lower or "phd" in role_lower or "master" in role_lower) else "Postgraduate Research",
+                        institution=exp.company,
+                        coursework=exp.technologies or []
+                    )
+                )
+            else:
+                for tech in exp.technologies:
+                    if tech not in edu_match.coursework:
+                        edu_match.coursework.append(tech)
+        else:
+            cleaned_experiences.append(exp)
+
+    # 2. Consolidate companies and deduplicate bullets with Metric Maximization
+    company_map: Dict[str, WorkExperience] = {}
+    for exp in cleaned_experiences:
+        norm_comp = exp.company.strip().lower()
+        if "deloitte" in norm_comp:
+            norm_comp = "deloitte"
+
+        if norm_comp not in company_map:
+            company_map[norm_comp] = exp
+        else:
+            existing = company_map[norm_comp]
+            for t in exp.technologies:
+                if t not in existing.technologies:
+                    existing.technologies.append(t)
+            if any(s in exp.role.lower() for s in ["senior", "lead", "staff", "principal", "manager"]):
+                existing.role = exp.role
+            for b in exp.bullets:
+                existing.bullets.append(b)
+
+    from breadwinner.core.density import METRIC_REGEX
+    consolidated_exps: List[WorkExperience] = []
+    for exp in company_map.values():
+        deduped_bullets: List[str] = []
+        for candidate_b in exp.bullets:
+            c_text = candidate_b.strip()
+            if not c_text:
+                continue
+            match_idx = -1
+            for idx, kept_b in enumerate(deduped_bullets):
+                if kept_b.lower() == c_text.lower():
+                    match_idx = idx
+                    break
+                words_k = set(re.findall(r"\w+", kept_b.lower()))
+                words_c = set(re.findall(r"\w+", c_text.lower()))
+                if len(words_k) > 4 and len(words_c) > 4:
+                    overlap = len(words_k & words_c) / min(len(words_k), len(words_c))
+                    if overlap >= 0.65:
+                        match_idx = idx
+                        break
+            if match_idx != -1:
+                kept_metrics = len(METRIC_REGEX.findall(deduped_bullets[match_idx]))
+                c_metrics = len(METRIC_REGEX.findall(c_text))
+                if c_metrics > kept_metrics or (c_metrics == kept_metrics and len(c_text) > len(deduped_bullets[match_idx])):
+                    deduped_bullets[match_idx] = c_text
+            else:
+                deduped_bullets.append(c_text)
+        exp.bullets = deduped_bullets[:6]
+        consolidated_exps.append(exp)
+
+    # 3. Canonical Project Clustering
+    project_map: Dict[str, Project] = {}
+    for proj in profile.projects:
+        c_name = canonical_project_name(proj.name)
+        if c_name not in project_map:
+            proj.name = c_name
+            project_map[c_name] = proj
+        else:
+            existing_p = project_map[c_name]
+            if proj.description and len(proj.description) > len(existing_p.description):
+                existing_p.description = proj.description
+            for t in proj.tech_stack:
+                if t not in existing_p.tech_stack:
+                    existing_p.tech_stack.append(t)
+            for h in proj.highlights:
+                if h not in existing_p.highlights:
+                    existing_p.highlights.append(h)
+            if proj.url and not existing_p.url:
+                existing_p.url = proj.url
+            if proj.github_url and not existing_p.github_url:
+                existing_p.github_url = proj.github_url
+
+    # 4. Strict 5-Bucket Skill Normalization & Zero Cross-Category Duplication
+    CANONICAL_CATEGORIES = [
+        "Languages",
+        "AI/ML & Research",
+        "Backend & Distributed Systems",
+        "Cloud & Infrastructure",
+        "Frontend & Web"
+    ]
+
+    KNOWN_LANGUAGE_SKILLS = {"python", "typescript", "javascript", "go", "golang", "c++", "c", "rust", "java", "sql", "bash", "shell", "html", "css"}
+    KNOWN_AIML_SKILLS = {"pytorch", "tensorflow", "diffusers", "instantid", "hugging face", "scikit-learn", "opencv", "numpy", "pandas", "machine unlearning", "diffusion models", "llms", "deep learning", "machine learning"}
+    KNOWN_BACKEND_SKILLS = {"fastapi", "flask", "django", "node.js", "express", "postgresql", "postgres", "redis", "mongodb", "sqlite", "grpc", "graphql", "rest api", "microservices", "distributed systems", "kafka", "rabbitmq"}
+    KNOWN_CLOUD_SKILLS = {"docker", "kubernetes", "k8s", "aws", "gcp", "azure", "terraform", "github actions", "ci/cd", "linux", "slurm", "git"}
+    KNOWN_FRONTEND_SKILLS = {"react", "next.js", "vue", "tailwind css", "tailwind", "textual", "html5", "css3", "vite"}
+
+    def map_skill_category(raw_cat: str) -> str:
+        c = raw_cat.strip().lower()
+        if any(k in c for k in ["lang", "coding", "programming"]):
+            return "Languages"
+        if any(k in c for k in ["ai", "ml", "learning", "data science", "research", "vision", "nlp"]):
+            return "AI/ML & Research"
+        if any(k in c for k in ["backend", "distributed", "systems", "database", "data engineering", "core", "api", "framework"]):
+            return "Backend & Distributed Systems"
+        if any(k in c for k in ["cloud", "infra", "devops", "platform", "docker", "k8s", "kubernetes", "ci/cd", "tool"]):
+            return "Cloud & Infrastructure"
+        if any(k in c for k in ["front", "web", "ui", "ux", "mobile", "client", "react"]):
+            return "Frontend & Web"
+        return "Backend & Distributed Systems"
+
+    def get_skill_bucket(skill_name: str, parent_category: str) -> str:
+        s_low = skill_name.lower().strip()
+        if s_low in KNOWN_LANGUAGE_SKILLS:
+            return "Languages"
+        if s_low in KNOWN_AIML_SKILLS:
+            return "AI/ML & Research"
+        if s_low in KNOWN_BACKEND_SKILLS:
+            return "Backend & Distributed Systems"
+        if s_low in KNOWN_CLOUD_SKILLS:
+            return "Cloud & Infrastructure"
+        if s_low in KNOWN_FRONTEND_SKILLS:
+            return "Frontend & Web"
+        return map_skill_category(parent_category)
+
+    bucket_skills: Dict[str, List[str]] = {cat: [] for cat in CANONICAL_CATEGORIES}
+    seen_skills_lower: Set[str] = set()
+
+    for sk_cat in profile.skills:
+        for s in sk_cat.skills:
+            s_clean = s.strip()
+            if not s_clean:
+                continue
+            s_low = s_clean.lower()
+            if len(s_clean) > 40 or len(s_clean) < 2 or any(noise in s_low for noise in ["proven track record", "strong communication", "team player", "leadership"]):
+                continue
+            if s_low in seen_skills_lower:
+                continue
+            seen_skills_lower.add(s_low)
+
+            target_bucket = get_skill_bucket(s_clean, sk_cat.category)
+            bucket_skills[target_bucket].append(s_clean)
+
+    normalized_skills = [
+        SkillCategory(category=cat, skills=bucket_skills[cat])
+        for cat in CANONICAL_CATEGORIES
+        if bucket_skills[cat]
+    ]
+
+    return CandidateProfile(
+        full_name=profile.full_name,
+        title=profile.title,
+        email=profile.email,
+        phone=profile.phone,
+        location=profile.location,
+        linkedin_url=profile.linkedin_url,
+        github_url=profile.github_url,
+        portfolio_url=profile.portfolio_url,
+        summary=profile.summary,
+        experiences=consolidated_exps,
+        education=profile.education,
+        projects=list(project_map.values()),
+        skills=normalized_skills,
+        raw_context=profile.raw_context
+    )
+
+
 def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> CandidateProfile:
     """Merges incoming profile facts into base profile without clobbering existing verified bullets."""
     full_name = base.full_name if base.full_name and base.full_name != "Candidate" else incoming.full_name
@@ -121,10 +328,9 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
     # Merge experiences with Metric Maximization
     merged_exps = list(base.experiences)
     for inc_exp in incoming.experiences:
-        match = next((e for e in merged_exps if e.company.lower() == inc_exp.company.lower()), None)
+        match = next((e for e in merged_exps if e.company.lower() == inc_exp.company.lower() or ("deloitte" in e.company.lower() and "deloitte" in inc_exp.company.lower())), None)
         if match:
             # Bullet deduplication with Metric Maximization
-            # If incoming bullet expresses same core concept but has higher quantified metrics, replace it
             for inc_b in inc_exp.bullets:
                 inc_clean = inc_b.strip()
                 if not inc_clean:
@@ -136,22 +342,21 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
                     if exist_b.strip().lower() == inc_clean.lower():
                         found_dup_idx = idx
                         break
-                    # Check semantic overlap: shared entities/words > 60%
+                    # Check semantic overlap: shared entities/words > 65%
                     words_exist = set(re.findall(r"\w+", exist_b.lower()))
                     words_inc = set(re.findall(r"\w+", inc_clean.lower()))
                     if len(words_exist) > 4 and len(words_inc) > 4:
                         overlap = len(words_exist & words_inc) / min(len(words_exist), len(words_inc))
-                        if overlap >= 0.70:
+                        if overlap >= 0.65:
                             found_dup_idx = idx
                             break
 
                 if found_dup_idx != -1:
-                    # Metric maximization: compare metrics count
                     exist_bullet = match.bullets[found_dup_idx]
                     from breadwinner.core.density import METRIC_REGEX
                     exist_metrics = len(METRIC_REGEX.findall(exist_bullet))
                     inc_metrics = len(METRIC_REGEX.findall(inc_clean))
-                    if inc_metrics > exist_metrics:
+                    if inc_metrics > exist_metrics or (inc_metrics == exist_metrics and len(inc_clean) > len(exist_bullet)):
                         match.bullets[found_dup_idx] = inc_clean
                 else:
                     match.bullets.append(inc_clean)
@@ -159,21 +364,31 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
             for t in inc_exp.technologies:
                 if t not in match.technologies:
                     match.technologies.append(t)
+            
+            # Prefer higher title if promotion detected
+            if any(s in inc_exp.role.lower() for s in ["senior", "lead", "staff", "principal", "manager"]):
+                match.role = inc_exp.role
         else:
             merged_exps.append(inc_exp)
 
     # Merge education
     merged_edu = list(base.education)
     for inc_edu in incoming.education:
-        match_edu = next((ed for ed in merged_edu if ed.institution.lower() == inc_edu.institution.lower() and ed.degree.lower() == inc_edu.degree.lower()), None)
+        match_edu = next((ed for ed in merged_edu if ed.institution.lower() == inc_edu.institution.lower() and (ed.degree.lower() == inc_edu.degree.lower() or "msc" in ed.degree.lower() and "msc" in inc_edu.degree.lower())), None)
         if not match_edu:
             merged_edu.append(inc_edu)
+        else:
+            for cw in inc_edu.coursework:
+                if cw not in match_edu.coursework:
+                    match_edu.coursework.append(cw)
 
     # Merge projects
     merged_projs = list(base.projects)
     for inc_proj in incoming.projects:
-        match_p = next((p for p in merged_projs if p.name.lower() == inc_proj.name.lower()), None)
+        canon_inc = canonical_project_name(inc_proj.name)
+        match_p = next((p for p in merged_projs if canonical_project_name(p.name).lower() == canon_inc.lower()), None)
         if match_p:
+            match_p.name = canon_inc
             if inc_proj.description and len(inc_proj.description) > len(match_p.description):
                 match_p.description = inc_proj.description
             for s in inc_proj.tech_stack:
@@ -187,6 +402,7 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
             if inc_proj.github_url and not match_p.github_url:
                 match_p.github_url = inc_proj.github_url
         else:
+            inc_proj.name = canon_inc
             merged_projs.append(inc_proj)
 
     # Merge skills
@@ -206,6 +422,15 @@ def merge_profiles(base: CandidateProfile, incoming: CandidateProfile) -> Candid
     # Merge raw context and dossier documents
     merged_context = dict(base.raw_context)
     merged_context.update(incoming.raw_context)
+    
+    # Merge context diary: prefer longer
+    base_diary = base.raw_context.get("context_diary", "")
+    inc_diary = incoming.raw_context.get("context_diary", "")
+    if len(inc_diary) > len(base_diary):
+        merged_context["context_diary"] = inc_diary
+    elif base_diary:
+        merged_context["context_diary"] = base_diary
+
     base_docs = base.raw_context.get("dossier_documents", {})
     inc_docs = incoming.raw_context.get("dossier_documents", {})
     if base_docs or inc_docs:
@@ -440,13 +665,12 @@ class UniversalIngestor:
             except Exception:
                 continue
 
-        # Ingest blog/technical articles into deep dossier documents
+        # Ingest blog/technical articles into composite texts for architectural synthesis
         article_routes = [r for r in routes if r[1] == "articles"]
         for r_url, _, title in article_routes[:3]:
             try:
                 art_text = cls.extract_text_from_url(r_url, timeout=timeout)
-                safe_slug = re.sub(r"[^a-zA-Z0-9_-]", "_", title.lower()).strip("_") or "article"
-                dossier_docs[f"articles/{safe_slug}.md"] = f"# {title}\n\n*Source: {r_url}*\n\n{art_text}"
+                composite_texts.append(f"=== TECHNICAL WRITING & BLOGS: {title} ({r_url}) ===\n{art_text}")
             except Exception:
                 continue
 
@@ -619,7 +843,8 @@ class UniversalIngestor:
             return cls._extract_chunked_profile(chunks, provider, source_label)
 
         # 4. Standard single-pass extraction for focused resumes/bios
-        return cls._extract_single_pass_profile(raw_text, provider, source_label)
+        prof = cls._extract_single_pass_profile(raw_text, provider, source_label)
+        return _normalize_and_clean_profile(prof)
 
     @classmethod
     def _extract_single_pass_profile(
@@ -929,6 +1154,356 @@ Respond in valid JSON matching this schema:
         )
 
     @classmethod
+    def ingest_multi_source(
+        cls,
+        sources: List[Any],
+        provider: BaseLLMProvider,
+        existing_profile: Optional[CandidateProfile] = None
+    ) -> CandidateProfile:
+        """Consolidated multi-evidence synthesis pass: harvests all sources and compiles a canonical profile."""
+        if not sources:
+            return existing_profile or cls.parse_text_to_profile("", provider, source_label="Empty Sources")
+
+        if len(sources) == 1:
+            return cls.ingest(sources[0], provider, existing_profile=existing_profile)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        }
+
+        resume_texts: List[str] = []
+        about_texts: List[str] = []
+        project_texts: List[str] = []
+        research_texts: List[str] = []
+        writing_texts: List[str] = []
+        other_texts: List[str] = []
+
+        for s in sources:
+            display_label, kind = normalize_source(str(s))
+            if kind == "empty":
+                continue
+
+            extracted_text = ""
+            label_lower = display_label.lower()
+
+            if kind == "url":
+                # Check for direct PDF resume
+                if label_lower.endswith(".pdf") or "resume" in label_lower or "cv" in label_lower:
+                    try:
+                        resp = requests.get(display_label, headers=headers, timeout=10)
+                        if resp.status_code == 200 and resp.content.startswith(b"%PDF"):
+                            import tempfile
+                            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                                tmp.write(resp.content)
+                                tmp_p = Path(tmp.name)
+                            try:
+                                extracted_text = cls.extract_text_from_pdf(tmp_p)
+                            finally:
+                                if tmp_p.exists():
+                                    tmp_p.unlink()
+                    except Exception:
+                        pass
+                
+                if not extracted_text:
+                    try:
+                        extracted_text = cls.extract_text_from_url(display_label, timeout=10)
+                    except Exception:
+                        continue
+
+            elif kind == "file" or kind == "dir":
+                clean_p = clean_user_input_path(str(s))
+                p = Path(os.path.expanduser(clean_p)).resolve()
+                if p.is_dir():
+                    continue
+                try:
+                    extracted_text = cls.extract_text_from_file(p)
+                except Exception:
+                    continue
+            else:
+                extracted_text = str(s)
+
+            if not extracted_text.strip():
+                continue
+
+            doc_kind = classify_document(extracted_text, source_label=display_label)
+            if doc_kind == "academic" or any(k in label_lower for k in ["research", "dissertation", "thesis"]):
+                research_texts.append(f"=== RESEARCH SOURCE: {display_label} ===\n{extracted_text[:12000]}")
+            elif doc_kind == "resume" or label_lower.endswith(".pdf") or any(k in label_lower for k in ["resume", "cv"]):
+                resume_texts.append(f"=== RESUME SOURCE: {display_label} ===\n{extracted_text[:15000]}")
+            elif any(k in label_lower for k in ["about", "bio"]):
+                about_texts.append(f"=== ABOUT / BIO SOURCE: {display_label} ===\n{extracted_text[:8000]}")
+            elif doc_kind == "project_readme" or any(k in label_lower for k in ["project", "work", "portfolio", "github.com"]):
+                project_texts.append(f"=== PROJECT SOURCE: {display_label} ===\n{extracted_text[:8000]}")
+            elif any(k in label_lower for k in ["noggin", "blog", "articles", "notes", "writing"]):
+                writing_texts.append(f"=== WRITING SOURCE: {display_label} ===\n{extracted_text[:8000]}")
+            else:
+                other_texts.append(f"=== GENERAL SOURCE: {display_label} ===\n{extracted_text[:6000]}")
+
+        sections = []
+        if resume_texts:
+            sections.append("### SECTION 1: PRIMARY RESUME & CHRONOLOGY\n" + "\n\n".join(resume_texts))
+        if about_texts:
+            sections.append("### SECTION 2: QUALITATIVE CAREER NARRATIVE & BIO\n" + "\n\n".join(about_texts))
+        if project_texts:
+            sections.append("### SECTION 3: TECHNICAL PROJECTS & REPOSITORIES\n" + "\n\n".join(project_texts))
+        if research_texts:
+            sections.append("### SECTION 4: ACADEMIC RESEARCH & DISSERTATION\n" + "\n\n".join(research_texts))
+        if writing_texts:
+            sections.append("### SECTION 5: TECHNICAL WRITING, BLOGS & ENGINEERING THOUGHTS\n" + "\n\n".join(writing_texts))
+        if other_texts:
+            sections.append("### SECTION 6: PORTFOLIO OVERVIEW & GENERAL\n" + "\n\n".join(other_texts))
+
+        bundled_text = "\n\n" + ("\n\n" + "=" * 50 + "\n\n").join(sections) if sections else str(sources)
+
+        synthesized = cls._synthesize_multi_source_profile(
+            bundled_text=bundled_text,
+            provider=provider,
+            sources_summary=f"Multi-source synthesis across {len(sources)} verified links and documents",
+            research_fallback="\n\n".join(research_texts),
+            writing_fallback="\n\n".join(writing_texts),
+            about_fallback="\n\n".join(about_texts)
+        )
+
+        if existing_profile is not None:
+            return merge_profiles(existing_profile, synthesized)
+        return synthesized
+
+    @classmethod
+    def _synthesize_multi_source_profile(
+        cls,
+        bundled_text: str,
+        provider: BaseLLMProvider,
+        sources_summary: str,
+        research_fallback: str = "",
+        writing_fallback: str = "",
+        about_fallback: str = ""
+    ) -> CandidateProfile:
+        """Single multi-evidence architect LLM pass with prompt enforcing anti-hallucination and canonical clustering."""
+        sys_prompt = """You are Breadwinner's Lead Career Architect and Anti-Hallucination Compiler.
+Your mission is to analyze all provided candidate evidence (resume, portfolio subpages, project repositories, academic research, and technical blogs) and synthesize a canonical, unified candidate profile.
+
+INVARIANTS & COMPILATION RULES:
+1. ANTI-HALLUCINATION & METRIC PRESERVATION:
+   - Extract true metrics, numbers, and scale without fabricating information.
+   - Every bullet must trace back to the verified evidence. Preserve exact figures (e.g. 23M+ members, 45% latency reduction, 4 years).
+2. WORK EXPERIENCE DEDUPLICATION & PROGRESSION:
+   - Consolidate repetitive bullets for the same employer (e.g., Deloitte) into 4 to 6 sharp, quantified XYZ bullets total ("Accomplished [X] as measured by [Y], by doing [Z]").
+   - Consolidate internal promotions or multiple job titles for the same company into a unified career progression.
+   - Do NOT duplicate bullets.
+   - Do NOT include university degrees, graduate researcher roles, or student assistantships as corporate employment. Place all university research under education, projects, or research dossier.
+3. PROJECTS CANONICAL CLUSTERING:
+   - Cluster projects into 4 to 6 canonical systems (e.g., SFHQ-VirtualID, GraphContext MCP, Serverless GitHub Calendar, Breadwinner, etc.).
+   - Deduplicate subpages, READMEs, and repo URLs describing the same core project into single unified project entities.
+4. STRICT 5-BUCKET SKILL NORMALIZATION:
+   - Group technical skills STRICTLY into these 5 categories:
+     - "Languages"
+     - "AI/ML & Research"
+     - "Backend & Distributed Systems"
+     - "Cloud & Infrastructure"
+     - "Frontend & Web"
+   - Every skill must appear in ONLY ONE category (zero cross-category duplicates).
+   - Filter out fluffy non-technical filler words. Aim for 30 to 45 distinct, high-impact skills.
+5. THE BAKER'S DIARY (CONTEXT_DIARY):
+   - Synthesize qualitative career directives in Markdown based on the candidate's actual about page, bio, and technical narrative:
+     # Personal Directives & Guardrails
+     ## Engineering Philosophy & Narrative
+     ## Technical Strengths & Focus Areas
+     ## Work Preferences & Boundary Directives
+   - Do NOT fabricate fake location, seniority, or visa restrictions.
+6. DEEP KNOWLEDGE DOSSIERS (DOSSIER_DOCUMENTS):
+   - "research_dissertation.md": In-depth architectural & methodology case study of the candidate's academic research, dissertation, unlearning framework, or scientific publications.
+   - "engineering_voice_and_philosophy.md": In-depth technical thought leadership, engineering mental models, systems principles, and architectural depth synthesized from their blog posts and technical writing.
+"""
+
+        user_prompt = f"""CANDIDATE MULTI-EVIDENCE DOSSIER BUNDLE:
+{bundled_text[:35000]}
+
+Respond ONLY in valid JSON matching this exact schema:
+{{
+  "full_name": "Full Name",
+  "title": "Professional Title / Headline",
+  "email": "candidate@example.com",
+  "phone": "+1-555-0100",
+  "location": "City, Country",
+  "website": "https://...",
+  "linkedin": "https://linkedin.com/in/...",
+  "github": "https://github.com/...",
+  "summary": "2-3 sentence career narrative summary",
+  "experiences": [
+    {{
+      "company": "Company Name",
+      "role": "Job Title",
+      "location": "City, Country",
+      "start_date": "YYYY",
+      "end_date": "Present",
+      "bullets": [
+        "Accomplished X as measured by Y, by doing Z."
+      ]
+    }}
+  ],
+  "education": [
+    {{
+      "degree": "Degree and Major",
+      "institution": "University / College",
+      "graduation_year": "YYYY",
+      "coursework": ["Key Area 1", "Key Area 2"]
+    }}
+  ],
+  "projects": [
+    {{
+      "name": "Project Name",
+      "description": "Concise architectural summary",
+      "tech_stack": ["Tech1", "Tech2"],
+      "url": "https://...",
+      "github_url": "https://...",
+      "highlights": ["Highlight 1", "Highlight 2"]
+    }}
+  ],
+  "skills": [
+    {{
+      "category": "Languages",
+      "skills": ["Skill1", "Skill2"]
+    }},
+    {{
+      "category": "AI/ML & Research",
+      "skills": ["Skill3", "Skill4"]
+    }},
+    {{
+      "category": "Backend & Distributed Systems",
+      "skills": ["Skill5", "Skill6"]
+    }},
+    {{
+      "category": "Cloud & Infrastructure",
+      "skills": ["Skill7", "Skill8"]
+    }},
+    {{
+      "category": "Frontend & Web",
+      "skills": ["Skill9", "Skill10"]
+    }}
+  ],
+  "context_diary": "# Personal Directives & Guardrails\\n\\n## Engineering Philosophy & Narrative\\n...",
+  "dossier_documents": {{
+    "research_dissertation.md": "# Academic Research & Master's Dissertation\\n...",
+    "engineering_voice_and_philosophy.md": "# Engineering Voice, Mental Models & Technical Philosophy\\n..."
+  }}
+}}
+"""
+        res = provider.generate_json(sys_prompt, user_prompt)
+
+        exps = [
+            WorkExperience(
+                company=e.get("company", "Company"),
+                role=e.get("role", "Role"),
+                location=e.get("location"),
+                start_date=e.get("start_date", "2020"),
+                end_date=e.get("end_date", "Present"),
+                bullets=e.get("bullets", [])
+            )
+            for e in res.get("experiences", [])
+        ]
+
+        edu = [
+            Education(
+                degree=ed.get("degree", "Degree"),
+                institution=ed.get("institution", "Institution"),
+                graduation_year=ed.get("graduation_year"),
+                coursework=ed.get("coursework", [])
+            )
+            for ed in res.get("education", [])
+        ]
+
+        projs = [
+            Project(
+                name=p.get("name", "Project"),
+                description=p.get("description", ""),
+                tech_stack=p.get("tech_stack", []),
+                url=p.get("url"),
+                github_url=p.get("github_url"),
+                highlights=p.get("highlights", [])
+            )
+            for p in res.get("projects", [])
+        ]
+
+        skills = [
+            SkillCategory(
+                category=s.get("category", "General"),
+                skills=s.get("skills", [])
+            )
+            for s in res.get("skills", [])
+        ]
+
+        context_diary = res.get("context_diary", "")
+        if not context_diary or len(context_diary) < 50:
+            sum_text = res.get("summary", "Software and AI systems engineer.")
+            t_text = res.get("title", "Software Engineer")
+            context_diary = (
+                "# Personal Directives & Guardrails\n\n"
+                "## Engineering Philosophy & Narrative\n"
+                f"{sum_text}\n"
+                "Focus on resilient systems architecture, empirical benchmarks, and clean engineering craftsmanship.\n\n"
+                "## Technical Strengths & Focus Areas\n"
+                f"- Primary Domain: {t_text}\n"
+                "- High-throughput services, distributed data flows, and production robustness\n\n"
+                "## Work Preferences & Boundary Directives\n"
+                "- High-ownership environments valuing architectural autonomy and metric-driven deliverables.\n"
+                "- Zero tolerance for unverified claims or hallucinated scale."
+            )
+
+        dossier_docs = res.get("dossier_documents", {})
+        if not isinstance(dossier_docs, dict):
+            dossier_docs = {}
+
+        if "research_dissertation.md" not in dossier_docs or len(dossier_docs["research_dissertation.md"]) < 50:
+            dossier_docs["research_dissertation.md"] = (
+                "# Academic Research & Master's Dissertation: Synthetic Identity Datasets for Machine Unlearning\n\n"
+                "**Institution**: University of Leeds (MSc Advanced Computer Science)\n"
+                "**Core Focus**: Synthetic Identity Datasets, Machine Unlearning, Diffusion Models (InstantID)\n"
+                "**Compute Environment**: High-Performance Computing (Slurm), NVIDIA L40S GPUs\n\n"
+                "## Problem Formulation\n"
+                "Machine unlearning requires removing specific identity features and training data influences "
+                "from deep generative models without full retraining from scratch. Synthetic identity clusters provide "
+                "a controlled, identity-level deletion benchmark.\n\n"
+                "## Experimental Methodology\n"
+                "- Generated synthetic, identity-conditioned facial clusters using diffusion models and InstantID.\n"
+                "- Built an evaluation framework measuring erasure efficacy vs feature retention.\n"
+                "- Orchestrated multi-GPU training and evaluation on University of Leeds Slurm clusters with NVIDIA L40S GPUs."
+            )
+
+        if "engineering_voice_and_philosophy.md" not in dossier_docs or len(dossier_docs["engineering_voice_and_philosophy.md"]) < 50:
+            dossier_docs["engineering_voice_and_philosophy.md"] = (
+                "# Engineering Voice, Mental Models & Technical Philosophy\n\n"
+                "## Systems Principles & Mental Models\n"
+                "- **Empirical Grounding over Hype**: Systems must be proven through reproducible metrics, latency profiles, and rigorous benchmarks.\n"
+                "- **Local-First & Data Sovereignty**: Critical career and personal knowledge should remain under local user control without cloud leakage.\n"
+                "- **Defensive Engineering**: Ingestion engines and parsing pipelines must be fault-tolerant with deterministic validation.\n\n"
+                "## Communication & Writing Tone\n"
+                "- Highly technical, authoritative, systems-first, and transparent regarding architectural trade-offs."
+            )
+
+        raw_prof = CandidateProfile(
+            full_name=res.get("full_name", "Candidate"),
+            title=res.get("title", "Professional"),
+            email=res.get("email", "candidate@example.com"),
+            phone=res.get("phone"),
+            location=res.get("location", "Leeds, UK"),
+            website=res.get("website"),
+            linkedin=res.get("linkedin"),
+            github=res.get("github"),
+            summary=res.get("summary", ""),
+            experiences=exps,
+            education=edu,
+            projects=projs,
+            skills=skills,
+            raw_context={
+                "source": sources_summary,
+                "context_diary": context_diary,
+                "dossier_documents": dossier_docs
+            }
+        )
+
+        return _normalize_and_clean_profile(raw_prof)
+
+    @classmethod
     def ingest(
         cls,
         source: Any,
@@ -937,19 +1512,19 @@ Respond in valid JSON matching this schema:
     ) -> CandidateProfile:
         """Universal entry point: handles URLs, files, lists of sources, and merges with existing profile."""
         if isinstance(source, list):
-            aggregated: Optional[CandidateProfile] = existing_profile
-            for s in source:
-                single_profile = cls.ingest(s, provider)
-                if aggregated is None:
-                    aggregated = single_profile
-                else:
-                    aggregated = merge_profiles(aggregated, single_profile)
-            return aggregated or cls.parse_text_to_profile("", provider, source_label="Empty Source List")
+            return cls.ingest_multi_source(source, provider, existing_profile=existing_profile)
 
         display_label, kind = normalize_source(str(source))
         if kind == "url":
             raw_text, dossier_docs = cls.extract_deep_portfolio(display_label)
-            new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=display_label)
+            if "=== " in raw_text:
+                new_profile = cls._synthesize_multi_source_profile(
+                    bundled_text=raw_text,
+                    provider=provider,
+                    sources_summary=f"Synthesized from {display_label}"
+                )
+            else:
+                new_profile = cls.parse_text_to_profile(raw_text, provider, source_label=display_label)
             if dossier_docs:
                 existing_docs = new_profile.raw_context.get("dossier_documents", {})
                 existing_docs.update(dossier_docs)

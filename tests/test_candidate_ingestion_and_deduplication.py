@@ -146,3 +146,139 @@ def test_universal_ingest_bare_domain_mock():
     assert profile.full_name == "Alex Mercer"
     assert len(profile.experiences) == 1
     assert profile.experiences[0].company == "Acme Corp"
+
+
+def test_multi_source_ingestion_synthesis_and_5_bucket_skills():
+    """Verify that multi-source ingestion consolidates bullets, reroutes academic roles, and strictly groups skills."""
+    mock_provider = MagicMock()
+    mock_provider.generate_json.return_value = {
+        "full_name": "Faiz Palwala",
+        "title": "AI/ML & Distributed Systems Engineer",
+        "summary": "Specialist in machine unlearning and enterprise cloud platforms.",
+        "experiences": [
+            {
+                "company": "Deloitte",
+                "role": "Senior Consultant",
+                "start_date": "2019",
+                "end_date": "2023",
+                "bullets": [
+                    "Architected enterprise healthcare microservices for 23M+ members.",
+                    "Architected enterprise healthcare platform serving 23M+ members with 99.99% uptime.",  # Near-duplicate with metric
+                    "Automated validation pipeline reducing failure backlog by 40%."
+                ]
+            },
+            {
+                "company": "University of Leeds",
+                "role": "MSc Graduate Researcher",
+                "start_date": "2023",
+                "end_date": "2024",
+                "bullets": ["Evaluated machine unlearning on synthetic identity face clusters."]
+            }
+        ],
+        "education": [
+            {
+                "degree": "MSc Advanced Computer Science",
+                "institution": "University of Leeds",
+                "graduation_year": "2024"
+            }
+        ],
+        "projects": [
+            {
+                "name": "SFHQ-VirtualID - Synthetic Face Clusters",
+                "description": "Synthetic identity clusters for machine unlearning.",
+                "tech_stack": ["Python", "PyTorch", "Diffusers"]
+            },
+            {
+                "name": "sfhq virtualid",
+                "description": "Reproducible benchmark.",
+                "tech_stack": ["InstantID"]
+            },
+            {
+                "name": "GraphContext MCP",
+                "description": "macOS code assistant.",
+                "tech_stack": ["FastAPI", "MLX"]
+            }
+        ],
+        "skills": [
+            {
+                "category": "Programming Languages",
+                "skills": ["Python", "TypeScript", "SQL"]
+            },
+            {
+                "category": "Machine Learning & AI",
+                "skills": ["Python", "PyTorch", "Diffusers", "InstantID"]  # Python is duplicate
+            },
+            {
+                "category": "Backend Technologies",
+                "skills": ["FastAPI", "PostgreSQL", "Redis"]
+            },
+            {
+                "category": "DevOps & Cloud",
+                "skills": ["Docker", "Linux", "Slurm", "AWS"]
+            },
+            {
+                "category": "UI Engineering",
+                "skills": ["React", "Tailwind CSS"]
+            }
+        ],
+        "context_diary": "# Personal Directives & Guardrails\n\n## Engineering Philosophy & Narrative\nEmpirical proofs.",
+        "dossier_documents": {
+            "research_dissertation.md": "# Research Dissertation\nUnlearning framework.",
+            "engineering_voice_and_philosophy.md": "# Engineering Philosophy\nSystems craftsmanship."
+        }
+    }
+
+    sources = [
+        "https://faizpalwala.tech",
+        "https://faizpalwala.tech/about",
+        "https://faizpalwala.tech/projects",
+        "https://faizpalwala.tech/research",
+        "https://faizpalwala.tech/noggin"
+    ]
+
+    with patch.object(UniversalIngestor, "extract_text_from_url", return_value="Sample portfolio text"):
+        profile = UniversalIngestor.ingest(sources, mock_provider)
+
+    # 1. Experience check: University of Leeds rerouted to education; Deloitte consolidated without duplicate bullets
+    assert len(profile.experiences) == 1
+    assert profile.experiences[0].company == "Deloitte"
+    deloitte_bullets = profile.experiences[0].bullets
+    # The higher metric bullet won and near-duplicate was merged
+    assert len(deloitte_bullets) == 2
+    assert any("23M+ members with 99.99% uptime" in b for b in deloitte_bullets)
+
+    # 2. Project check: sfhq virtualid clustered into 1 canonical entity
+    assert len(profile.projects) == 2
+    canon_names = {p.name for p in profile.projects}
+    assert "SFHQ-VirtualID: Synthetic Identity Datasets" in canon_names
+    assert "GraphContext MCP" in canon_names
+    sfhq_proj = next(p for p in profile.projects if "SFHQ" in p.name)
+    assert "InstantID" in sfhq_proj.tech_stack
+    assert "PyTorch" in sfhq_proj.tech_stack
+
+    # 3. Skills check: Strictly normalized to the 5 standard categories with zero cross-category duplicates
+    skill_cats = {s.category for s in profile.skills}
+    assert skill_cats.issubset({
+        "Languages",
+        "AI/ML & Research",
+        "Backend & Distributed Systems",
+        "Cloud & Infrastructure",
+        "Frontend & Web"
+    })
+
+    # Verify zero duplicate skills across categories
+    all_skills = []
+    for s_cat in profile.skills:
+        all_skills.extend([s.lower() for s in s_cat.skills])
+    assert len(all_skills) == len(set(all_skills))  # No duplicates!
+    lang_cat = next(s for s in profile.skills if s.category == "Languages")
+    assert "Python" in lang_cat.skills
+    aiml_cat = next(s for s in profile.skills if s.category == "AI/ML & Research")
+    assert "Python" not in aiml_cat.skills  # Deduped!
+
+    # 4. Context & Dossiers check
+    assert "Personal Directives" in profile.raw_context.get("context_diary", "")
+    dossier_docs = profile.raw_context.get("dossier_documents", {})
+    assert "research_dissertation.md" in dossier_docs
+    assert "engineering_voice_and_philosophy.md" in dossier_docs
+

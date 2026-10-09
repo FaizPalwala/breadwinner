@@ -118,7 +118,20 @@ class MockLLMProvider(BaseLLMProvider):
                 "banned_words": ["spearheaded", "synergy"]
             }
 
-        if "data extractor" in system_prompt.lower() or "candidate portfolio" in system_prompt.lower() or "full_name" in user_prompt:
+        if "project ingestion" in system_prompt.lower() or "project_name" in user_prompt:
+            return {
+                "project_name": "Breadwinner Ingestion Engine",
+                "author_name": "Jane Doe",
+                "author_title": "Staff Engineer",
+                "summary": "High-throughput career knowledge compiler with two-ledger architecture.",
+                "tech_stack": ["Python", "SQLite", "Textual"],
+                "url": "https://github.com/example/engine",
+                "github_url": "https://github.com/example/engine",
+                "highlights": ["Zero data leakage", "Anti-hallucination metric preservation"],
+                "deep_dossier_markdown": "# Project Deep Dive: Breadwinner Ingestion Engine\n\n## Architecture & System Design\nHigh-throughput two-ledger compiler with deterministic verification."
+            }
+
+        if "data extractor" in system_prompt.lower() or "candidate portfolio" in system_prompt.lower() or "lead career architect" in system_prompt.lower() or "anti-hallucination compiler" in system_prompt.lower() or "full_name" in user_prompt:
             return {
                 "full_name": "Jane Doe",
                 "title": "Staff Engineer",
@@ -140,22 +153,46 @@ class MockLLMProvider(BaseLLMProvider):
                 "education": [
                     {
                         "degree": "B.Sc. Computer Science",
-                        "institution": "University of London"
+                        "institution": "University of London",
+                        "graduation_year": "2020",
+                        "coursework": ["Distributed Systems", "Algorithms"]
                     }
                 ],
                 "projects": [
                     {
                         "name": "High-Throughput Queue",
                         "description": "Distributed task queue in Go",
-                        "tech_stack": ["Go", "Redis"]
+                        "tech_stack": ["Go", "Redis"],
+                        "highlights": ["1M QPS throughput", "Zero packet loss"]
                     }
                 ],
                 "skills": [
                     {
                         "category": "Languages",
                         "skills": ["Go", "Python", "SQL"]
+                    },
+                    {
+                        "category": "AI/ML & Research",
+                        "skills": ["PyTorch"]
+                    },
+                    {
+                        "category": "Backend & Distributed Systems",
+                        "skills": ["Redis", "PostgreSQL"]
+                    },
+                    {
+                        "category": "Cloud & Infrastructure",
+                        "skills": ["Kubernetes", "Docker", "AWS"]
+                    },
+                    {
+                        "category": "Frontend & Web",
+                        "skills": ["React"]
                     }
-                ]
+                ],
+                "context_diary": "# Personal Directives & Guardrails\n\n## Engineering Philosophy & Narrative\nHigh-performance systems engineering grounded in empirical benchmarks.\n\n## Technical Strengths & Focus Areas\n- Distributed caching\n- High throughput queues\n\n## Work Preferences & Boundary Directives\n- High autonomy and architectural ownership",
+                "dossier_documents": {
+                    "research_dissertation.md": "# Academic Research & Dissertation\n\n## Executive Summary\nDistributed systems architecture and fault tolerance.",
+                    "engineering_voice_and_philosophy.md": "# Engineering Voice, Mental Models & Technical Philosophy\n\n## Systems Principles\nEmpirical benchmarks over marketing claims."
+                }
             }
 
         return {
