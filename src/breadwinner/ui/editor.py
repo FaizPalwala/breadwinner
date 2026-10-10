@@ -1,7 +1,7 @@
 """Dual-Pane Interactive Bullet Fine-Tuning Studio with Live XYZ Metric Audit."""
 
 import re
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Any
 from dataclasses import dataclass
 
 from textual.app import ComposeResult
