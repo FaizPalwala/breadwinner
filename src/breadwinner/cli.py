@@ -137,6 +137,12 @@ def apply(
             profile = pantry.load_profile()
         else:
             portfolio_path = Path(portfolio or settings.portfolio_path)
+            if portfolio is None and str(settings.portfolio_path).endswith("portfolio") and not portfolio_path.exists():
+                console.print(
+                    "\n[bold yellow][WARN] No career profile detected in pantry/.[/bold yellow]\n"
+                    "[dim]Drop your resume PDF into 'pantry/' or run 'breadwinner ingest --resume <path/to/resume.pdf>' to initialize your experience ledger.[/dim]\n"
+                )
+                return
             source_adapter = get_profile_source(portfolio_path)
             profile = source_adapter.load_profile()
 
@@ -338,6 +344,32 @@ def apply(
         f"[green]✓ Application recorded in tracker.db and synced to {settings.csv_tracker_path or 'CSV'}[/green]",
         border_style="green"
     ))
+
+
+@main.command(name="tailor")
+@click.argument("source", required=False)
+@click.option("--company", "-c", help="Company name (if pasting text)")
+@click.option("--title", "-t", help="Job title (if pasting text)")
+@click.option("--persona", "-p", default=None, help="Narrative persona (tech_ai, bridging_admin, hospitality, or custom)")
+@click.option("--strategy", "-s", is_flag=True, default=False, help="Run interactive role-specific strategy loop before tailoring")
+@click.option("--no-strategy", is_flag=True, default=False, help="Skip strategy loop prompt and use persona directly")
+@click.option("--template", default=None, help="Resume template (jakes, modern, ats)")
+@click.option("--provider", default=None, help="LLM provider (gemini, lmstudio, groq, ollama, mock)")
+@click.option("--portfolio", default=None, help="Path to portfolio source of truth")
+@click.pass_context
+def tailor_cmd(ctx: click.Context, **kwargs):
+    """Alias for 'breadwinner apply' to tailor an application package."""
+    ctx.invoke(apply, **kwargs)
+
+
+@main.command(name="ingest")
+@click.argument("source", required=False, default=None)
+@click.option("--resume", "-r", "resume_path", default=None, help="Path to resume file (.pdf, .docx, .md, .json)")
+@click.pass_context
+def root_ingest_cmd(ctx: click.Context, source: Optional[str], resume_path: Optional[str]):
+    """Ingest candidate context or resume directly into Career Pantry."""
+    target_source = resume_path or source
+    ctx.invoke(pantry_ingest_cmd, source=target_source)
 
 
 @main.command(name="track")

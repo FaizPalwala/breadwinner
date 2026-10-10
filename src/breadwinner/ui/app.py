@@ -2026,6 +2026,12 @@ class BreadwinnerApp(App):
         )
         needs_ai_setup = not has_env_file and not has_env_key
         needs_pantry_setup = not self.pantry.is_initialized()
+        if needs_pantry_setup:
+            self.notify(
+                "No career profile detected in pantry/. Drop your resume PDF into 'pantry/' or run 'breadwinner ingest --resume <path/to/resume.pdf>' to initialize your experience ledger.",
+                title="Pantry Empty",
+                severity="warning"
+            )
 
         if needs_ai_setup or needs_pantry_setup:
             self.push_screen(

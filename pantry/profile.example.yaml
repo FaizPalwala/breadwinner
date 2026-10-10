@@ -1,0 +1,120 @@
+full_name: Alex Vance
+title: Senior Distributed Systems & AI Infrastructure Engineer
+email: alex.vance@example.com
+location: London, UK
+linkedin_url: https://linkedin.com/in/alex-vance
+github_url: https://github.com/alexvance
+summary: >-
+  Staff/Senior Software Engineer with 6+ years specializing in low-latency distributed
+  systems, high-throughput stream processing, and GPU inference engines. Proven track
+  record designing event-driven platforms processing 50k+ QPS with sub-10ms p99 latency.
+skills:
+  - category: Languages
+    skills:
+      - Go
+      - Rust
+      - Python
+      - TypeScript
+      - C++
+      - SQL
+  - category: Backend & Distributed Systems
+    skills:
+      - Kafka
+      - Redis
+      - gRPC
+      - PostgreSQL
+      - Temporal
+      - Cassandra
+      - Microservices
+  - category: AI/ML & Research
+    skills:
+      - PyTorch
+      - vLLM
+      - Hugging Face
+      - TensorRT-LLM
+      - RAG
+      - Vector Databases
+  - category: Cloud & Infrastructure
+    skills:
+      - Kubernetes
+      - Docker
+      - Terraform
+      - AWS (EKS, S3, DynamoDB)
+      - Prometheus
+      - Grafana
+      - CI/CD
+  - category: Frontend & Web
+    skills:
+      - React
+      - Next.js
+      - Tailwind CSS
+      - WebSocket
+experiences:
+  - company: Apex Core Systems
+    role: Senior Distributed Systems Engineer
+    start_date: 2022-03
+    end_date: Present
+    location: London, UK
+    technologies:
+      - Go
+      - Rust
+      - Kafka
+      - Kubernetes
+      - Redis
+    bullets:
+      - Architected distributed ledger event streaming pipeline using Go and Kafka, handling 45,000 QPS with p99 latency under 8ms across 3 cloud regions.
+      - Engineered distributed caching layer using Redis Cluster and custom cache-aside invalidation, cutting database query pressure by 64%.
+      - Designed zero-downtime blue/green deployment controller on Kubernetes, automating canary deployments for 32 microservices and eliminating 99.8% of deploy rollbacks.
+      - Mentored 5 mid-level engineers across distributed consistency models, raft consensus protocols, and strict metric-driven testing practices.
+  - company: Vector Dynamics
+    role: Software Engineer (Backend & Infrastructure)
+    start_date: 2019-09
+    end_date: 2022-02
+    location: Cambridge, UK
+    technologies:
+      - Python
+      - FastAPI
+      - PostgreSQL
+      - Docker
+      - AWS
+    bullets:
+      - Developed asynchronous ETL ingestion pipelines in Python/FastAPI processing 12M+ analytical events daily with 99.99% uptime SLA.
+      - Optimized complex SQL queries and PostgreSQL indexes across 85M rows, reducing p95 API endpoint latency from 1,200ms to 85ms.
+      - Integrated automated CI/CD validation test matrix reducing regression release turnaround time from 4 days to 35 minutes.
+education:
+  - degree: MSc in Advanced Computer Science (Distributed Systems)
+    institution: University of Manchester
+    start_date: 2018-09
+    end_date: 2019-08
+    location: Manchester, UK
+    grade: Distinction
+    coursework:
+      - Distributed Algorithms
+      - Advanced Computer Systems
+      - Machine Learning
+  - degree: BSc in Computer Science
+    institution: University of Bristol
+    start_date: 2015-09
+    end_date: 2018-06
+    location: Bristol, UK
+    grade: First Class Honours
+projects:
+  - name: Distributed Raft Consensus Engine
+    description: High-performance, zero-allocation Raft consensus engine implemented in Rust with snapshotting and log compaction.
+    tech_stack:
+      - Rust
+      - Async/Tokio
+      - Protobuf
+    github_url: https://github.com/alexvance/raft-rs
+    highlights:
+      - Validated under chaos engineering network partition tests with zero data loss or split-brain states.
+      - Benchmarked throughput exceeding 120,000 committed state-machine transactions per second.
+  - name: Local-First Vector Indexing Engine
+    description: Memory-efficient HNSW approximate nearest neighbors vector search index designed for edge inference.
+    tech_stack:
+      - Go
+      - AVX-512
+      - SIMD
+    github_url: https://github.com/alexvance/vector-idx
+    highlights:
+      - Reduced index memory footprint by 42% through scalar quantization while maintaining 97.8% recall at 10.

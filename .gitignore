@@ -44,8 +44,11 @@ env/
 
 # Applications output, user personas & pantry (contains tailored personal data and custom prompts)
 applications/
+output/
 user_personas/
-pantry/
+pantry/*
+!pantry/*.example.*
+!pantry/README.md
 EVOLUTION_LOG.md
 *EVOLUTION*.md
 *BLOG*.md
@@ -64,6 +67,7 @@ EVOLUTION_LOG.md
 htmlcov/
 .tmp*/
 *.pdf
+!src/**
 
 # Agent Scaffolding & Prompts (Internal & Local Only - Never Commit)
 .agents/
