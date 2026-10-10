@@ -86,19 +86,46 @@
     display: none;
 }
 #pantry-ai-bar {
-    height: 3;
-    padding: 0 1;
-    background: #16161E;
-    border-top: solid #2A2E3D;
+    height: auto;
+    padding: 0;
+    margin-top: 1;
+    background: transparent;
+    border: none;
     align: left middle;
+}
+#pantry-prompt-box {
+    width: 1fr;
+    height: 3;
+    layout: horizontal;
+    background: #0C0E14;
+    border: round #2A2E3D;
+    align: left middle;
+}
+#pantry-prompt-box:focus-within {
+    border: round #FFB86C;
 }
 #pantry-ai-prompt {
     width: 1fr;
     height: 1;
-    background: #0C0E14;
-    border: round #2A2E3D;
+    border: none;
+    background: transparent;
     color: #F8F8F2;
-    margin: 0 1;
+    padding: 0 1;
+}
+#btn-pantry-ai-refine {
+    width: auto;
+    min-width: 16;
+    height: 1;
+    border: none;
+    background: #D18F52;
+    color: #141724;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+}
+#btn-pantry-ai-refine:hover {
+    background: #FFB86C;
+    color: #0C0E14;
 }
 #pantry-maturity-widget {
     display: none;

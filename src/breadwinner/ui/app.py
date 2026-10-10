@@ -69,6 +69,7 @@ from breadwinner.ui.welcome import (
 from breadwinner.ui.editor import (
     DualPaneFineTuneModal,
     XYZValidatorWidget,
+    ScrollableMarkdown,
     analyze_bullets_xyz,
     make_gauge_bar,
     STRONG_ACTION_VERBS,
@@ -150,12 +151,12 @@ class VerticalEngineBlade(Static):
 
 def get_persona_select_options() -> List[tuple]:
     """Dynamically compile persona options for the dropdown."""
+    opts = [("None (Direct Pantry Match)", "none")]
     personas = PersonaManager.list_personas()
-    opts = []
     for slug, desc in personas.items():
         clean = desc.replace("[bold green]", "").replace("[/bold green]", "")
         opts.append((f"{slug.upper()}: {clean[:40]}", slug))
-    return opts or [("Tech & AI (SDE / MLE / Distributed)", "tech_ai")]
+    return opts
 
 
 MODAL_BASE_CSS = """
@@ -1427,30 +1428,55 @@ class BakerySettingsModal(ModalScreen):
         align: center middle;
     }
     #settings-dialog {
-        padding: 0 2;
+        padding: 1 3;
         background: #10141f;
         border: heavy #d18f52;
-        width: 82;
-        max-width: 86;
-        min-width: 72;
+        width: 88;
+        max-width: 94;
+        min-width: 78;
         height: auto;
-        max-height: 30;
+        max-height: 32;
     }
     .settings-sec-header {
         text-style: bold;
         color: #ffb86c;
         margin-top: 0;
         margin-bottom: 0;
+        height: 1;
+    }
+    .settings-header-row {
+        height: 1;
+        layout: horizontal;
+        align: left middle;
+        margin-bottom: 0;
+    }
+    .settings-header-title {
+        width: 1fr;
+        text-style: bold;
+        color: #ffb86c;
+    }
+    .settings-mini-btn {
+        height: 1;
+        min-width: 15;
+        border: none;
+        background: #212330;
+        color: #ffb86c;
+        padding: 0 1;
+        text-style: bold;
+    }
+    .settings-mini-btn:hover {
+        background: #2a2e3d;
+        color: #50fa7b;
     }
     .settings-select-row {
         height: auto;
         layout: horizontal;
-        margin-bottom: 0;
+        margin-bottom: 1;
     }
     .settings-col {
         width: 1fr;
         height: auto;
-        margin-right: 1;
+        margin-right: 3;
     }
     .settings-col:last-of-type {
         margin-right: 0;
@@ -1459,8 +1485,28 @@ class BakerySettingsModal(ModalScreen):
     #settings-select-nav-style, #settings-select-preset,
     #settings-select-lab-mode, #settings-select-voice-engine {
         height: 3;
+        margin-top: 0;
         margin-bottom: 0;
         border: none;
+        background: transparent;
+    }
+    BakerySettingsModal SelectCurrent {
+        background: #212330;
+        border: round #d18f52;
+        color: #ffffff;
+        height: 3;
+        padding: 0 1;
+    }
+    BakerySettingsModal SelectCurrent:focus {
+        border: round #ffb86c;
+        background: #2a2e3d;
+    }
+    BakerySettingsModal SelectCurrent Static#label {
+        color: #ffffff !important;
+        text-style: bold;
+    }
+    BakerySettingsModal SelectCurrent .arrow {
+        color: #ffb86c;
     }
     .settings-info-box {
         background: #0c0e14;
@@ -1469,13 +1515,13 @@ class BakerySettingsModal(ModalScreen):
         padding: 0 1;
         height: auto;
         margin-top: 0;
-        margin-bottom: 0;
+        margin-bottom: 1;
     }
     #settings-engine-row {
         align: left middle;
         height: 3;
-        margin-top: 1;
-        margin-bottom: 0;
+        margin-top: 0;
+        margin-bottom: 1;
     }
     #lbl-settings-engine {
         width: 1fr;
@@ -1489,10 +1535,10 @@ class BakerySettingsModal(ModalScreen):
     #settings-action-bar {
         height: 3;
         margin-top: 0;
-        align: left middle;
+        align: right middle;
     }
     #settings-action-bar Button {
-        margin-right: 1;
+        margin-left: 1;
         min-width: 18;
     }
     """ + MODAL_BASE_CSS
@@ -1530,9 +1576,10 @@ class BakerySettingsModal(ModalScreen):
                     yield Label("[bold #ffb86c]Default Resume Template:[/bold #ffb86c]", classes="settings-sec-header")
                     yield Select(template_opts, value=cur_tmpl, id="settings-select-template")
                 with Vertical(classes="settings-col"):
-                    yield Label("[bold #ffb86c]Default Narrative Persona:[/bold #ffb86c]", classes="settings-sec-header")
+                    with Horizontal(classes="settings-header-row"):
+                        yield Label("[bold #ffb86c]Default Narrative Persona:[/bold #ffb86c]", classes="settings-header-title")
+                        yield Button("✦ Synth", id="btn-settings-synth-persona", classes="settings-mini-btn")
                     yield Select(persona_opts, value=cur_persona, id="settings-select-persona")
-                    yield Button("+ Synthesize Persona [✦]", id="btn-settings-synth-persona", classes="settings-mini-btn")
 
             nav_opts = [
                 ("Auto-Adaptive (<100 cols)", "auto"),
@@ -1579,11 +1626,10 @@ class BakerySettingsModal(ModalScreen):
 
             with Vertical(classes="settings-info-box"):
                 yield Label(f"[dim]Pantry:[/] [white]{settings.pantry_dir.name}[/]  •  [dim]DB:[/] [white]{settings.database_path.name}[/]  •  [dim]CSV:[/] [white]{settings.csv_tracker_path.name if settings.csv_tracker_path else 'Disabled'}[/]")
-                yield Label("[bold #50fa7b]● ANTI-HALLUCINATION INVARIANT: ENFORCED[/bold #50fa7b] [dim](Zero Cloud Telemetry • BYOK)[/dim]")
 
             with Horizontal(id="settings-action-bar"):
-                yield Button("Save Settings (Enter)", variant="success", id="btn-settings-save")
                 yield Button("Cancel (Esc)", variant="error", id="btn-settings-cancel")
+                yield Button("Save Settings (Enter)", variant="success", id="btn-settings-save")
 
     def on_mount(self) -> None:
         try:
@@ -1678,6 +1724,7 @@ class BreadwinnerApp(App):
         Binding("b", "bake_pdf", "Bake PDF", show=True),
         Binding("v", "view_pdf", "View PDF", show=True),
         Binding("s", "change_status", "Cycle Status", show=True),
+        Binding("e", "pipeline_edit_studio", "Studio", show=False),
         Binding("i", "pantry_ingest", "Ingest", show=False),
         Binding("h", "pantry_history", "History", show=False),
         Binding("f", "toggle_flag", "Toggle Flag", show=False),
@@ -1788,7 +1835,7 @@ class BreadwinnerApp(App):
                                 yield SkillConstellationWidget(id="studio-skill-constellation")
                                 
                                 persona_opts = get_persona_select_options()
-                                default_persona_val = settings.default_persona if any(v == settings.default_persona for _, v in persona_opts) else persona_opts[0][1]
+                                default_persona_val = "none" if any(v == "none" for _, v in persona_opts) else persona_opts[0][1]
 
                                 yield Horizontal(
                                     Vertical(
@@ -1827,7 +1874,7 @@ class BreadwinnerApp(App):
                             with Horizontal(id="studio-lab-top-bar"):
                                 yield Button("← Setup", id="btn-lab-back")
                                 yield Label("[bold white]Active Application[/bold white]", id="lab-active-job-label")
-                                yield Label("[bold #50FA7B]94% ATS Match[/bold #50FA7B]", id="lab-ats-badge")
+                                yield Label("[bold #50FA7B]94% Match[/bold #50FA7B]", id="lab-ats-badge")
                                 yield Button("⇋ Stack", id="btn-lab-toggle-stack")
                                 yield Button("▲ Bake", id="btn-lab-bake-pdf")
                                 yield Button("▤ View", id="btn-lab-view-pdf")
@@ -1851,24 +1898,23 @@ class BreadwinnerApp(App):
                                                 yield Button("✓ Save (Ctrl+S)", id="btn-lab-save-resume")
                                                 yield Button("◎ Preview", id="btn-lab-toggle-preview")
                                             yield TextArea("", id="lab-resume-editor")
-                                            yield Markdown("No application tailored yet. Enter a URL above and click 'Run Tailoring Engine'.", id="preview-resume-md", classes="preview-box")
+                                            yield ScrollableMarkdown("No application tailored yet. Enter a URL above and click 'Run Tailoring Engine'.", id="preview-resume-md", classes="preview-box")
                                         with TabPane("Cover Letter", id="preview-letter-tab"):
                                             with Horizontal(classes="resume-pane-toolbar"):
                                                 yield Label("[bold white]cover_letter.md[/bold white]", classes="pane-toolbar-title")
                                                 yield Button("✓ Save", id="btn-lab-save-letter")
                                             yield TextArea("Cover letter will appear here.", id="lab-letter-editor")
-                                            yield Markdown("Cover letter will appear here.", id="preview-letter-md", classes="preview-box")
+                                            yield ScrollableMarkdown("Cover letter will appear here.", id="preview-letter-md", classes="preview-box")
                                         with TabPane("Portal Q&A", id="preview-qna-tab"):
                                             with Horizontal(classes="resume-pane-toolbar"):
                                                 yield Label("[bold white]portal_qna.md[/bold white]", classes="pane-toolbar-title")
                                                 yield Button("✓ Save", id="btn-lab-save-qna")
                                             yield TextArea("Portal Q&A will appear here.", id="lab-qna-editor")
-                                            yield Markdown("Portal Q&A will appear here.", id="preview-qna-md", classes="preview-box")
+                                            yield ScrollableMarkdown("Portal Q&A will appear here.", id="preview-qna-md", classes="preview-box")
 
                             with Vertical(id="studio-lab-bottom-bar"):
-                                yield Label("[bold #FFB86C]✦ Prompt Model to Refine Bullets:[/bold #FFB86C] [dim](e.g. emphasize Go concurrency over Kafka, scale metrics)[/dim]", id="lab-refine-prompt-label")
                                 with Horizontal(id="studio-lab-prompt-row"):
-                                    yield Input(placeholder="Enter prompt directive to refine experience bullets...", id="lab-refine-prompt")
+                                    yield Input(placeholder="✦ Directive to refine bullets (e.g. emphasize Go concurrency, scale metrics)...", id="lab-refine-prompt")
                                     yield Button("Refine with AI", variant="warning", id="btn-lab-refine-diff")
                                 with Vertical(id="lab-diff-preview-box"):
                                     yield Label("[bold #FFB86C]Proposed Metric Diff (Google XYZ Transformation):[/bold #FFB86C]", id="lab-diff-title")
@@ -1905,9 +1951,9 @@ class BreadwinnerApp(App):
                                 yield TextArea("", id="pantry-editor-textarea")
                                 yield Markdown(self.get_profile_markdown(), id="profile-md")
                                 with Horizontal(id="pantry-ai-bar"):
-                                    yield Label("[bold #FFB86C]✦ Prompt Model to Refine:[/bold #FFB86C]")
-                                    yield Input(placeholder="e.g. 'Synthesize 2 new bullets focusing on Kafka partitioning'...", id="pantry-ai-prompt")
-                                    yield Button("Refine & Diff", variant="warning", id="btn-pantry-ai-refine")
+                                    with Horizontal(id="pantry-prompt-box"):
+                                        yield Input(placeholder="✦ Prompt model to refine ledger (e.g. emphasize Go concurrency, sharpen XYZ metrics)...", id="pantry-ai-prompt")
+                                        yield Button("✦ Refine & Diff", id="btn-pantry-ai-refine")
 
         yield Footer()
 
@@ -2525,7 +2571,7 @@ class BreadwinnerApp(App):
             cycle_btn = self.query_one("#btn-app-cycle-preset", Button)
             if self.layout_preset == "split":
                 cycle_btn.label = "⛶ Split"
-            elif self.layout_preset == "fullscreen":
+            elif self.layout_preset in ("full", "fullscreen"):
                 cycle_btn.label = "⛶ Full"
             else:
                 cycle_btn.label = "⛶ Normal"
@@ -2566,7 +2612,7 @@ class BreadwinnerApp(App):
                 brand.update("[bold #FFB86C]◈ BREADWINNER[/]")
                 pipeline_box.remove_class("-vertical-stack")
                 lab_split.remove_class("-vertical-stack")
-                toggle_stack_btn.label = "⇋ Stack Columns"
+                toggle_stack_btn.label = "⇋ Stack"
                 self._sync_sidebar_state()
         except Exception:
             pass
@@ -2597,6 +2643,11 @@ class BreadwinnerApp(App):
         self._update_active_top_nav("tab-pipeline")
 
     def action_tab_studio(self) -> None:
+        if self.selected_job and self.selected_job.folder_path:
+            p_dir = Path(self.selected_job.folder_path)
+            if p_dir.exists() and (p_dir / "resume.md").exists():
+                self.action_pipeline_edit_studio()
+                return
         self.query_one("#main-tabs", TabbedContent).active = "tab-studio"
         self._update_active_top_nav("tab-studio")
 
@@ -2670,6 +2721,27 @@ class BreadwinnerApp(App):
                                 self.query_one("#lab-resume-editor", TextArea).text = r_txt
                             except Exception:
                                 pass
+                            
+                            # Extract bullets from resume markdown to populate bullet editor and XYZ gauges
+                            bullets = []
+                            for line in r_txt.splitlines():
+                                s = line.strip()
+                                if s.startswith(("- ", "* ", "• ")):
+                                    bullets.append(s)
+                            if bullets:
+                                bullet_text = "\n".join(bullets)
+                                try:
+                                    editor = self.query_one("#lab-bullet-editor", TextArea)
+                                    editor.text = bullet_text
+                                    report = analyze_bullets_xyz(bullet_text, self.current_profile)
+                                    self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
+                                    self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                                        quantified_pct=report.quantified_score,
+                                        action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                                        provenance_verified=True
+                                    )
+                                except Exception:
+                                    pass
                         if (p_dir / "cover_letter.md").exists():
                             l_txt = (p_dir / "cover_letter.md").read_text(encoding="utf-8")
                             self.query_one("#preview-letter-md", Markdown).update(l_txt)
@@ -2677,8 +2749,9 @@ class BreadwinnerApp(App):
                                 self.query_one("#lab-letter-editor", TextArea).text = l_txt
                             except Exception:
                                 pass
-                        if (p_dir / "portal_qna.md").exists():
-                            q_txt = (p_dir / "portal_qna.md").read_text(encoding="utf-8")
+                        q_file = (p_dir / "portal_answers.md") if (p_dir / "portal_answers.md").exists() else ((p_dir / "portal_qna.md") if (p_dir / "portal_qna.md").exists() else None)
+                        if q_file:
+                            q_txt = q_file.read_text(encoding="utf-8")
                             self.query_one("#preview-qna-md", Markdown).update(q_txt)
                             try:
                                 self.query_one("#lab-qna-editor", TextArea).text = q_txt
@@ -2686,7 +2759,15 @@ class BreadwinnerApp(App):
                                 pass
                     except Exception:
                         pass
+                    # If this application has been baked/tailored, open directly in Bullet Lab view
+                    if (p_dir / "resume.md").exists():
+                        self.action_view_lab()
+                    else:
+                        self.action_lab_back_to_setup()
+            else:
+                self.action_lab_back_to_setup()
         self.query_one("#main-tabs", TabbedContent).active = "tab-studio"
+        self._update_active_top_nav("tab-studio")
         self.notify("Loaded job into Tailor Studio!", title="Studio Activated")
 
     def action_view_lab(self) -> None:
@@ -2915,10 +2996,12 @@ class BreadwinnerApp(App):
                 md_view.styles.display = "block"
                 r_editor.styles.display = "none"
                 btn.label = "[·] Edit"
+                md_view.focus()
             else:
                 md_view.styles.display = "none"
                 r_editor.styles.display = "block"
                 btn.label = "[·] Preview"
+                r_editor.focus()
         except Exception:
             pass
 
@@ -2961,6 +3044,9 @@ class BreadwinnerApp(App):
                 dossier_list.mount(Label("[dim italic]No dossier docs yet[/dim italic]", id="lbl-empty-dossier"))
             else:
                 for df in dossier_files:
+                    d_name = df.get("name", "").strip()
+                    if not d_name or d_name.startswith("."):
+                        continue
                     rel = df["rel_path"]
                     safe_id = f"btn-dossier-{rel.replace('/', '__').replace('.', '_')}"
                     if safe_id not in existing_d_ids:
@@ -2968,7 +3054,7 @@ class BreadwinnerApp(App):
                             self.query_one("#lbl-empty-dossier").remove()
                         except Exception:
                             pass
-                        btn = Button(f"▣ {df['name']}", id=safe_id, classes="pantry-nav-btn")
+                        btn = Button(f"▣ {d_name}", id=safe_id, classes="pantry-nav-btn")
                         btn._dossier_rel = rel
                         dossier_list.mount(btn)
 
@@ -3566,6 +3652,14 @@ class BreadwinnerApp(App):
         elif bid == "btn-pantry-history":
             self.action_pantry_history()
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "pantry-ai-prompt":
+            self.action_pantry_ai_refine()
+        elif event.input.id == "lab-refine-prompt":
+            self.action_lab_refine_diff()
+        elif event.input.id == "input-job-url":
+            self.action_bake_job()
+
     def run_strategy_loop_flow(self) -> None:
         url_input = self.query_one("#input-job-url", Input).value.strip()
         if not url_input:
@@ -3588,7 +3682,7 @@ class BreadwinnerApp(App):
             provider = get_llm_provider()
             questions = generate_job_strategy_questions(job, provider)
             persona_slug = self.query_one("#select-persona", Select).value
-            base_persona = PersonaManager.load_persona(persona_slug)
+            base_persona = PersonaManager.load_persona(persona_slug) if persona_slug and str(persona_slug).lower() != "none" else None
 
             def handle_strategy(result: Optional[Dict[str, Any]]) -> None:
                 if not result:
@@ -3652,7 +3746,7 @@ class BreadwinnerApp(App):
             persona = persona_override
         else:
             persona_slug = self.query_one("#select-persona", Select).value
-            persona = PersonaManager.load_persona(persona_slug)
+            persona = PersonaManager.load_persona(persona_slug) if persona_slug and str(persona_slug).lower() != "none" else None
 
         template_name = self.query_one("#select-template", Select).value
         self.current_template = template_name
@@ -3774,8 +3868,8 @@ class BreadwinnerApp(App):
                     pass
                 if job:
                     self.query_one("#lab-active-job-label", Label).update(f"[bold white]{job.company} — {job.title}[/bold white]")
-                prov_tag = " • [bold #8be9fd]100% Grounded[/]" if prov and prov.get("is_valid", False) else ""
-                self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% ATS Match[/bold #50FA7B]{prov_tag}")
+                prov_tag = " • [bold #8be9fd]Grounded[/]" if prov and prov.get("is_valid", False) else ""
+                self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% Match[/bold #50FA7B]{prov_tag}")
                 self.action_view_lab()
             except Exception:
                 pass

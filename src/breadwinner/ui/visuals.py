@@ -168,7 +168,7 @@ class SkillConstellationWidget(Static):
 
 
 class CrustSpectrumWidget(Static):
-    """Career Crust Crispness Spectrum & Seniority Progression Sparkline."""
+    """Experience Impact Breakdown & Seniority Progression Sparkline."""
 
     def __init__(self, id: Optional[str] = "crust-spectrum-box"):
         super().__init__("", id=id)
@@ -197,15 +197,15 @@ class CrustSpectrumWidget(Static):
         sparkline = "".join(spark_glyphs[min(len(spark_glyphs) - 1, max(0, int(v * 0.8)))] for v in velocities)
 
         prov_seal = (
-            "[bold #50FA7B][✦ PROVENANCE SEAL: 100% GROUNDED • 0 HALLUCINATIONS][/bold #50FA7B]"
+            "[bold #50FA7B]PROVENANCE: 100% GROUNDED[/bold #50FA7B]"
             if provenance_verified
-            else "[bold #FFB86C][! PROVENANCE WARNING: PENDING HEALING][/bold #FFB86C]"
+            else "[bold #FFB86C]PROVENANCE WARNING: PENDING CHECK[/bold #FFB86C]"
         )
 
         content = (
-            f"[bold #FFB86C]CRUST CRISPNESS SPECTRUM[/bold #FFB86C] [dim]• Google XYZ Impact Breakdown[/dim]\n"
+            f"[bold #FFB86C]IMPACT BREAKDOWN[/bold #FFB86C] [dim]• Quantified Outcomes[/dim]\n"
             f" {stacked_bar}  [bold #50FA7B]{quantified_pct}% High[/] [dim]•[/] [bold #FFB86C]{action_verb_pct}% Med[/]\n"
-            f" CAREER VELOCITY: [bold #38BDF8]{sparkline}[/bold #38BDF8] [dim](Ascending Seniority Momentum)[/dim]\n"
+            f" CAREER VELOCITY: [bold #38BDF8]{sparkline}[/bold #38BDF8]\n"
             f" {prov_seal}"
         )
         self.update(content)
@@ -217,7 +217,9 @@ class PipelineFunnelWidget(Static):
     DEFAULT_CSS = """
     PipelineFunnelWidget {
         width: 100%;
-        height: auto;
+        height: 3;
+        max-height: 3;
+        overflow: hidden;
         margin-bottom: 1;
     }
     """
@@ -249,7 +251,15 @@ class PipelineFunnelWidget(Static):
         self.refresh_box()
 
     def refresh_box(self, width: int = 0) -> None:
-        w = width or self.size.width or 96
+        if width > 0:
+            w = width
+        elif self.size.width > 0:
+            w = self.size.width
+        elif self.is_mounted and hasattr(self.app, "size") and self.app.size.width > 0:
+            sidebar_w = 24 if getattr(self.app, "layout_preset", "") != "split" else 0
+            w = max(78, self.app.size.width - sidebar_w - 3)
+        else:
+            w = 80
         w = max(w, 78)
         total = self.draft_count + self.applied_count + self.interview_count + self.offer_count
         c_draft = "#94A3B8"

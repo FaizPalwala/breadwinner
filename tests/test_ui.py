@@ -585,4 +585,70 @@ async def test_model_quick_switcher_unconfigured_provider_routes_to_welcome_with
         assert wm.staged_ingredients == ["https://faizpalwala.tech"]
 
 
+@pytest.mark.anyio
+async def test_tailor_studio_and_pantry_ui_enhancements():
+    from textual.widgets import Button, Input
 
+    app = BreadwinnerApp()
+    async with app.run_test(size=(100, 35)) as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # 1. Preset cycling check
+        cycle_btn = app.query_one("#btn-app-cycle-preset", Button)
+        assert str(cycle_btn.label) == "⛶ Normal"
+
+        app.action_cycle_preset()
+        await pilot.pause()
+        assert str(cycle_btn.label) == "⛶ Split"
+
+        app.action_cycle_preset()
+        await pilot.pause()
+        assert str(cycle_btn.label) == "⛶ Full"
+
+        app.action_cycle_preset()
+        await pilot.pause()
+        assert str(cycle_btn.label) == "⛶ Normal"
+
+        # 2. Studio Lab view & folder button check
+        app.action_view_lab()
+        await pilot.pause()
+        folder_btn = app.query_one("#btn-lab-folder", Button)
+        assert str(folder_btn.label) == "↗ Folder"
+        assert len(app.query("#lab-refine-prompt-label")) == 0
+        assert app.query_one("#lab-refine-prompt", Input) is not None
+
+        # 3. Pantry IDE prompt box
+        app.action_tab_profile()
+        await pilot.pause()
+        assert app.query_one("#pantry-prompt-box") is not None
+        assert app.query_one("#pantry-ai-prompt", Input) is not None
+
+        # 4. Global hotkeys: "o" is preserved in app.BINDINGS
+        bindings_keys = [b.key for b in app.BINDINGS]
+        assert "o" in bindings_keys
+
+        # 5. Right-hand preview is scrollable and focusable
+        from breadwinner.ui.editor import ScrollableMarkdown
+        preview_md = app.query_one("#preview-resume-md", ScrollableMarkdown)
+        assert preview_md is not None
+        assert preview_md.can_focus is True
+        assert preview_md.styles.overflow_y == "auto"
+
+        # 6. Verify functional scrolling in resume preview
+        app.action_tab_studio()
+        await pilot.pause()
+        app.action_view_lab()
+        await pilot.pause()
+        r_editor = app.query_one("#lab-resume-editor")
+        r_editor.text = "# Full Resume\n\n" + "\n\n".join(f"- Bullet point achievement line {i}" for i in range(80))
+        app.action_toggle_resume_preview()
+        await pilot.pause()
+        assert preview_md.styles.display == "block"
+        assert preview_md.has_focus is True
+        assert preview_md.is_scrollable is True
+        assert preview_md.max_scroll_y > 0
+        preview_md.scroll_page_down(animate=False)
+        await pilot.pause()
+        assert preview_md.scroll_y > 0

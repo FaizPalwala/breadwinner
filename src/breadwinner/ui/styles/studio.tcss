@@ -156,7 +156,7 @@
 #btn-lab-back {
     background: #252836;
     color: #A89F91;
-    margin-right: 2;
+    margin-right: 1;
 }
 #btn-lab-back:hover {
     background: #3A3F55;
@@ -164,6 +164,8 @@
 }
 #lab-active-job-label {
     width: 1fr;
+    min-width: 10;
+    max-width: 28;
     text-style: bold;
     color: #FFB86C;
     padding-right: 1;
@@ -205,6 +207,8 @@
 #btn-lab-folder {
     background: #212330;
     color: #F8F8F2;
+    margin-right: 0;
+    min-width: 10;
 }
 #btn-lab-folder:hover {
     background: #32364A;
@@ -318,7 +322,7 @@
     border: round #2A2E3D;
     color: #F8F8F2;
 }
-#preview-resume-md {
+#preview-resume-md, #preview-letter-md, #preview-qna-md {
     display: none;
 }
 .preview-box {
@@ -326,6 +330,12 @@
     border: round #2A2E3D;
     padding: 1;
     background: #0C0E14;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-color: #D18F52 #1A1C25;
+}
+.preview-box:focus {
+    border: round #FFB86C;
 }
 #lab-xyz-validator {
     height: auto;
@@ -354,15 +364,36 @@
 }
 #studio-lab-prompt-row {
     height: 3;
+    layout: horizontal;
+    background: #0C0E14;
+    border: round #2A2E3D;
     align: left middle;
+}
+#studio-lab-prompt-row:focus-within {
+    border: round #FFB86C;
 }
 #lab-refine-prompt {
     width: 1fr;
     height: 1;
-    background: #0C0E14;
-    border: round #2A2E3D;
+    border: none;
+    background: transparent;
     color: #F8F8F2;
-    margin: 0 1;
+    padding: 0 1;
+}
+#btn-lab-refine-diff {
+    width: auto;
+    min-width: 16;
+    height: 1;
+    border: none;
+    background: #D18F52;
+    color: #141724;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+}
+#btn-lab-refine-diff:hover {
+    background: #FFB86C;
+    color: #0C0E14;
 }
 #lab-diff-preview-box {
     height: auto;

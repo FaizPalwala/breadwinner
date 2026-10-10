@@ -157,12 +157,20 @@ def apply(
     else:
         try:
             console.print("\n[bold]Select Narrative Strategy for this role:[/bold]")
-            console.print("  [bold cyan][1][/bold cyan] [bold]Run Target Strategy Loop[/bold] [dim](Probe role hook, key proof points & tactical framing)[/dim]")
-            console.print("  [bold cyan][2][/bold cyan] [bold]Select an existing Persona[/bold] [dim](tech_ai, bridging_admin, hospitality, or custom)[/dim]")
-            choice = Prompt.ask("Strategy mode", choices=["1", "2"], default="1")
-            run_strategy = (choice == "1")
+            console.print("  [bold cyan][1][/bold cyan] [bold]Direct Pantry Match[/bold] [dim](Pure objective alignment, zero persona bias)[/dim]")
+            console.print("  [bold cyan][2][/bold cyan] [bold]Run Target Strategy Loop[/bold] [dim](Probe role hook, key proof points & tactical framing)[/dim]")
+            console.print("  [bold cyan][3][/bold cyan] [bold]Select an existing Persona[/bold] [dim](tech_ai or custom saved persona)[/dim]")
+            choice = Prompt.ask("Strategy mode", choices=["1", "2", "3"], default="1")
+            run_strategy = (choice == "2")
+            if choice == "3":
+                avail = [p.stem for p in PersonaManager.get_built_in_dir().glob("*.yaml")] + [p.stem for p in PersonaManager.get_user_dir().glob("*.yaml")]
+                avail = sorted(list(set(avail)))
+                persona = Prompt.ask("Enter persona slug", choices=avail, default=settings.default_persona)
+            elif choice == "1":
+                persona = "none"
         except (EOFError, KeyboardInterrupt):
             run_strategy = False
+            persona = "none"
 
     if run_strategy:
         console.print("\n[bold cyan]─── Target Strategy Discovery Loop ───[/bold cyan]")
@@ -186,9 +194,9 @@ def apply(
         console.print()
         console.print(Panel(job_directives, title="[bold green]Synthesized Job Directives[/bold green]", border_style="green"))
 
-        # Base persona
-        base_slug = persona or settings.default_persona
-        base_persona = PersonaManager.load_persona(base_slug)
+        # Base persona (optional)
+        base_slug = persona if (persona and persona.lower() not in ("none", "direct")) else None
+        base_persona = PersonaManager.load_persona(base_slug) if base_slug else None
 
         # Offer to synthesize and persist a new reusable persona
         save_confirmed = False
@@ -223,16 +231,19 @@ def apply(
         else:
             active_persona = base_persona
     else:
-        active_persona_slug = persona or settings.default_persona
-        active_persona = PersonaManager.load_persona(active_persona_slug)
+        if persona and persona.lower() not in ("none", "direct"):
+            active_persona = PersonaManager.load_persona(persona)
+        else:
+            active_persona = None
 
+    persona_label = active_persona.name if active_persona else "Direct Pantry Match"
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         transient=True
     ) as progress:
         # 5. Tailor Application
-        progress.add_task(description=f"Running Match & Tailoring Engine ({active_persona.name})...", total=None)
+        progress.add_task(description=f"Running Match & Tailoring Engine ({persona_label})...", total=None)
         tailoring_engine = TailoringEngine(active_provider)
         application = tailoring_engine.analyze_and_tailor(profile, job, active_persona, job_directives=job_directives)
 
@@ -256,9 +267,10 @@ def apply(
 
         (app_dir / "resume.html").write_text(resume_html, encoding="utf-8")
         (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
-        (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
-        (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
-        (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
+        if application.cover_letter:
+            (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
+        if application.portal_answers:
+            (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
 
         # 8. Render Print ATS PDF
         pdf_generated = False
@@ -281,10 +293,10 @@ def apply(
             portal_type=job.portal_type,
             status="tailored",
             match_score=application.match_analysis.match_score,
-            persona=active_persona.slug,
+            persona=active_persona.slug if active_persona else "direct",
             date_added=date_slug,
             folder_path=str(app_dir.resolve()),
-            notes=f"Auto-generated via {active_persona.name}" + (" (with custom job strategy)" if job_directives else "")
+            notes=f"Auto-generated via {active_persona.name if active_persona else 'Direct Pantry Match'}" + (" (with custom job strategy)" if job_directives else "")
         )
         repo.upsert_job(job_record)
 
@@ -312,13 +324,16 @@ def apply(
 
     pdf_entry = f"• [bold green]Resume (Print ATS PDF):[/bold green] {app_dir}/resume.pdf\n" if pdf_generated else ""
 
+    cl_entry = f"• [cyan]Cover Letter:[/cyan] {app_dir}/cover_letter.md\n" if application.cover_letter else ""
+    portal_entry = f"• [cyan]Portal Answers:[/cyan] {app_dir}/portal_answers.md\n" if application.portal_answers else ""
+
     console.print(Panel(
         f"[bold]Package Baked Successfully:[/bold]\n"
         f"{pdf_entry}"
         f"• [cyan]Resume (Jake's / HTML):[/cyan] {app_dir}/resume.html\n"
         f"• [cyan]Resume (ATS Markdown):[/cyan] {app_dir}/resume.md\n"
-        f"• [cyan]Cover Letter:[/cyan] {app_dir}/cover_letter.md\n"
-        f"• [cyan]Portal Answers:[/cyan] {app_dir}/portal_answers.md\n"
+        f"{cl_entry}"
+        f"{portal_entry}"
         f"• [cyan]JSON Resume:[/cyan] {app_dir}/resume.json\n\n"
         f"[green]✓ Application recorded in tracker.db and synced to {settings.csv_tracker_path or 'CSV'}[/green]",
         border_style="green"

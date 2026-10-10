@@ -100,7 +100,7 @@ class MockLLMProvider(BaseLLMProvider):
                 "keywords": ["Go", "Kubernetes", "Kafka", "Docker", "Distributed Systems", "AWS"]
             }
 
-        if "reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()) or "persona architect" in system_prompt.lower():
+        if ("tailoring engine" not in system_prompt.lower()) and ("reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()) or "persona architect" in system_prompt.lower()):
             return {
                 "name": "Target Role Strategist",
                 "slug": "target_role_strategist",
@@ -129,6 +129,31 @@ class MockLLMProvider(BaseLLMProvider):
                 "github_url": "https://github.com/example/engine",
                 "highlights": ["Zero data leakage", "Anti-hallucination metric preservation"],
                 "deep_dossier_markdown": "# Project Deep Dive: Breadwinner Ingestion Engine\n\n## Architecture & System Design\nHigh-throughput two-ledger compiler with deterministic verification."
+            }
+
+        if "resume tailoring engine" in system_prompt.lower() or "tailor candidate work experience" in system_prompt.lower():
+            return {
+                "match_score": 88,
+                "matched_skills": ["Python", "Java", "Distributed Systems", "Cloud", "Agile"],
+                "missing_skills": ["Kafka", "GraphQL"],
+                "rationale": "Candidate has strong engineering background matching 88% of core requirements.",
+                "strategic_recommendations": [
+                    "Highlight distributed systems and backend engineering experience.",
+                    "Emphasize relevant technical projects and quantitative impact."
+                ],
+                "tailored_summary": (
+                    "Software Engineer with experience architecting reliable distributed services and backend platforms. "
+                    "Specializing in scalable architecture, data pipelines, and high availability."
+                ),
+                "tailored_bullets": [
+                    "Delivered end-to-end platform features and resolved critical production incidents across release cycles.",
+                    "Architected data remediation pipelines processing high-volume record ingestion with zero data loss.",
+                    "Built distributed backend services maintaining high availability and extensive automated test coverage."
+                ],
+                "portal_answers": {
+                    "why_us": "Your team's mission and engineering challenges align with my background in building resilient software systems.",
+                    "challenge": "Architected an automated remediation workflow to resolve systemic validation errors, reducing failure backlog by 40%."
+                }
             }
 
         if "data extractor" in system_prompt.lower() or "candidate portfolio" in system_prompt.lower() or "lead career architect" in system_prompt.lower() or "anti-hallucination compiler" in system_prompt.lower() or "full_name" in user_prompt:

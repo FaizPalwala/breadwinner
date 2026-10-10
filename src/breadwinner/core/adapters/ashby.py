@@ -93,10 +93,35 @@ class AshbyAdapter(BaseATSAdapter):
             location = job_posting_data.get("locationName") or job_posting_data.get("departmentName")
             desc_html = job_posting_data.get("descriptionHtml") or ""
         else:
-            # Fallback to HTML title/h1
-            h1 = soup.find("h1")
-            if h1:
-                title = h1.get_text().strip()
+            # Fallback 1: Parse application/ld+json for modern Ashby postings
+            for script in soup.find_all("script", type="application/ld+json"):
+                try:
+                    ld = json.loads(script.string)
+                    if isinstance(ld, dict) and ld.get("@type") == "JobPosting":
+                        title = ld.get("title") or title
+                        desc_html = ld.get("description") or desc_html
+                        org = ld.get("hiringOrganization")
+                        if isinstance(org, dict) and org.get("name"):
+                            company = org["name"]
+                        loc_obj = ld.get("jobLocation")
+                        if isinstance(loc_obj, dict):
+                            addr = loc_obj.get("address")
+                            if isinstance(addr, dict):
+                                parts = [addr.get("addressLocality"), addr.get("addressRegion"), addr.get("addressCountry")]
+                                location = ", ".join(p for p in parts if p)
+                        break
+                except Exception:
+                    pass
+
+            # Fallback 2: Check OpenGraph / Twitter meta tags and HTML h1
+            if title == "Target Role":
+                og_title = soup.find("meta", property="og:title") or soup.find("meta", attrs={"name": "twitter:title"})
+                if og_title and og_title.get("content"):
+                    title = og_title["content"].strip()
+                else:
+                    h1 = soup.find("h1")
+                    if h1:
+                        title = h1.get_text().strip()
 
         cleaned_markdown = self.html_to_markdown(desc_html) if desc_html else ""
         if not cleaned_markdown:

@@ -40,26 +40,33 @@ class LeverAdapter(BaseATSAdapter):
         if not company_slug or not posting_id:
             raise ValueError(f"Could not parse Lever company and posting ID from {url}")
 
-        api_url = f"https://api.lever.co/v0/postings/{company_slug}/{posting_id}"
-        headers = {"User-Agent": self.USER_AGENT, "Accept": "application/json"}
-        resp = requests.get(api_url, headers=headers, timeout=10)
-        resp.raise_for_status()
+        try:
+            api_url = f"https://api.lever.co/v0/postings/{company_slug}/{posting_id}"
+            headers = {"User-Agent": self.USER_AGENT, "Accept": "application/json"}
+            resp = requests.get(api_url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            return self._extract_from_html(url, company_slug, posting_id)
 
-        data = resp.json()
         title = data.get("text", "Target Role")
         company = company_slug.replace("-", " ").title()
 
         categories = data.get("categories") or {}
         location = categories.get("location") or categories.get("team")
+        commitment = categories.get("commitment")
 
         # Build clean markdown from content blocks
         md_sections = []
+        if commitment:
+            md_sections.append(f"**Employment Type:** {commitment}")
+
         content = data.get("content") or {}
-        desc_html = content.get("description", "")
+        desc_html = content.get("description", "") or data.get("description", "")
         if desc_html:
             md_sections.append(self.html_to_markdown(desc_html))
 
-        lists = content.get("lists") or []
+        lists = data.get("lists") or content.get("lists") or []
         for lst in lists:
             header = lst.get("text", "")
             items_html = lst.get("content", "")
@@ -69,7 +76,7 @@ class LeverAdapter(BaseATSAdapter):
             else:
                 md_sections.append(items_md)
 
-        closing_html = content.get("closing", "")
+        closing_html = content.get("closing", "") or data.get("additional", "")
         if closing_html:
             md_sections.append(self.html_to_markdown(closing_html))
 
@@ -141,3 +148,63 @@ class LeverAdapter(BaseATSAdapter):
             cover_letter_guidance=cover_letter_guidance,
             logistics=KnockoutLogistics()
         )
+
+    def _extract_from_html(self, url: str, company_slug: str, posting_id: str) -> IngestedJobResult:
+        """Parses Lever's static HTML layout as fallback."""
+        from bs4 import BeautifulSoup
+        headers = {"User-Agent": self.USER_AGENT, "Accept": "text/html"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        company = company_slug.replace("-", " ").title()
+        headline = soup.find("div", class_="posting-headline")
+        title = "Target Role"
+        if headline and headline.find("h2"):
+            title = headline.find("h2").get_text().strip()
+        elif soup.find("h2"):
+            title = soup.find("h2").get_text().strip()
+
+        location = None
+        commitment = None
+        cats_div = soup.find("div", class_="posting-categories")
+        if cats_div:
+            loc_tag = cats_div.find(class_=lambda c: c and "location" in c.lower())
+            if loc_tag:
+                location = loc_tag.get_text().strip()
+            commit_tag = cats_div.find(class_=lambda c: c and "commitment" in c.lower())
+            if commit_tag:
+                commitment = commit_tag.get_text().strip()
+
+        md_sections = []
+        if commitment:
+            md_sections.append(f"**Employment Type:** {commitment}")
+
+        sections = soup.find_all("div", class_=lambda c: c and "section" in c)
+        for sec in sections:
+            md_sections.append(self.html_to_markdown(str(sec)))
+
+        cleaned_markdown = "\n\n".join(s for s in md_sections if s.strip())
+        if not cleaned_markdown:
+            cleaned_markdown = self.html_to_markdown(resp.text)
+
+        safe_company = re.sub(r"[^a-zA-Z0-9]+", "-", company.lower()).strip("-") or "company"
+        safe_title = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-") or "role"
+        canonical_id = f"{safe_company}-{safe_title}"
+
+        return IngestedJobResult(
+            id=canonical_id,
+            company=company,
+            title=title,
+            url=url,
+            location=location,
+            portal_type=self.name,
+            extraction_method="tier_1_html",
+            raw_text=cleaned_markdown,
+            cleaned_markdown=cleaned_markdown,
+            questions=[],
+            cover_letter_status=CoverLetterRequirement.OPTIONAL,
+            cover_letter_guidance="Lever applications provide optional attachment/notes by default.",
+            logistics=KnockoutLogistics()
+        )
+

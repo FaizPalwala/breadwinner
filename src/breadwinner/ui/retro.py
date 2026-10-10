@@ -770,9 +770,10 @@ class BakingModal(ModalScreen):
             # STAGE 1: KNEAD (STRATEGY & PERSONA DIRECTIVES)
             self.app.call_from_thread(stepper.set_stage, 1)
             self.app.call_from_thread(gauge.update_progress, 35)
+            persona_label = persona.name[:25] if persona else "Direct Pantry Match"
             self.app.call_from_thread(
                 status_lbl.update,
-                f"[bold #ffb86c][~] Kneading narrative persona ({persona.name[:25]})...[/bold #ffb86c]"
+                f"[bold #ffb86c][~] Kneading narrative strategy ({persona_label})...[/bold #ffb86c]"
             )
             time.sleep(0.4)
 
@@ -814,8 +815,10 @@ class BakingModal(ModalScreen):
             (app_dir / "resume.html").write_text(resume_html, encoding="utf-8")
             (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
             (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
-            (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
-            (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
+            if app_result.cover_letter:
+                (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
+            if app_result.portal_answers:
+                (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
 
             # STAGE 4: GOLDEN LOAF (PDF BAKE)
             self.app.call_from_thread(stepper.set_stage, 4)
@@ -842,10 +845,10 @@ class BakingModal(ModalScreen):
                 portal_type=job.portal_type,
                 status="tailored",
                 match_score=score,
-                persona=persona.slug,
+                persona=persona.slug if persona else "direct",
                 date_added=date_slug,
                 folder_path=str(app_dir.resolve()),
-                notes=f"Tailored via {persona.name}" + (" (with custom strategy loop)" if directives else "")
+                notes=f"Tailored via {persona.name if persona else 'Direct Pantry Match'}" + (" (with custom strategy loop)" if directives else "")
             )
             if repo:
                 repo.upsert_job(job_rec)

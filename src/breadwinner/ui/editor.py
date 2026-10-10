@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.widgets import Static, Label, Button, TextArea, Markdown
+from textual.binding import Binding
 from textual.screen import ModalScreen
 
 from breadwinner.core.models import CandidateProfile, TailoredApplication, WorkExperience
@@ -253,13 +254,28 @@ def make_gauge_bar(score: int, width: int = 12) -> str:
     return f"[{color}]{'█' * filled}[/][#334155]{'░' * empty}[/] [bold {color}]{score:>3}%[/]"
 
 
+class ScrollableMarkdown(Markdown):
+    """Interactive markdown preview widget with keyboard and mouse scrollability."""
+
+    can_focus = True
+
+    BINDINGS = [
+        Binding("up,k", "scroll_up", "Scroll Up", show=False),
+        Binding("down,j", "scroll_down", "Scroll Down", show=False),
+        Binding("pageup,page_up", "page_up", "Page Up", show=False),
+        Binding("pagedown,page_down", "page_down", "Page Down", show=False),
+        Binding("home", "scroll_home", "Home", show=False),
+        Binding("end", "scroll_end", "End", show=False),
+    ]
+
+
 class XYZValidatorWidget(Static):
-    """Real-time Google XYZ Formula multi-gauge telemetry display and anti-hallucination provenance seal."""
+    """Real-time Google XYZ Formula multi-gauge telemetry display."""
 
     def __init__(self, id: Optional[str] = "xyz-validator-box"):
         placeholder = (
-            "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Provenance Telemetry[/dim]\n"
-            "[dim]Awaiting experience bullets... Enter or paste bullets above to calculate real-time impact scores.[/dim]"
+            "[bold #ffb86c]METRIC AUDIT[/bold #ffb86c]\n"
+            "[dim]Awaiting experience bullets... Enter or paste bullets above to calculate metrics.[/dim]"
         )
         super().__init__(placeholder, id=id)
         self.latest_report: Optional[XYZMetricReport] = None
@@ -272,7 +288,7 @@ class XYZValidatorWidget(Static):
 
         if report.total_bullets == 0:
             content = (
-                "[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Provenance Telemetry[/dim]\n"
+                "[bold #ffb86c]METRIC AUDIT[/bold #ffb86c]\n"
                 f"[dim]{report.coaching_tip}[/dim]"
             )
             self.update(content)
@@ -286,17 +302,17 @@ class XYZValidatorWidget(Static):
         prov_line = ""
         if self.latest_provenance:
             summary = self.latest_provenance.get("summary", "100% Grounded • 0 Hallucinations")
-            prov_line = f"\n [bold #50fa7b]PROVENANCE SEAL:[/] [dim]{summary}[/dim]"
+            prov_line = f" [dim]•[/] [bold #50fa7b]{summary}[/bold #50fa7b]"
             healed = self.latest_provenance.get("hallucinations_healed", 0)
             if healed > 0:
                 prov_line += f" [bold #8be9fd]({healed} healed)[/]"
 
         content = (
-            f"[bold #ffb86c]LIVE AUDIT GAUGES[/bold #ffb86c] [dim]• Google XYZ & Anti-Hallucination Studio[/dim]{prov_line}\n"
-            f" [#c9b5a2]• Google XYZ Compliance[/] [dim]({report.quantified_bullets}/{report.total_bullets})[/dim]  {g_xyz}\n"
-            f" [#c9b5a2]• Action Verb Velocity[/]  [dim]({report.action_verbs_count}/{report.total_bullets})[/dim]  {g_verb}\n"
-            f" [#c9b5a2]• Pantry Fact Grounding[/]  [dim](Facts)[/dim]  {g_ground}\n"
-            f" [#c9b5a2]• Bake Health Index[/]     [dim](Hearth)[/dim] {g_bake}\n"
+            f"[bold #ffb86c]METRIC AUDIT[/bold #ffb86c]{prov_line}\n"
+            f" [#c9b5a2]• XYZ Formula[/]    [dim]({report.quantified_bullets}/{report.total_bullets})[/dim]  {g_xyz}\n"
+            f" [#c9b5a2]• Action Verbs[/]   [dim]({report.action_verbs_count}/{report.total_bullets})[/dim]  {g_verb}\n"
+            f" [#c9b5a2]• Fact Grounding[/] [dim](Facts)[/dim]  {g_ground}\n"
+            f" [#c9b5a2]• Quality Score[/]  [dim](Total)[/dim]  {g_bake}\n"
             f"{report.coaching_tip}"
         )
         self.update(content)

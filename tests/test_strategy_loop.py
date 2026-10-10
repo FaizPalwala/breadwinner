@@ -4,7 +4,15 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from breadwinner.core.models import JobPosting, CandidateProfile, WorkExperience, Education, Project, SkillCategory
+from breadwinner.core.models import (
+    JobPosting,
+    CandidateProfile,
+    WorkExperience,
+    Education,
+    Project,
+    SkillCategory,
+    CoverLetterRequirement
+)
 from breadwinner.core.persona import (
     Persona,
     PersonaManager,
@@ -26,7 +34,8 @@ def sample_job():
         url="https://stripe.com/jobs/123",
         location="Remote, US",
         portal_type="greenhouse",
-        raw_text="Looking for a Staff Backend Engineer to scale real-time payment rails handling 100k events/sec in Go and Kafka."
+        raw_text="Looking for a Staff Backend Engineer to scale real-time payment rails handling 100k events/sec in Go and Kafka.",
+        cover_letter_status=CoverLetterRequirement.OPTIONAL
     )
 
 
@@ -316,4 +325,134 @@ def test_cli_apply_with_strategy_loop(tmp_path, monkeypatch):
     assert "Synthesized Job Directives" in result.output
     assert "Saved persona 'acme_platform_lead'" in result.output
     assert (tmp_path / "user_personas" / "acme_platform_lead.yaml").exists()
+
+
+def test_tailoring_engine_conditional_cover_letter_prohibited(sample_profile):
+    """When cover letter is prohibited by application form, never generate cover letter."""
+    mock = MockLLMProvider()
+    engine = TailoringEngine(mock)
+    persona = PersonaManager.load_persona("tech_ai")
+
+    job = JobPosting(
+        id="job_ashby",
+        company="AshbyCorp",
+        title="Senior Engineer",
+        raw_text="Build fast web apps",
+        cover_letter_status=CoverLetterRequirement.PROHIBITED
+    )
+    app = engine.analyze_and_tailor(sample_profile, job, persona)
+    assert app.cover_letter == ""
+
+
+def test_tailoring_engine_conditional_cover_letter_not_specified(sample_profile):
+    """When cover letter requirement is not specified, do not generate cover letter by default."""
+    mock = MockLLMProvider()
+    engine = TailoringEngine(mock)
+    persona = PersonaManager.load_persona("tech_ai")
+
+    job = JobPosting(
+        id="job_plain",
+        company="PlainCo",
+        title="Backend Engineer",
+        raw_text="Build robust APIs",
+        cover_letter_status=CoverLetterRequirement.NOT_SPECIFIED
+    )
+    app = engine.analyze_and_tailor(sample_profile, job, persona)
+    assert app.cover_letter == ""
+
+    # But if user explicitly requests one via directives, generate it
+    app_with_req = engine.analyze_and_tailor(
+        sample_profile,
+        job,
+        persona,
+        job_directives="Please include cover letter highlighting distributed ledger experience."
+    )
+    assert app_with_req.cover_letter != ""
+
+
+def test_tailoring_engine_conditional_cover_letter_opt_out(sample_profile):
+    """When cover letter is optional on portal, candidate can opt out via directives."""
+    mock = MockLLMProvider()
+    engine = TailoringEngine(mock)
+    persona = PersonaManager.load_persona("tech_ai")
+
+    job = JobPosting(
+        id="job_gh",
+        company="GitLab",
+        title="Backend Engineer",
+        raw_text="AI Engineering",
+        cover_letter_status=CoverLetterRequirement.OPTIONAL
+    )
+    app_opt_out = engine.analyze_and_tailor(
+        sample_profile,
+        job,
+        persona,
+        job_directives="Focus on backend APIs. No cover letter needed."
+    )
+    assert app_opt_out.cover_letter == ""
+
+
+def test_tailoring_engine_conditional_portal_answers(sample_profile):
+    """When job has no screening questions, portal_answers must be empty. When questions exist, answer them."""
+    mock = MockLLMProvider()
+    engine = TailoringEngine(mock)
+    persona = PersonaManager.load_persona("tech_ai")
+
+    # 1. No questions asked
+    job_no_q = JobPosting(
+        id="job_no_q",
+        company="NoQuestionsCo",
+        title="Systems Engineer",
+        raw_text="Build low-latency pipelines",
+        questions=[]
+    )
+    app_no_q = engine.analyze_and_tailor(sample_profile, job_no_q, persona)
+    assert app_no_q.portal_answers == {}
+
+    # 2. Portal explicitly asks questions
+    from breadwinner.core.models import ApplicationQuestion
+    job_with_q = JobPosting(
+        id="job_with_q",
+        company="GreenhouseCo",
+        title="AI Engineer",
+        raw_text="Build LLM tooling",
+        questions=[
+            ApplicationQuestion(id="q_exp", prompt="Years of experience with Python?", required=True),
+            ApplicationQuestion(id="q_why", prompt="Why GreenhouseCo?", required=False)
+        ]
+    )
+    app_with_q = engine.analyze_and_tailor(sample_profile, job_with_q, persona)
+    assert len(app_with_q.portal_answers) > 0
+    assert "Years of experience with Python?" in app_with_q.portal_answers or "q_exp" in app_with_q.portal_answers
+
+
+def test_tailoring_engine_optional_persona_direct_match(sample_profile):
+    """When persona is None, tailoring engine executes Direct Pantry Match mode without bias."""
+    mock = MockLLMProvider()
+    engine = TailoringEngine(mock)
+
+    job = JobPosting(
+        id="job_direct",
+        company="KernelCorp",
+        title="Linux Kernel Engineer",
+        raw_text="Operating systems, memory allocators, C and eBPF."
+    )
+
+    # 1. Run without persona (persona=None)
+    app = engine.analyze_and_tailor(sample_profile, job, persona=None)
+    assert app.persona == "direct"
+    assert app.match_analysis.match_score >= 0
+    assert len(app.tailored_experiences) > 0
+
+    # 2. Verify with directives
+    app_with_dir = engine.analyze_and_tailor(
+        sample_profile,
+        job,
+        persona=None,
+        job_directives="Highlight systems performance and memory profiling."
+    )
+    assert app_with_dir.persona == "direct"
+    assert len(app_with_dir.tailored_experiences) > 0
+
+
 

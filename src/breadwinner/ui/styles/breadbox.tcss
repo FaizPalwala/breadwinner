@@ -1,7 +1,9 @@
 /* Breadwinner Breadbox View Styling - Scoped to #breadbox-view / #tab-pipeline */
 #pipeline-funnel-widget {
     width: 100%;
-    height: auto;
+    height: 3;
+    max-height: 3;
+    overflow: hidden;
     margin-bottom: 1;
 }
 #pipeline-container {

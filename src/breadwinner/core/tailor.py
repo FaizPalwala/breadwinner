@@ -9,7 +9,8 @@ from breadwinner.core.models import (
     TailoredApplication,
     WorkExperience,
     Project,
-    SkillCategory
+    SkillCategory,
+    CoverLetterRequirement
 )
 from breadwinner.core.persona import Persona
 from breadwinner.providers.base import BaseLLMProvider
@@ -28,7 +29,7 @@ class TailoringEngine:
         self,
         profile: CandidateProfile,
         job: JobPosting,
-        persona: Persona,
+        persona: Optional[Persona] = None,
         job_directives: Optional[str] = None
     ) -> TailoredApplication:
         """Run match analysis and generate tailored application packet with metric freezing."""
@@ -88,16 +89,43 @@ class TailoringEngine:
         guardrails_block = f"\nCANDIDATE PERSONAL DIRECTIVES & GUARDRAILS (HIGH PRIORITY):\n{personal_guardrails}\n" if personal_guardrails else ""
         job_directives_block = f"\nJOB-SPECIFIC STRATEGY DIRECTIVES (TOP PRIORITY OVERRIDE):\n{job_directives}\n" if job_directives else ""
 
-        banned_words_list = sorted(list(set(DEFAULT_BANNED_WORDS + (persona.banned_words or []))))
+        banned_words_list = sorted(list(set(DEFAULT_BANNED_WORDS + (persona.banned_words if persona and persona.banned_words else []))))
         banned_words_str = ", ".join(f'"{w}"' for w in banned_words_list)
 
-        # Constrained Prompt
-        system_prompt = f"""You are Breadwinner, an automated career engineering studio and anti-hallucination resume tailoring engine.
-NARRATIVE PERSONA: {persona.name} (Market: {persona.market}, Archetype: {persona.archetype})
+        # Prepare conditional application questions for prompt
+        if job.questions:
+            task_questions_line = "5. Synthesize concise, authentic answers for each detected application question asked by the job portal."
+            q_list_text = "\n".join(
+                f"- Question ID: '{q.id}' | Prompt: '{q.prompt}' ({'Required' if q.required else 'Optional'})"
+                for q in job.questions
+            )
+            detected_questions_block = f"\nDETECTED APPLICATION QUESTIONS ASKED BY PORTAL:\n{q_list_text}\n"
+            q_schema_dict = {q.id: f"Authentic candidate answer to: {q.prompt}" for q in job.questions}
+            q_schema_example = json.dumps(q_schema_dict, indent=4)
+        else:
+            task_questions_line = "5. Since NO custom application questions were asked by the portal, set portal_answers to an empty object {}."
+            detected_questions_block = ""
+            q_schema_example = "{}"
+
+        # Resolve persona narrative block
+        if persona:
+            persona_block = f"""NARRATIVE PERSONA: {persona.name} (Market: {persona.market}, Archetype: {persona.archetype})
 TONE: {persona.tone}
 
 PERSONA DIRECTIVES:
-{persona.system_directives}
+{persona.system_directives}"""
+            persona_slug = persona.slug
+        else:
+            persona_block = """NARRATIVE STRATEGY: Direct Pantry Match (Pure Objective Alignment)
+TONE: Authoritative, quantitative, authentic, and systems-first.
+
+DIRECTIVES:
+Directly align verified candidate accomplishments against job requirements without artificial domain bias. Rely on verified facts and candidate personal directives."""
+            persona_slug = "direct"
+
+        # Constrained Prompt
+        system_prompt = f"""You are Breadwinner, an automated career engineering studio and anti-hallucination resume tailoring engine.
+{persona_block}
 {guardrails_block}
 {job_directives_block}
 TARGET JOB: {job.title} at {job.company} (Domain: {deconstructed_job.domain})
@@ -117,7 +145,7 @@ TASK:
 2. Tailor a compelling 2-3 sentence professional summary.
 3. Tailor candidate work experience bullets adhering strictly to the metric freezing and XYZ invariants.
 4. Select the top 2-3 most relevant projects from candidate's portfolio.
-5. Generate concise portal Q&A answers.
+{task_questions_line}
 """
 
         user_prompt = f"""DECONSTRUCTED JOB SPECIFICATION:
@@ -134,7 +162,7 @@ Company: {job.company}
 Title: {job.title}
 Raw Job Details:
 {job.raw_text[:3500]}
-
+{detected_questions_block}
 Respond ONLY in valid JSON with this exact schema:
 {{
   "match_score": 85,
@@ -158,11 +186,7 @@ Respond ONLY in valid JSON with this exact schema:
       "highlights": ["Highlight 1"]
     }}
   ],
-  "portal_answers": {{
-    "why_company": "Why you want to work at this specific company",
-    "technical_challenge": "Describe a difficult bug or complex engineering challenge solved",
-    "availability": "Immediate unrestricted availability"
-  }}
+  "portal_answers": {q_schema_example}
 }}"""
 
         res = self.provider.generate_json(system_prompt, user_prompt)
@@ -210,19 +234,50 @@ Respond ONLY in valid JSON with this exact schema:
         else:
             tailored_projs = profile.projects[:3]
 
-        # Generate targeted cover letter
-        cover_letter = self._generate_cover_letter(profile, job, persona, match_analysis, job_directives=job_directives)
+        # Cover Letter Invariant: ONLY generate if the application asks for it or user explicitly requests it
+        user_explicit_cl = bool(job_directives) and any(
+            k in job_directives.lower()
+            for k in ["include cover letter", "generate cover letter", "write a cover letter", "with cover letter"]
+        )
+        user_explicit_no_cl = bool(job_directives) and any(
+            k in job_directives.lower()
+            for k in ["no cover letter", "skip cover letter", "without cover letter", "omit cover letter"]
+        )
+
+        should_generate_cl = False
+        if not user_explicit_no_cl and job.cover_letter_status != CoverLetterRequirement.PROHIBITED:
+            if job.cover_letter_status in (CoverLetterRequirement.MANDATORY, CoverLetterRequirement.OPTIONAL):
+                should_generate_cl = True
+            elif user_explicit_cl:
+                should_generate_cl = True
+
+        if should_generate_cl:
+            cover_letter = self._generate_cover_letter(profile, job, persona, match_analysis, job_directives=job_directives)
+        else:
+            cover_letter = ""
+
+        # Parse portal answers: ONLY populated if the application actually asked questions
+        portal_answers = {}
+        if job.questions:
+            raw_portal = res.get("portal_answers", {})
+            if isinstance(raw_portal, dict) and raw_portal:
+                val_list = [v for v in raw_portal.values() if isinstance(v, str)]
+                for idx, q in enumerate(job.questions):
+                    ans = raw_portal.get(q.id) or raw_portal.get(q.prompt) or (val_list[idx] if idx < len(val_list) else "")
+                    if ans and isinstance(ans, str):
+                        portal_answers[q.prompt] = ans
+                        q.answer = ans
 
         app = TailoredApplication(
             job=job,
-            persona=persona.slug,
+            persona=persona_slug,
             match_analysis=match_analysis,
             tailored_summary=res.get("tailored_summary", profile.summary),
             tailored_experiences=tailored_exps,
             tailored_projects=tailored_projs,
             tailored_skills=profile.skills,
             cover_letter=cover_letter,
-            portal_answers=res.get("portal_answers", {})
+            portal_answers=portal_answers
         )
 
         # STAGE 3: Deterministic Provenance Diff Auditor & Auto-Healer
@@ -233,15 +288,19 @@ Respond ONLY in valid JSON with this exact schema:
         self,
         profile: CandidateProfile,
         job: JobPosting,
-        persona: Persona,
+        persona: Optional[Persona],
         match: MatchAnalysis,
         job_directives: Optional[str] = None
     ) -> str:
         """Generate targeted 3-paragraph cover letter adhering to word budgets and zero fluff."""
         directives_block = f"\nJOB-SPECIFIC DIRECTIVES (TOP PRIORITY):\n{job_directives}\n" if job_directives else ""
+        if persona:
+            persona_cl_directives = f"PERSONA: {persona.name} (Market: {persona.market}, Archetype: {persona.archetype})\n{persona.cover_letter_directives}"
+        else:
+            persona_cl_directives = "STRATEGY: Direct Authentic Match\nHighlight candidate's verified technical accomplishments and direct alignment with the target platform."
+
         sys_prompt = f"""You are an expert technical cover letter copywriter for {profile.full_name}.
-PERSONA: {persona.name} (Market: {persona.market}, Archetype: {persona.archetype})
-{persona.cover_letter_directives}
+{persona_cl_directives}
 {directives_block}
 COMPANY: {job.company}
 ROLE: {job.title}

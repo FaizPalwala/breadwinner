@@ -133,9 +133,9 @@ def test_crust_spectrum_widget():
         provenance_verified=True,
     )
     rendered = str(widget.render())
-    assert "CRUST CRISPNESS SPECTRUM" in rendered
+    assert "IMPACT BREAKDOWN" in rendered
     assert "CAREER VELOCITY" in rendered
-    assert "PROVENANCE SEAL: 100% GROUNDED" in rendered
+    assert "PROVENANCE: 100% GROUNDED" in rendered
 
     # Warning case
     widget.update_spectrum(provenance_verified=False)

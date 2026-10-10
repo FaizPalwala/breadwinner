@@ -48,6 +48,80 @@ class UniversalJobIngestor:
     ]
 
     @classmethod
+    def is_anti_bot_or_restricted(cls, exc: Optional[Exception] = None, resp: Optional[requests.Response] = None, text: str = "") -> bool:
+        """Determines if a request, exception, or text payload indicates anti-bot protection or dynamic JS rendering."""
+        if exc is not None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status in (403, 404, 429, 999):
+                return True
+            err_str = str(exc).lower()
+            if any(k in err_str for k in ["999", "403", "404", "forbidden", "access denied", "request denied", "login", "auth", "checkpoint"]):
+                return True
+
+        if resp is not None:
+            if resp.status_code in (403, 404, 429, 999):
+                return True
+            final_url = (resp.url or "").lower()
+            if any(k in final_url for k in ["/login", "/auth", "checkpoint", "challenge"]):
+                return True
+
+        if text and len(text.strip()) < 200:
+            return True
+
+        return False
+
+    @classmethod
+    def _handle_anti_bot_fallback(cls, url: str, company: str = "Target Company", title: str = "Target Role") -> IngestedJobResult:
+        """Gracefully switches to raw text fallback when scraping is restricted by anti-bot or dynamic rendering."""
+        import sys
+
+        pasted_text = ""
+        # In interactive terminal sessions, prompt user for raw paste
+        if sys.stdin and hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            print("\n[WARN] Automated scraping restricted by portal anti-bot or dynamic rendering.")
+            print("Please paste the raw job description text below (press Enter on an empty line or Ctrl+D to submit):\n")
+            lines = []
+            try:
+                while True:
+                    line = input()
+                    if not line.strip() and lines:
+                        break
+                    lines.append(line)
+            except EOFError:
+                pass
+            pasted_text = "\n".join(lines).strip()
+
+        if pasted_text:
+            res = cls.ingest_text(pasted_text, company=company, title=title)
+            res.url = url
+            res.portal_type = "anti_bot_fallback"
+            res.extraction_method = "anti_bot_paste_fallback"
+            return res
+
+        warn_msg = (
+            "[WARN] Automated scraping restricted by portal anti-bot or dynamic rendering.\n"
+            "Please paste the raw job description text below (press Enter on an empty line or Ctrl+D to submit):"
+        )
+        safe_company = re.sub(r"[^a-zA-Z0-9]+", "-", company.lower()).strip("-") or "company"
+        safe_title = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-") or "role"
+        canonical_id = f"{safe_company}-{safe_title}"
+
+        return IngestedJobResult(
+            id=canonical_id,
+            company=company,
+            title=title,
+            url=url,
+            portal_type="anti_bot_fallback",
+            extraction_method="anti_bot_fallback",
+            raw_text=warn_msg,
+            cleaned_markdown=warn_msg,
+            questions=[],
+            cover_letter_status=CoverLetterRequirement.OPTIONAL,
+            cover_letter_guidance="Automated scraping restricted by anti-bot. Please paste raw job description.",
+            logistics=KnockoutLogistics()
+        )
+
+    @classmethod
     def ingest_url(
         cls,
         raw_url: str,
@@ -58,18 +132,50 @@ class UniversalJobIngestor:
         """Resolves URL redirects, invokes Tier 1 ATS adapters or Tier 2 fallback, and enriches data."""
         # 1. Multi-hop canonicalization
         canonical_url = RedirectResolver.resolve_canonical_url(raw_url, timeout=timeout)
+        domain = urlparse(canonical_url).netloc.lower()
+        parts = domain.split(".")
+        inferred_company = parts[-2].capitalize() if len(parts) >= 2 else "Target Company"
+        inferred_title = "Target Role"
+
+        is_restricted = False
+        result = None
 
         # 2. Check Tier 1 ATS Adapters
         adapter = find_adapter(canonical_url)
         if adapter:
             try:
                 result = adapter.extract(canonical_url)
-            except Exception:
-                # If adapter fails (e.g. rate limit or changed path), gracefully fall back to Tier 2
-                result = cls._universal_fallback_extract(canonical_url, timeout=timeout)
+                if not result.cleaned_markdown or len(result.cleaned_markdown.strip()) < 200:
+                    is_restricted = True
+            except Exception as e:
+                if cls.is_anti_bot_or_restricted(exc=e):
+                    is_restricted = True
+                else:
+                    try:
+                        result = cls._universal_fallback_extract(canonical_url, timeout=timeout)
+                        if not result.cleaned_markdown or len(result.cleaned_markdown.strip()) < 200:
+                            is_restricted = True
+                    except Exception as fallback_e:
+                        if cls.is_anti_bot_or_restricted(exc=fallback_e):
+                            is_restricted = True
+                        else:
+                            is_restricted = True
         else:
             # 3. Tier 2 Universal Fallback
-            result = cls._universal_fallback_extract(canonical_url, timeout=timeout)
+            try:
+                result = cls._universal_fallback_extract(canonical_url, timeout=timeout)
+                if not result.cleaned_markdown or len(result.cleaned_markdown.strip()) < 200:
+                    is_restricted = True
+            except Exception as e:
+                if cls.is_anti_bot_or_restricted(exc=e):
+                    is_restricted = True
+                else:
+                    is_restricted = True
+
+        if is_restricted:
+            fallback_company = result.company if (result and result.company != "Target Company") else inferred_company
+            fallback_title = result.title if (result and result.title != "Target Role") else inferred_title
+            result = cls._handle_anti_bot_fallback(canonical_url, company=fallback_company, title=fallback_title)
 
         # 4. Extract Vector 2 In-Text Stealth Prompts from body text
         in_text_prompts = extract_in_text_prompts(result.cleaned_markdown)
