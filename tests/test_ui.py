@@ -587,7 +587,7 @@ async def test_model_quick_switcher_unconfigured_provider_routes_to_welcome_with
 
 @pytest.mark.anyio
 async def test_tailor_studio_and_pantry_ui_enhancements():
-    from textual.widgets import Button, Input
+    from textual.widgets import Button, Input, TextArea
 
     app = BreadwinnerApp()
     async with app.run_test(size=(100, 35)) as pilot:
@@ -617,13 +617,13 @@ async def test_tailor_studio_and_pantry_ui_enhancements():
         folder_btn = app.query_one("#btn-lab-folder", Button)
         assert str(folder_btn.label) == "↗ Folder"
         assert len(app.query("#lab-refine-prompt-label")) == 0
-        assert app.query_one("#lab-refine-prompt", Input) is not None
+        assert app.query_one("#lab-refine-prompt", TextArea) is not None
 
         # 3. Pantry IDE prompt box
         app.action_tab_profile()
         await pilot.pause()
         assert app.query_one("#pantry-prompt-box") is not None
-        assert app.query_one("#pantry-ai-prompt", Input) is not None
+        assert app.query_one("#pantry-ai-prompt", TextArea) is not None
 
         # 4. Global hotkeys: "o" is preserved in app.BINDINGS
         bindings_keys = [b.key for b in app.BINDINGS]
@@ -652,3 +652,21 @@ async def test_tailor_studio_and_pantry_ui_enhancements():
         preview_md.scroll_page_down(animate=False)
         await pilot.pause()
         assert preview_md.scroll_y > 0
+
+        # 7. Verify multiline PromptTextArea in Studio and Pantry with Ctrl+Enter triggers
+        studio_prompt = app.query_one("#lab-refine-prompt", TextArea)
+        studio_prompt.text = "Emphasize high-throughput Go microservices"
+        studio_prompt.focus()
+        await pilot.pause()
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+        diff_box = app.query_one("#lab-diff-preview-box")
+        assert diff_box.styles.display != "none"
+
+        app.action_tab_profile()
+        await pilot.pause()
+        pantry_prompt = app.query_one("#pantry-ai-prompt", TextArea)
+        pantry_prompt.text = "Add Go and Kubernetes expertise"
+        pantry_prompt.focus()
+        await pilot.pause()
+        assert pantry_prompt.text == "Add Go and Kubernetes expertise"

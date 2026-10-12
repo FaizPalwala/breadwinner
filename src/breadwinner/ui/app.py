@@ -1077,6 +1077,19 @@ class PaletteSearchInput(Input):
                 return
 
 
+class PromptTextArea(TextArea):
+    """Multiline prompt input with Ctrl+Enter submit trigger."""
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("ctrl+enter", "ctrl+j"):
+            event.stop()
+            event.prevent_default()
+            if self.id == "lab-refine-prompt":
+                self.app.action_lab_refine_diff()
+            elif self.id == "pantry-ai-prompt":
+                self.app.action_pantry_ai_refine()
+
+
 class ModelQuickSwitcherModal(ModalScreen):
     """Raycast / Spotlight AI Engine & Model Quick-Pick Palette with zero dead space."""
 
@@ -1914,7 +1927,7 @@ class BreadwinnerApp(App):
 
                             with Vertical(id="studio-lab-bottom-bar"):
                                 with Horizontal(id="studio-lab-prompt-row"):
-                                    yield Input(placeholder="✦ Directive to refine bullets (e.g. emphasize Go concurrency, scale metrics)...", id="lab-refine-prompt")
+                                    yield PromptTextArea("", id="lab-refine-prompt", language=None)
                                     yield Button("Refine with AI", variant="warning", id="btn-lab-refine-diff")
                                 with Vertical(id="lab-diff-preview-box"):
                                     yield Label("[bold #FFB86C]Proposed Metric Diff (Google XYZ Transformation):[/bold #FFB86C]", id="lab-diff-title")
@@ -1952,7 +1965,7 @@ class BreadwinnerApp(App):
                                 yield Markdown(self.get_profile_markdown(), id="profile-md")
                                 with Horizontal(id="pantry-ai-bar"):
                                     with Horizontal(id="pantry-prompt-box"):
-                                        yield Input(placeholder="✦ Prompt model to refine ledger (e.g. emphasize Go concurrency, sharpen XYZ metrics)...", id="pantry-ai-prompt")
+                                        yield PromptTextArea("", id="pantry-ai-prompt", language=None)
                                         yield Button("✦ Refine & Diff", id="btn-pantry-ai-refine")
 
         yield Footer()
@@ -2848,7 +2861,7 @@ class BreadwinnerApp(App):
             pass
 
     def action_lab_refine_diff(self) -> None:
-        prompt = self.query_one("#lab-refine-prompt", Input).value.strip()
+        prompt = self.query_one("#lab-refine-prompt", TextArea).text.strip()
         if not prompt:
             self.notify("Please enter an instruction to refine bullets.", severity="warning")
             return
@@ -3148,7 +3161,7 @@ class BreadwinnerApp(App):
 
     @work(thread=True)
     def action_pantry_ai_refine(self) -> None:
-        p_prompt = self.query_one("#pantry-ai-prompt", Input).value.strip()
+        p_prompt = self.query_one("#pantry-ai-prompt", TextArea).text.strip()
         if not p_prompt:
             self.notify("Please enter an instruction in the prompt box.", severity="warning")
             return
