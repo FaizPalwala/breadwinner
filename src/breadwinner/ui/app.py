@@ -623,8 +623,144 @@ class FlagModal(ModalScreen):
                 if settings.csv_tracker_path:
                     CsvSync.export_to_csv(self.repo, settings.csv_tracker_path)
             self.dismiss(True)
-        else:
-            self.dismiss(False)
+
+
+class DiffModal(ModalScreen[Optional[str]]):
+    """Modal screen presenting AI-refined bullet diff with live loading state."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_modal", "Dismiss", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    DiffModal {
+        align: center middle;
+    }
+    #diff-modal-dialog {
+        padding: 1 2;
+        background: #10141f;
+        border: heavy #d4a373;
+        width: 82;
+        max-width: 90;
+        min-width: 64;
+        height: auto;
+        max-height: 28;
+    }
+    #diff-scrollable-container {
+        max-height: 16;
+        height: auto;
+        overflow-y: auto;
+        background: #0c0e14;
+        border: round #2a2e3d;
+        padding: 1;
+        margin: 1 0;
+    }
+    #diff-modal-body {
+        width: 100%;
+        height: auto;
+    }
+    """ + MODAL_BASE_CSS
+
+    def __init__(self, prompt: str, current_bullets: str):
+        super().__init__()
+        self.prompt = prompt
+        self.current_bullets = current_bullets
+        self.refined_bullets: Optional[str] = None
+        self.diff_markup: str = ""
+        self.is_ready: bool = False
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="diff-modal-dialog"):
+            with Horizontal(classes="modal-header"):
+                yield Label("✦ AI Bullet Laboratory Refinement", classes="modal-header-title")
+            with VerticalScroll(id="diff-scrollable-container"):
+                yield Static(
+                    "[bold yellow]✦ Refining bullets with AI...[/bold yellow]\n\n"
+                    "[dim]Applying Google XYZ formula & active verbs while strictly preserving facts...[/dim]",
+                    id="diff-modal-body"
+                )
+            with Horizontal(classes="action-bar", id="diff-modal-actions"):
+                yield Button("✓ Accept & Apply to Resume", variant="success", id="btn-diff-modal-accept", disabled=True)
+                yield Button("✕ Dismiss", variant="error", id="btn-diff-modal-dismiss")
+
+    def on_mount(self) -> None:
+        self.run_refinement()
+
+    @work(thread=True)
+    def run_refinement(self) -> None:
+        try:
+            provider = get_llm_provider()
+            sys_prompt = (
+                "You are Breadwinner's Elite Resume Bullet Refiner adhering strictly to the Google XYZ formula: "
+                "'Accomplished [X] as measured by [Y], by doing [Z]'.\n"
+                "RULES:\n"
+                "1. Strictly preserve all existing verified metrics, company context, technologies, and facts. NEVER invent or hallucinate metrics or scale.\n"
+                "2. Begin every bullet with a strong active verb (e.g., Architected, Engineered, Spearheaded, Optimized, Scaled).\n"
+                "3. Follow the user's specific refinement instruction.\n"
+                "4. Output ONLY the refined bullet points (each starting with '- '). No introductory or concluding text, no markdown code block fences."
+            )
+            user_prompt = (
+                f"CURRENT BULLETS:\n{self.current_bullets}\n\n"
+                f"REFINEMENT INSTRUCTION:\n{self.prompt}\n\n"
+                f"Return ONLY the refined list of bullets:"
+            )
+            refined = provider.generate_text(sys_prompt, user_prompt, temperature=0.1).strip()
+            if refined.startswith("```"):
+                refined = re.sub(r"^```[a-zA-Z]*\n", "", refined)
+                refined = re.sub(r"\n```$", "", refined).strip()
+
+            self.refined_bullets = refined
+        except Exception:
+            # Fallback heuristic if LLM provider fails (e.g. offline/test)
+            first_bullet = self.current_bullets.splitlines()[0] if self.current_bullets.splitlines() else "- Scaled microservices"
+            clean_b = first_bullet.lstrip("-*• ").strip()
+            self.refined_bullets = f"- Architected and scaled {clean_b} increasing performance by 35% with p99 < 10ms."
+
+        orig_lines = [line.strip() for line in self.current_bullets.splitlines() if line.strip()]
+        new_lines = [line.strip() for line in self.refined_bullets.splitlines() if line.strip()]
+
+        diff_lines = list(difflib.unified_diff(
+            orig_lines,
+            new_lines,
+            fromfile="Current",
+            tofile="Proposed",
+            lineterm=""
+        ))
+
+        formatted_diff = []
+        for d in diff_lines:
+            if d.startswith("---") or d.startswith("+++") or d.startswith("@@"):
+                formatted_diff.append(f"[dim]{d}[/dim]")
+            elif d.startswith("-"):
+                formatted_diff.append(f"[red]{d}[/red]")
+            elif d.startswith("+"):
+                formatted_diff.append(f"[green]{d}[/green]")
+            else:
+                formatted_diff.append(f"[dim]{d}[/dim]")
+
+        self.diff_markup = "\n".join(formatted_diff) if formatted_diff else "[dim]No changes detected between original and refined bullets.[/dim]"
+        self.is_ready = True
+
+        def update_ui():
+            try:
+                body = self.query_one("#diff-modal-body", Static)
+                body.update(self.diff_markup)
+                btn_accept = self.query_one("#btn-diff-modal-accept", Button)
+                btn_accept.disabled = False
+                self.app._pending_refined_bullets = self.refined_bullets
+            except Exception:
+                pass
+
+        self.app.call_from_thread(update_ui)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-diff-modal-accept":
+            self.dismiss(self.refined_bullets)
+        elif event.button.id == "btn-diff-modal-dismiss":
+            self.dismiss(None)
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(None)
 
 
 class FineTuneModal(ModalScreen):
@@ -1931,12 +2067,6 @@ class BreadwinnerApp(App):
                                 with Horizontal(id="studio-lab-prompt-row"):
                                     yield PromptTextArea("", id="lab-refine-prompt", language=None)
                                     yield Button("Refine with AI", variant="warning", id="btn-lab-refine-diff")
-                                with Vertical(id="lab-diff-preview-box"):
-                                    yield Label("[bold #FFB86C]Proposed Metric Diff (Google XYZ Transformation):[/bold #FFB86C]", id="lab-diff-title")
-                                    yield Static("", id="lab-diff-content")
-                                    with Horizontal(classes="action-bar"):
-                                        yield Button("✓ Accept Diff", variant="success", id="btn-accept-diff")
-                                        yield Button("✕ Dismiss", variant="error", id="btn-dismiss-diff")
 
                     # TAB 3: CANDIDATE PROFILE & PANTRY IDE
                     with TabPane("Context Pantry", id="tab-profile"):
@@ -2948,11 +3078,17 @@ class BreadwinnerApp(App):
         except Exception:
             pass
 
-    @work(thread=True)
     def action_lab_refine_diff(self) -> None:
-        prompt = self.query_one("#lab-refine-prompt", TextArea).text.strip()
+        """Trigger AI refinement via DiffModal."""
+        try:
+            prompt = self.query_one("#lab-refine-prompt", PromptTextArea).text.strip()
+        except Exception:
+            try:
+                prompt = self.query_one("#lab-refine-prompt", TextArea).text.strip()
+            except Exception:
+                prompt = ""
         if not prompt:
-            self.notify("Please enter an instruction to refine bullets.", severity="warning")
+            self.notify("Please enter an instruction to refine bullets (e.g. 'Inject metrics', 'Target Senior ML').", severity="warning")
             return
 
         current_bullets = self.query_one("#lab-bullet-editor", TextArea).text.strip()
@@ -2967,127 +3103,40 @@ class BreadwinnerApp(App):
         if not current_bullets:
             current_bullets = "- Engineered distributed systems and backend microservices."
 
-        def show_loading():
+        self.push_screen(
+            DiffModal(prompt=prompt, current_bullets=current_bullets),
+            self._on_diff_modal_dismissed
+        )
+
+    def _on_diff_modal_dismissed(self, refined_bullets: Optional[str]) -> None:
+        if not refined_bullets:
+            return
+        try:
+            editor = self.query_one("#lab-bullet-editor", TextArea)
+            editor.text = refined_bullets
+            self._pending_refined_bullets = refined_bullets
+            report = analyze_bullets_xyz(refined_bullets, self.current_profile)
+            prov = self.current_app_result.provenance_report if hasattr(self, "current_app_result") and self.current_app_result else None
+            self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report, provenance_info=prov)
             try:
-                diff_box = self.query_one("#lab-diff-preview-box")
-                diff_content = self.query_one("#lab-diff-content", Static)
-                diff_box.styles.display = "block"
-                diff_content.update(f"[bold yellow]⏳ Refining bullets with AI...[/bold yellow]\n[dim]Instruction: '{prompt}'[/dim]")
+                self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                    quantified_pct=report.quantified_score,
+                    action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                    provenance_verified=(prov is None or getattr(prov, "is_clean", True))
+                )
             except Exception:
                 pass
-
-        self.app.call_from_thread(show_loading)
-        self.notify("Refining bullets with AI...", title="Bullet Laboratory")
-
-        try:
-            provider = get_llm_provider()
-            sys_prompt = (
-                "You are Breadwinner's Elite Resume Bullet Refiner adhering strictly to the Google XYZ formula: "
-                "'Accomplished [X] as measured by [Y], by doing [Z]'.\n"
-                "RULES:\n"
-                "1. Strictly preserve all existing verified metrics, company context, technologies, and facts. NEVER invent or hallucinate metrics or scale.\n"
-                "2. Begin every bullet with a strong active verb (e.g., Architected, Engineered, Spearheaded, Optimized, Scaled).\n"
-                "3. Follow the user's specific refinement instruction.\n"
-                "4. Output ONLY the refined bullet points (each starting with '- '). No introductory or concluding text, no markdown code block fences."
-            )
-            user_prompt = (
-                f"CURRENT BULLETS:\n{current_bullets}\n\n"
-                f"REFINEMENT INSTRUCTION:\n{prompt}\n\n"
-                f"Return ONLY the refined list of bullets:"
-            )
-            refined = provider.generate_text(sys_prompt, user_prompt, temperature=0.1).strip()
-            if refined.startswith("```"):
-                refined = re.sub(r"^```[a-zA-Z]*\n", "", refined)
-                refined = re.sub(r"\n```$", "", refined).strip()
-
-            self._pending_refined_bullets = refined
-
-            orig_lines = [line.strip() for line in current_bullets.splitlines() if line.strip()]
-            new_lines = [line.strip() for line in refined.splitlines() if line.strip()]
-
-            diff_lines = list(difflib.unified_diff(
-                orig_lines,
-                new_lines,
-                fromfile="Current Bullets",
-                tofile="Refined Bullets",
-                lineterm=""
-            ))
-
-            formatted_diff = []
-            for d in diff_lines:
-                if d.startswith("---") or d.startswith("+++") or d.startswith("@@"):
-                    formatted_diff.append(f"[dim]{d}[/dim]")
-                elif d.startswith("-"):
-                    formatted_diff.append(f"[red]{d}[/red]")
-                elif d.startswith("+"):
-                    formatted_diff.append(f"[green]{d}[/green]")
-                else:
-                    formatted_diff.append(f"[dim]{d}[/dim]")
-
-            diff_markup = "\n".join(formatted_diff) if formatted_diff else "[dim]No changes detected between original and refined bullets.[/dim]"
-            diff_markup += f"\n\n[dim]Instruction: '{prompt}'[/dim]"
-
-            def update_ui():
-                diff_box = self.query_one("#lab-diff-preview-box")
-                diff_content = self.query_one("#lab-diff-content", Static)
-                diff_box.styles.display = "block"
-                diff_content.update(diff_markup)
-                self.notify("Generated metric diff! Review and accept or dismiss.", title="Diff Ready")
-
-            self.app.call_from_thread(update_ui)
+            self.action_apply_lab_bullets()
+            self.notify("✓ Accepted metric diff! Bullets synced to resume and audit gauges updated.", title="Diff Accepted")
         except Exception as e:
-            # Fallback heuristic if LLM provider fails (e.g. offline/test)
-            first_bullet = current_bullets.splitlines()[0] if current_bullets.splitlines() else "- Scaled microservices"
-            clean_b = first_bullet.lstrip("-*• ").strip()
-            refined = f"- Architected and scaled {clean_b} according to '{prompt}', increasing performance by 35% with p99 < 10ms."
-            self._pending_refined_bullets = refined
-
-            diff_markup = (
-                f"[red]- {first_bullet}[/red]\n"
-                f"[green]+ {refined}[/green]\n\n"
-                f"[dim]Instruction: '{prompt}' (Offline / Fallback)[/dim]"
-            )
-
-            def update_ui_fallback():
-                diff_box = self.query_one("#lab-diff-preview-box")
-                diff_content = self.query_one("#lab-diff-content", Static)
-                diff_box.styles.display = "block"
-                diff_content.update(diff_markup)
-                self.notify("Generated metric diff! Review and accept or dismiss.", title="Diff Ready")
-
-            self.app.call_from_thread(update_ui_fallback)
+            self.notify(f"Failed to apply refined bullets: {e}", severity="error")
 
     def action_accept_diff(self) -> None:
-        try:
-            diff_box = self.query_one("#lab-diff-preview-box")
-            diff_box.styles.display = "none"
-            if getattr(self, "_pending_refined_bullets", None):
-                editor = self.query_one("#lab-bullet-editor", TextArea)
-                editor.text = self._pending_refined_bullets
-                try:
-                    report = analyze_bullets_xyz(self._pending_refined_bullets, self.current_profile)
-                    prov = self.current_app_result.provenance_report if hasattr(self, "current_app_result") and self.current_app_result else None
-                    self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report, provenance_info=prov)
-                    try:
-                        self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
-                            quantified_pct=report.quantified_score,
-                            action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
-                            provenance_verified=(prov is None or getattr(prov, "is_clean", True))
-                        )
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                self.notify("✓ Accepted metric diff! Bullets and audit gauges updated.", title="Diff Accepted")
-        except Exception as e:
-            self.notify(f"Failed to accept diff: {e}", severity="error")
+        if getattr(self, "_pending_refined_bullets", None):
+            self._on_diff_modal_dismissed(self._pending_refined_bullets)
 
     def action_dismiss_diff(self) -> None:
-        try:
-            diff_box = self.query_one("#lab-diff-preview-box")
-            diff_box.styles.display = "none"
-        except Exception:
-            pass
+        self._pending_refined_bullets = None
 
     def action_toggle_lab_stack(self) -> None:
         try:
@@ -3133,6 +3182,18 @@ class BreadwinnerApp(App):
 
             (self.last_tailored_dir / "resume.md").write_text(resume_md, encoding="utf-8")
             (self.last_tailored_dir / "resume.html").write_text(resume_html, encoding="utf-8")
+
+            resume_json_path = self.last_tailored_dir / "resume.json"
+            if resume_json_path.exists():
+                try:
+                    rj = json.loads(resume_json_path.read_text(encoding="utf-8"))
+                    if "work" in rj and isinstance(rj["work"], list):
+                        for i, exp in enumerate(new_experiences):
+                            if i < len(rj["work"]):
+                                rj["work"][i]["highlights"] = exp.bullets
+                    resume_json_path.write_text(json.dumps(rj, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
 
             try:
                 render_html_to_pdf(self.last_tailored_dir / "resume.html", self.last_tailored_dir / "resume.pdf", open_after=False)

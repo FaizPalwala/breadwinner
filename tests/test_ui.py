@@ -666,8 +666,10 @@ async def test_tailor_studio_and_pantry_ui_enhancements(monkeypatch):
         await pilot.pause()
         await pilot.press("ctrl+j")
         await pilot.pause(0.2)
-        diff_box = app.query_one("#lab-diff-preview-box")
-        assert diff_box.styles.display != "none"
+        from breadwinner.ui.app import DiffModal
+        assert isinstance(app.screen, DiffModal)
+        app.pop_screen()
+        await pilot.pause()
 
         app.action_tab_profile()
         await pilot.pause()
@@ -790,18 +792,21 @@ async def test_breadwinner_app_studio_refine_engine_and_diff_accept(monkeypatch)
         app.action_lab_refine_diff()
         await pilot.pause(0.2)
 
-        # Diff box should be visible with diff content
-        diff_box = app.query_one("#lab-diff-preview-box")
-        assert diff_box.styles.display == "block"
-        diff_content = app.query_one("#lab-diff-content", Static)
-        diff_str = str(diff_content.render())
+        # DiffModal should be visible on top of screen stack
+        from breadwinner.ui.app import DiffModal
+        from textual.widgets import Button
+        assert isinstance(app.screen, DiffModal)
+        modal = app.screen
+        diff_body = modal.query_one("#diff-modal-body", Static)
+        diff_str = str(diff_body.render())
         assert "Optimized distributed PostgreSQL queries" in diff_str
 
-        # Accept diff
-        app.action_accept_diff()
+        # Accept diff via modal button
+        btn_accept = modal.query_one("#btn-diff-modal-accept", Button)
+        await pilot.click(btn_accept)
         await pilot.pause()
 
-        assert diff_box.styles.display == "none"
+        assert not isinstance(app.screen, DiffModal)
         assert "Optimized distributed PostgreSQL queries" in editor.text
 
         # Verify XYZ validator was immediately refreshed
@@ -869,3 +874,21 @@ async def test_breadwinner_app_pipeline_reload_scopes_bullets_preventing_dilutio
         assert validator.latest_report is not None
         assert validator.latest_report.total_bullets == 1
         assert validator.latest_report.quantified_score == 100
+
+
+def test_ml_linter_action_verbs_and_metrics():
+    from breadwinner.ui.editor import analyze_bullets_xyz
+
+    sample_bullets = (
+        "- Fine-tuned 70b parameter LLM across 500 gpu-hours achieving 0.94 f1 score on benchmark suite.\n"
+        "- Quantized transformer models into 4-bit weights reducing latency by 45% with 75,000 daily requests.\n"
+        "- Benchmarked distributed inference clusters sustaining 1,200 QPS with p99 < 15ms.\n"
+        "- Evaluated retrieval pipelines improving precision to 0.88 across 10,000 test cases.\n"
+        "- Curated 250,000 multimodal training samples for domain adaptation."
+    )
+
+    report = analyze_bullets_xyz(sample_bullets)
+    assert report.total_bullets == 5
+    assert report.action_verbs_count == 5
+    assert report.quantified_bullets == 5
+    assert report.quantified_score == 100
