@@ -169,12 +169,101 @@ breadwinner jobs
 # Update status and notes
 breadwinner status monzo-applied-ai interviewing -n "Round 1 scheduled"
 
-# Flag a job
+# Flag a job with priority or custom labels
 breadwinner flag monzo-applied-ai high_priority
+```
 
-# Export / Import tracker CSV
+### CLI Power Tools
+
+Breadwinner includes a full suite of headless power tools for automation, inspection, and maintenance:
+
+#### 1. Storage & Environment Map (`breadwinner where`)
+Inspect your active paths, pantry directory, database location, applications folder, and LLM provider configuration:
+```bash
+breadwinner where
+```
+
+#### 2. Factory Reset & State Cleanup (`breadwinner reset`)
+Selectively purge or reset local state while preserving your configured API keys:
+```bash
+# Reset specific components
+breadwinner reset --pantry         # Clear profile.json, context.md, and snapshots
+breadwinner reset --applications   # Delete all generated application folders
+breadwinner reset --db             # Purge tracking SQLite database and CSV
+breadwinner reset --personas       # Delete custom synthesized personas
+
+# Complete fresh reset (preserves API keys in .env)
+breadwinner reset --all
+
+# Purge credentials too
+breadwinner reset --all --keys
+```
+
+#### 3. Career Pantry Management (`breadwinner pantry`)
+Manage your canonical verified facts, portfolio sync, and rollback snapshots:
+```bash
+# Inspect current derived facts and verified roles
+breadwinner pantry show
+# (or inspect job postings directly)
+breadwinner job inspect https://boards.greenhouse.io/company/jobs/123
+
+# Ingest from file (.docx, .pdf), portfolio URL, or pasted bio
+breadwinner pantry ingest ./resume.pdf
+
+# Interactive Baker's Interview to synthesize personal career directives
+breadwinner pantry interview
+
+# Bi-directional sync against live portfolio website or repo
+breadwinner pantry sync
+
+# View historical snapshot ledger
+breadwinner pantry history
+
+# Revert to a previous snapshot
+breadwinner pantry revert <snapshot_id>
+```
+
+#### 4. Model Switching & Discovery (`breadwinner models` & `switch`)
+Inspect available local and cloud LLM providers and switch active engines on the fly:
+```bash
+# Discover detected local models (Ollama, LM Studio) and cloud endpoints
+breadwinner models
+
+# Switch active provider and model
+breadwinner switch lmstudio qwen2.5-coder-14b
+breadwinner switch ollama llama3.2:latest
+breadwinner switch gemini gemini-2.5-flash
+breadwinner switch groq llama-3.3-70b-versatile
+```
+
+#### 5. Automated Job Link Health Check (`breadwinner check-links`)
+Audit your tracked jobs to detect closed or expired postings across ATS portals:
+```bash
+breadwinner check-links
+```
+
+#### 6. Bidirectional SQLite <-> CSV Sync (`breadwinner sync`)
+Export your SQLite application pipeline to a portable CSV, or import external sheets:
+```bash
+# Export tracker database to CSV
 breadwinner sync --export-csv ./job_tracker.csv
+
+# Import external jobs CSV into SQLite
 breadwinner sync --import-csv ./targets.csv
+```
+
+#### 7. Recruiter Follow-ups & Priority Flags (`breadwinner followups` & `flag`)
+Surface applications needing a follow-up and tag jobs with custom priority flags:
+```bash
+# Find applications submitted >= 7 days ago with no recruiter response
+breadwinner followups --days 7
+
+# Tag a target application with custom flags
+breadwinner flag deliveroo-mle high_priority
+breadwinner flag gitlab-backend referral
+
+# Clear a flag
+breadwinner flag deliveroo-mle
 ```
 
 ---
