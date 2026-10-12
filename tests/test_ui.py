@@ -586,8 +586,14 @@ async def test_model_quick_switcher_unconfigured_provider_routes_to_welcome_with
 
 
 @pytest.mark.anyio
-async def test_tailor_studio_and_pantry_ui_enhancements():
+async def test_tailor_studio_and_pantry_ui_enhancements(monkeypatch):
     from textual.widgets import Button, Input, TextArea
+
+    class MockProvider:
+        def generate_text(self, sys_prompt, user_prompt, temperature=0.1):
+            return "- Architected high-throughput Go microservices scaling to 50,000 QPS with p99 < 5ms."
+
+    monkeypatch.setattr("breadwinner.ui.app.get_llm_provider", lambda: MockProvider())
 
     app = BreadwinnerApp()
     async with app.run_test(size=(100, 35)) as pilot:
@@ -659,7 +665,7 @@ async def test_tailor_studio_and_pantry_ui_enhancements():
         studio_prompt.focus()
         await pilot.pause()
         await pilot.press("ctrl+j")
-        await pilot.pause()
+        await pilot.pause(0.2)
         diff_box = app.query_one("#lab-diff-preview-box")
         assert diff_box.styles.display != "none"
 
@@ -751,3 +757,115 @@ async def test_breadwinner_app_pipeline_open_studio_and_folder_resolution(tmp_pa
         app.action_open_folder()
         assert len(opened_cmds) == 1
         assert opened_cmds[0] == ["open", str(test_app_dir)]
+
+
+@pytest.mark.anyio
+async def test_breadwinner_app_studio_refine_engine_and_diff_accept(monkeypatch):
+    from textual.widgets import TextArea, Static
+    from breadwinner.ui.editor import XYZValidatorWidget
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        app.action_view_lab()
+        await pilot.pause()
+
+        # Set initial bullets
+        editor = app.query_one("#lab-bullet-editor", TextArea)
+        editor.text = "- Worked on database queries."
+        prompt_area = app.query_one("#lab-refine-prompt", TextArea)
+        prompt_area.text = "Quantify performance improvement using Google XYZ format"
+
+        # Mock LLM provider to return realistic refined bullet
+        class MockProvider:
+            def generate_text(self, sys_prompt, user_prompt, temperature=0.1):
+                return "- Optimized distributed PostgreSQL queries scaling throughput by 45% with p99 < 8ms."
+
+        monkeypatch.setattr("breadwinner.ui.app.get_llm_provider", lambda: MockProvider())
+
+        # Trigger refine diff
+        app.action_lab_refine_diff()
+        await pilot.pause(0.2)
+
+        # Diff box should be visible with diff content
+        diff_box = app.query_one("#lab-diff-preview-box")
+        assert diff_box.styles.display == "block"
+        diff_content = app.query_one("#lab-diff-content", Static)
+        diff_str = str(diff_content.render())
+        assert "Optimized distributed PostgreSQL queries" in diff_str
+
+        # Accept diff
+        app.action_accept_diff()
+        await pilot.pause()
+
+        assert diff_box.styles.display == "none"
+        assert "Optimized distributed PostgreSQL queries" in editor.text
+
+        # Verify XYZ validator was immediately refreshed
+        validator = app.query_one("#lab-xyz-validator", XYZValidatorWidget)
+        assert validator.latest_report is not None
+        assert validator.latest_report.quantified_bullets >= 1
+
+
+@pytest.mark.anyio
+async def test_breadwinner_app_pipeline_reload_scopes_bullets_preventing_dilution(tmp_path):
+    from breadwinner.db.repository import JobRecord
+    from textual.widgets import TextArea
+    from breadwinner.ui.editor import XYZValidatorWidget
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Set up a tailored app folder with markdown containing experience, education, skills, and coursework
+        test_dir = tmp_path / "2026-10-12_Dilution_Test"
+        test_dir.mkdir(parents=True, exist_ok=True)
+        resume_md = (
+            "# Jane Doe\n\n"
+            "## EXPERIENCE\n"
+            "- Architected real-time streaming pipeline processing 100,000 events/sec with 99.99% reliability.\n\n"
+            "## EDUCATION\n"
+            "- Master of Science in Computer Science\n\n"
+            "## SKILLS\n"
+            "- Python, Go, Kafka, Redis, Docker, Kubernetes\n\n"
+            "## COURSEWORK\n"
+            "- Distributed Systems, Advanced Algorithms\n"
+        )
+        (test_dir / "resume.md").write_text(resume_md, encoding="utf-8")
+
+        job = JobRecord(
+            id="dilution_test_job",
+            company="Fintech Co",
+            title="Senior Platform Engineer",
+            url="https://fintech.example/jobs/1",
+            status="tailored",
+            match_score=95,
+            folder_path=str(test_dir),
+            date_added="2026-10-12"
+        )
+        app.repo.upsert_job(job)
+        app.load_pipeline_table()
+        await pilot.pause()
+
+        # Load into studio
+        app.action_pipeline_edit_studio()
+        await pilot.pause()
+
+        # Bullet editor should strictly contain the 1 experience bullet
+        editor = app.query_one("#lab-bullet-editor", TextArea)
+        lines = [l.strip() for l in editor.text.splitlines() if l.strip().startswith(("-", "*", "•"))]
+        assert len(lines) == 1
+        assert "Architected real-time streaming pipeline" in lines[0]
+        assert not any("Python, Go" in l for l in lines)
+        assert not any("Master of Science" in l for l in lines)
+
+        # Validator should have 100% quantified score (1/1) instead of diluted (1/4 = 25%)
+        validator = app.query_one("#lab-xyz-validator", XYZValidatorWidget)
+        assert validator.latest_report is not None
+        assert validator.latest_report.total_bullets == 1
+        assert validator.latest_report.quantified_score == 100
