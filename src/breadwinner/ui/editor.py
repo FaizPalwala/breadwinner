@@ -20,7 +20,9 @@ STRONG_ACTION_VERBS = {
     "developed", "scaled", "optimized", "streamlined", "accelerated",
     "automated", "reduced", "increased", "decreased", "eliminated",
     "mentored", "orchestrated", "refactored", "migrated", "delivered",
-    "authored", "built", "launched", "executed", "configured", "deployed"
+    "authored", "built", "launched", "executed", "configured", "deployed",
+    "benchmarked", "evaluated", "trained", "quantized", "ablated",
+    "finetuned", "fine-tuned", "curated"
 }
 
 METRIC_PATTERNS = [
@@ -28,6 +30,11 @@ METRIC_PATTERNS = [
     r"\b\d+x\b|\b\d+X\b",         # 10x
     r"\$\d+[\d,.]*[kKmMbB]?",     # $100k, $1.5M
     r"\b\d+[\d,.]*\s*[kKmMbB]\b", # 10M, 500k
+    r"\b\d{1,3}(,\d{3})+\b",      # 75,000, 1,000,000
+    r"\b\d+\s*gpu[- ]hours?\b",   # 500 gpu-hours
+    r"\b(auc|f1|accuracy|loss|precision|recall|perplexity)\b", # Evaluation metrics
+    r"\b0\.\d+\b",                # Decimals like 0.94, 0.02
+    r"\b\d+[bBmM]\s*(parameters|tokens|weights)\b", # LLM scale like 7b parameters, 70b tokens
     r"\b\d+\+?\s*(events|users|requests|qps|ms|seconds|minutes|hours|days|engineers|services|nodes|clusters)\b",
     r"\b(zero|single-digit)\s*(downtime|latency)\b",
     r"\bp9[0-9]\b"                # p99, p95
@@ -83,7 +90,7 @@ def analyze_bullets_xyz(text: str, profile: Optional[CandidateProfile] = None) -
         elif weak_bullet_index is None:
             weak_bullet_index = idx
 
-        first_word = re.findall(r"^[A-Za-z]+", b)
+        first_word = re.findall(r"^[A-Za-z]+(?:-[A-Za-z]+)?", b)
         if first_word and first_word[0].lower() in STRONG_ACTION_VERBS:
             action_verbs_found += 1
 
