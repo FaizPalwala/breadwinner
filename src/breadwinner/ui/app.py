@@ -2377,12 +2377,24 @@ class BreadwinnerApp(App):
                 key=j.id
             )
 
+        if jobs:
+            if not self.selected_job or not any(j.id == self.selected_job.id for j in jobs):
+                self.selected_job = jobs[0]
+            else:
+                self.selected_job = self.repo.get_job(self.selected_job.id) or jobs[0]
+            self.update_details_pane()
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         row_key = event.row_key.value
         if row_key == "empty_placeholder":
             return
         self.selected_job = self.repo.get_job(row_key)
         self.update_details_pane()
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.row_key and event.row_key.value != "empty_placeholder":
+            self.selected_job = self.repo.get_job(event.row_key.value)
+            self.update_details_pane()
 
     def update_details_pane(self) -> None:
         details_body = self.query_one("#details-body", Static)
@@ -2658,6 +2670,10 @@ class BreadwinnerApp(App):
     def action_tab_studio(self) -> None:
         if self.selected_job and self.selected_job.folder_path:
             p_dir = Path(self.selected_job.folder_path)
+            if not p_dir.is_absolute():
+                p_dir = settings.applications_dir / p_dir
+            if not p_dir.exists() and (settings.applications_dir / Path(self.selected_job.folder_path).name).exists():
+                p_dir = settings.applications_dir / Path(self.selected_job.folder_path).name
             if p_dir.exists() and (p_dir / "resume.md").exists():
                 self.action_pipeline_edit_studio()
                 return
@@ -2714,71 +2730,104 @@ class BreadwinnerApp(App):
             self.notify(f"Failed to save notes: {e}", severity="error")
 
     def action_pipeline_edit_studio(self) -> None:
-        if self.selected_job:
-            if self.selected_job.url:
+        if not self.selected_job:
+            self.notify("Please select a job from the table first.", severity="warning")
+            return
+
+        if self.selected_job.url:
+            try:
                 self.query_one("#input-job-url", Input).value = self.selected_job.url
-            if self.selected_job.folder_path:
-                p_dir = Path(self.selected_job.folder_path)
-                if p_dir.exists():
-                    self.last_tailored_dir = p_dir
+            except Exception:
+                pass
+
+        p_dir = None
+        if self.selected_job.folder_path:
+            p_candidate = Path(self.selected_job.folder_path)
+            if p_candidate.exists():
+                p_dir = p_candidate
+            elif not p_candidate.is_absolute() and (settings.applications_dir / p_candidate).exists():
+                p_dir = settings.applications_dir / p_candidate
+            elif (settings.applications_dir / p_candidate.name).exists():
+                p_dir = settings.applications_dir / p_candidate.name
+
+        if p_dir and p_dir.exists():
+            self.last_tailored_dir = p_dir
+            try:
+                self.query_one("#lab-active-job-label", Label).update(
+                    f"[bold white]{self.selected_job.company} — {self.selected_job.title}[/bold white]"
+                )
+            except Exception:
+                pass
+
+            try:
+                score = getattr(self.selected_job, "match_score", None) or 0
+                self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% ATS Match[/bold #50FA7B]")
+            except Exception:
+                pass
+
+            if (p_dir / "resume.md").exists():
+                try:
+                    r_txt = (p_dir / "resume.md").read_text(encoding="utf-8")
+                    self.query_one("#preview-resume-md", Markdown).update(r_txt)
                     try:
-                        self.query_one("#lab-active-job-label", Label).update(
-                            f"[bold white]{self.selected_job.company} — {self.selected_job.title}[/bold white]"
-                        )
-                        score = self.selected_job.ats_score or 0
-                        self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% ATS Match[/bold #50FA7B]")
-                        if (p_dir / "resume.md").exists():
-                            r_txt = (p_dir / "resume.md").read_text(encoding="utf-8")
-                            self.query_one("#preview-resume-md", Markdown).update(r_txt)
-                            try:
-                                self.query_one("#lab-resume-editor", TextArea).text = r_txt
-                            except Exception:
-                                pass
-                            
-                            # Extract bullets from resume markdown to populate bullet editor and XYZ gauges
-                            bullets = []
-                            for line in r_txt.splitlines():
-                                s = line.strip()
-                                if s.startswith(("- ", "* ", "• ")):
-                                    bullets.append(s)
-                            if bullets:
-                                bullet_text = "\n".join(bullets)
-                                try:
-                                    editor = self.query_one("#lab-bullet-editor", TextArea)
-                                    editor.text = bullet_text
-                                    report = analyze_bullets_xyz(bullet_text, self.current_profile)
-                                    self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
-                                    self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
-                                        quantified_pct=report.quantified_score,
-                                        action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
-                                        provenance_verified=True
-                                    )
-                                except Exception:
-                                    pass
-                        if (p_dir / "cover_letter.md").exists():
-                            l_txt = (p_dir / "cover_letter.md").read_text(encoding="utf-8")
-                            self.query_one("#preview-letter-md", Markdown).update(l_txt)
-                            try:
-                                self.query_one("#lab-letter-editor", TextArea).text = l_txt
-                            except Exception:
-                                pass
-                        q_file = (p_dir / "portal_answers.md") if (p_dir / "portal_answers.md").exists() else ((p_dir / "portal_qna.md") if (p_dir / "portal_qna.md").exists() else None)
-                        if q_file:
-                            q_txt = q_file.read_text(encoding="utf-8")
-                            self.query_one("#preview-qna-md", Markdown).update(q_txt)
-                            try:
-                                self.query_one("#lab-qna-editor", TextArea).text = q_txt
-                            except Exception:
-                                pass
+                        self.query_one("#lab-resume-editor", TextArea).text = r_txt
                     except Exception:
                         pass
-                    # If this application has been baked/tailored, open directly in Bullet Lab view
-                    if (p_dir / "resume.md").exists():
-                        self.action_view_lab()
-                    else:
-                        self.action_lab_back_to_setup()
+                    
+                    # Extract bullets from resume markdown to populate bullet editor and XYZ gauges
+                    bullets = []
+                    for line in r_txt.splitlines():
+                        s = line.strip()
+                        if s.startswith(("- ", "* ", "• ")):
+                            bullets.append(s)
+                    if bullets:
+                        bullet_text = "\n".join(bullets)
+                        try:
+                            editor = self.query_one("#lab-bullet-editor", TextArea)
+                            editor.text = bullet_text
+                            report = analyze_bullets_xyz(bullet_text, self.current_profile)
+                            self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
+                            self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                                quantified_pct=report.quantified_score,
+                                action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                                provenance_verified=True
+                            )
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            if (p_dir / "cover_letter.md").exists():
+                try:
+                    l_txt = (p_dir / "cover_letter.md").read_text(encoding="utf-8")
+                    self.query_one("#preview-letter-md", Markdown).update(l_txt)
+                    try:
+                        self.query_one("#lab-letter-editor", TextArea).text = l_txt
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            q_file = (p_dir / "portal_answers.md") if (p_dir / "portal_answers.md").exists() else ((p_dir / "portal_qna.md") if (p_dir / "portal_qna.md").exists() else None)
+            if q_file:
+                try:
+                    q_txt = q_file.read_text(encoding="utf-8")
+                    self.query_one("#preview-qna-md", Markdown).update(q_txt)
+                    try:
+                        self.query_one("#lab-qna-editor", TextArea).text = q_txt
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            # If this application has been baked/tailored, open directly in Bullet Lab view
+            if (p_dir / "resume.md").exists():
+                self.action_view_lab()
             else:
                 self.action_lab_back_to_setup()
+        else:
+            self.action_lab_back_to_setup()
+
         self.query_one("#main-tabs", TabbedContent).active = "tab-studio"
         self._update_active_top_nav("tab-studio")
         self.notify("Loaded job into Tailor Studio!", title="Studio Activated")
@@ -3203,11 +3252,18 @@ class BreadwinnerApp(App):
     def action_open_folder(self) -> None:
         target_dir = None
         if self.selected_job and self.selected_job.folder_path:
-            target_dir = Path(self.selected_job.folder_path)
-        elif self.last_tailored_dir:
+            p = Path(self.selected_job.folder_path)
+            if p.exists():
+                target_dir = p
+            elif not p.is_absolute() and (settings.applications_dir / p).exists():
+                target_dir = settings.applications_dir / p
+            elif (settings.applications_dir / p.name).exists():
+                target_dir = settings.applications_dir / p.name
+        elif self.last_tailored_dir and self.last_tailored_dir.exists():
             target_dir = self.last_tailored_dir
 
         if target_dir and target_dir.exists():
+            self.last_tailored_dir = target_dir
             subprocess.run(["open", str(target_dir)])
             self.notify(f"Opened folder: {target_dir.name}", title="Finder")
         else:
@@ -3221,6 +3277,10 @@ class BreadwinnerApp(App):
             p = Path(self.selected_job.folder_path)
             if p.exists() and (p / "resume.html").exists():
                 target_dir = p
+            elif not p.is_absolute() and ((settings.applications_dir / p) / "resume.html").exists():
+                target_dir = settings.applications_dir / p
+            elif ((settings.applications_dir / p.name) / "resume.html").exists():
+                target_dir = settings.applications_dir / p.name
 
         if not target_dir:
             self.notify("Please tailor a job first or select a job with resume.html.", severity="warning")

@@ -670,3 +670,84 @@ async def test_tailor_studio_and_pantry_ui_enhancements():
         pantry_prompt.focus()
         await pilot.pause()
         assert pantry_prompt.text == "Add Go and Kubernetes expertise"
+
+
+@pytest.mark.anyio
+async def test_breadwinner_app_pipeline_open_studio_and_folder_resolution(tmp_path, monkeypatch):
+    from breadwinner.db.repository import JobRecord
+    from textual.widgets import TabbedContent, TextArea, Markdown, Label
+    import subprocess
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Set up a fake tailored app folder
+        test_app_dir = tmp_path / "2026-10-12_Acme_LeadEngineer"
+        test_app_dir.mkdir(parents=True, exist_ok=True)
+        (test_app_dir / "resume.md").write_text("# Acme Resume\n\n- Engineered distributed pipeline scaling to 10M events/sec.\n", encoding="utf-8")
+        (test_app_dir / "cover_letter.md").write_text("Dear Hiring Team at Acme,\n\nI am thrilled...", encoding="utf-8")
+        (test_app_dir / "portal_answers.md").write_text("Q: Notice period?\nA: Immediate", encoding="utf-8")
+
+        job = JobRecord(
+            id="acme_lead",
+            company="Acme Corp",
+            title="Lead Engineer",
+            url="https://acme.com/jobs/1",
+            status="tailored",
+            match_score=94,
+            folder_path=str(test_app_dir),
+            date_added="2026-10-12"
+        )
+        app.repo.upsert_job(job)
+        app.load_pipeline_table()
+        await pilot.pause()
+
+        # 1. Verify auto-selection of first job on table load
+        assert app.selected_job is not None
+        assert app.selected_job.id == "acme_lead"
+
+        # 2. Verify on_data_table_row_highlighted
+        class FakeRowKey:
+            value = "acme_lead"
+        class FakeHighlightedEvent:
+            row_key = FakeRowKey()
+        app.on_data_table_row_highlighted(FakeHighlightedEvent())
+        assert app.selected_job.id == "acme_lead"
+
+        # 3. Action pipeline edit studio
+        app.action_pipeline_edit_studio()
+        await pilot.pause()
+
+        # Tab should be studio
+        tabs = app.query_one("#main-tabs", TabbedContent)
+        assert tabs.active == "tab-studio"
+
+        # Bullet lab view should be visible
+        lab_view = app.query_one("#studio-lab-view")
+        assert lab_view.styles.display == "block"
+
+        # Active job label and ATS badge should be populated
+        job_label = app.query_one("#lab-active-job-label", Label)
+        assert "Acme Corp" in str(job_label.render())
+        ats_badge = app.query_one("#lab-ats-badge", Label)
+        assert "94% ATS Match" in str(ats_badge.render())
+
+        # Editors and previews populated
+        resume_preview = app.query_one("#preview-resume-md", Markdown)
+        assert "Acme Resume" in str(resume_preview.source)
+        resume_editor = app.query_one("#lab-resume-editor", TextArea)
+        assert "Acme Resume" in resume_editor.text
+        bullet_editor = app.query_one("#lab-bullet-editor", TextArea)
+        assert "Engineered distributed pipeline" in bullet_editor.text
+        letter_editor = app.query_one("#lab-letter-editor", TextArea)
+        assert "Dear Hiring Team at Acme" in letter_editor.text
+
+        # 4. Open folder action resolves properly
+        opened_cmds = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: opened_cmds.append(cmd))
+        app.action_open_folder()
+        assert len(opened_cmds) == 1
+        assert opened_cmds[0] == ["open", str(test_app_dir)]
