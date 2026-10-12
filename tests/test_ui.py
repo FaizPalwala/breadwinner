@@ -586,8 +586,14 @@ async def test_model_quick_switcher_unconfigured_provider_routes_to_welcome_with
 
 
 @pytest.mark.anyio
-async def test_tailor_studio_and_pantry_ui_enhancements():
-    from textual.widgets import Button, Input
+async def test_tailor_studio_and_pantry_ui_enhancements(monkeypatch):
+    from textual.widgets import Button, Input, TextArea
+
+    class MockProvider:
+        def generate_text(self, sys_prompt, user_prompt, temperature=0.1):
+            return "- Architected high-throughput Go microservices scaling to 50,000 QPS with p99 < 5ms."
+
+    monkeypatch.setattr("breadwinner.ui.app.get_llm_provider", lambda: MockProvider())
 
     app = BreadwinnerApp()
     async with app.run_test(size=(100, 35)) as pilot:
@@ -617,13 +623,13 @@ async def test_tailor_studio_and_pantry_ui_enhancements():
         folder_btn = app.query_one("#btn-lab-folder", Button)
         assert str(folder_btn.label) == "↗ Folder"
         assert len(app.query("#lab-refine-prompt-label")) == 0
-        assert app.query_one("#lab-refine-prompt", Input) is not None
+        assert app.query_one("#lab-refine-prompt", TextArea) is not None
 
         # 3. Pantry IDE prompt box
         app.action_tab_profile()
         await pilot.pause()
         assert app.query_one("#pantry-prompt-box") is not None
-        assert app.query_one("#pantry-ai-prompt", Input) is not None
+        assert app.query_one("#pantry-ai-prompt", TextArea) is not None
 
         # 4. Global hotkeys: "o" is preserved in app.BINDINGS
         bindings_keys = [b.key for b in app.BINDINGS]
@@ -652,3 +658,237 @@ async def test_tailor_studio_and_pantry_ui_enhancements():
         preview_md.scroll_page_down(animate=False)
         await pilot.pause()
         assert preview_md.scroll_y > 0
+
+        # 7. Verify multiline PromptTextArea in Studio and Pantry with Ctrl+Enter triggers
+        studio_prompt = app.query_one("#lab-refine-prompt", TextArea)
+        studio_prompt.text = "Emphasize high-throughput Go microservices"
+        studio_prompt.focus()
+        await pilot.pause()
+        await pilot.press("ctrl+j")
+        await pilot.pause(0.2)
+        from breadwinner.ui.app import DiffModal
+        assert isinstance(app.screen, DiffModal)
+        app.pop_screen()
+        await pilot.pause()
+
+        app.action_tab_profile()
+        await pilot.pause()
+        pantry_prompt = app.query_one("#pantry-ai-prompt", TextArea)
+        pantry_prompt.text = "Add Go and Kubernetes expertise"
+        pantry_prompt.focus()
+        await pilot.pause()
+        assert pantry_prompt.text == "Add Go and Kubernetes expertise"
+
+
+@pytest.mark.anyio
+async def test_breadwinner_app_pipeline_open_studio_and_folder_resolution(tmp_path, monkeypatch):
+    from breadwinner.db.repository import JobRecord
+    from textual.widgets import TabbedContent, TextArea, Markdown, Label
+    import subprocess
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Set up a fake tailored app folder
+        test_app_dir = tmp_path / "2026-10-12_Acme_LeadEngineer"
+        test_app_dir.mkdir(parents=True, exist_ok=True)
+        (test_app_dir / "resume.md").write_text("# Acme Resume\n\n- Engineered distributed pipeline scaling to 10M events/sec.\n", encoding="utf-8")
+        (test_app_dir / "cover_letter.md").write_text("Dear Hiring Team at Acme,\n\nI am thrilled...", encoding="utf-8")
+        (test_app_dir / "portal_answers.md").write_text("Q: Notice period?\nA: Immediate", encoding="utf-8")
+
+        job = JobRecord(
+            id="acme_lead",
+            company="Acme Corp",
+            title="Lead Engineer",
+            url="https://acme.com/jobs/1",
+            status="tailored",
+            match_score=94,
+            folder_path=str(test_app_dir),
+            date_added="2026-10-12"
+        )
+        app.repo.upsert_job(job)
+        app.load_pipeline_table()
+        await pilot.pause()
+
+        # 1. Verify auto-selection of first job on table load
+        assert app.selected_job is not None
+        assert app.selected_job.id == "acme_lead"
+
+        # 2. Verify on_data_table_row_highlighted
+        class FakeRowKey:
+            value = "acme_lead"
+        class FakeHighlightedEvent:
+            row_key = FakeRowKey()
+        app.on_data_table_row_highlighted(FakeHighlightedEvent())
+        assert app.selected_job.id == "acme_lead"
+
+        # 3. Action pipeline edit studio
+        app.action_pipeline_edit_studio()
+        await pilot.pause()
+
+        # Tab should be studio
+        tabs = app.query_one("#main-tabs", TabbedContent)
+        assert tabs.active == "tab-studio"
+
+        # Bullet lab view should be visible
+        lab_view = app.query_one("#studio-lab-view")
+        assert lab_view.styles.display == "block"
+
+        # Active job label and ATS badge should be populated
+        job_label = app.query_one("#lab-active-job-label", Label)
+        assert "Acme Corp" in str(job_label.render())
+        ats_badge = app.query_one("#lab-ats-badge", Label)
+        assert "94% ATS Match" in str(ats_badge.render())
+
+        # Editors and previews populated
+        resume_preview = app.query_one("#preview-resume-md", Markdown)
+        assert "Acme Resume" in str(resume_preview.source)
+        resume_editor = app.query_one("#lab-resume-editor", TextArea)
+        assert "Acme Resume" in resume_editor.text
+        bullet_editor = app.query_one("#lab-bullet-editor", TextArea)
+        assert "Engineered distributed pipeline" in bullet_editor.text
+        letter_editor = app.query_one("#lab-letter-editor", TextArea)
+        assert "Dear Hiring Team at Acme" in letter_editor.text
+
+        # 4. Open folder action resolves properly
+        opened_cmds = []
+        monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: opened_cmds.append(cmd))
+        app.action_open_folder()
+        assert len(opened_cmds) == 1
+        assert opened_cmds[0] == ["open", str(test_app_dir)]
+
+
+@pytest.mark.anyio
+async def test_breadwinner_app_studio_refine_engine_and_diff_accept(monkeypatch):
+    from textual.widgets import TextArea, Static
+    from breadwinner.ui.editor import XYZValidatorWidget
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        app.action_view_lab()
+        await pilot.pause()
+
+        # Set initial bullets
+        editor = app.query_one("#lab-bullet-editor", TextArea)
+        editor.text = "- Worked on database queries."
+        prompt_area = app.query_one("#lab-refine-prompt", TextArea)
+        prompt_area.text = "Quantify performance improvement using Google XYZ format"
+
+        # Mock LLM provider to return realistic refined bullet
+        class MockProvider:
+            def generate_text(self, sys_prompt, user_prompt, temperature=0.1):
+                return "- Optimized distributed PostgreSQL queries scaling throughput by 45% with p99 < 8ms."
+
+        monkeypatch.setattr("breadwinner.ui.app.get_llm_provider", lambda: MockProvider())
+
+        # Trigger refine diff
+        app.action_lab_refine_diff()
+        await pilot.pause(0.2)
+
+        # DiffModal should be visible on top of screen stack
+        from breadwinner.ui.app import DiffModal
+        from textual.widgets import Button
+        assert isinstance(app.screen, DiffModal)
+        modal = app.screen
+        diff_body = modal.query_one("#diff-modal-body", Static)
+        diff_str = str(diff_body.render())
+        assert "Optimized distributed PostgreSQL queries" in diff_str
+
+        # Accept diff via modal button
+        btn_accept = modal.query_one("#btn-diff-modal-accept", Button)
+        await pilot.click(btn_accept)
+        await pilot.pause()
+
+        assert not isinstance(app.screen, DiffModal)
+        assert "Optimized distributed PostgreSQL queries" in editor.text
+
+        # Verify XYZ validator was immediately refreshed
+        validator = app.query_one("#lab-xyz-validator", XYZValidatorWidget)
+        assert validator.latest_report is not None
+        assert validator.latest_report.quantified_bullets >= 1
+
+
+@pytest.mark.anyio
+async def test_breadwinner_app_pipeline_reload_scopes_bullets_preventing_dilution(tmp_path):
+    from breadwinner.db.repository import JobRecord
+    from textual.widgets import TextArea
+    from breadwinner.ui.editor import XYZValidatorWidget
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Set up a tailored app folder with markdown containing experience, education, skills, and coursework
+        test_dir = tmp_path / "2026-10-12_Dilution_Test"
+        test_dir.mkdir(parents=True, exist_ok=True)
+        resume_md = (
+            "# Jane Doe\n\n"
+            "## EXPERIENCE\n"
+            "- Architected real-time streaming pipeline processing 100,000 events/sec with 99.99% reliability.\n\n"
+            "## EDUCATION\n"
+            "- Master of Science in Computer Science\n\n"
+            "## SKILLS\n"
+            "- Python, Go, Kafka, Redis, Docker, Kubernetes\n\n"
+            "## COURSEWORK\n"
+            "- Distributed Systems, Advanced Algorithms\n"
+        )
+        (test_dir / "resume.md").write_text(resume_md, encoding="utf-8")
+
+        job = JobRecord(
+            id="dilution_test_job",
+            company="Fintech Co",
+            title="Senior Platform Engineer",
+            url="https://fintech.example/jobs/1",
+            status="tailored",
+            match_score=95,
+            folder_path=str(test_dir),
+            date_added="2026-10-12"
+        )
+        app.repo.upsert_job(job)
+        app.load_pipeline_table()
+        await pilot.pause()
+
+        # Load into studio
+        app.action_pipeline_edit_studio()
+        await pilot.pause()
+
+        # Bullet editor should strictly contain the 1 experience bullet
+        editor = app.query_one("#lab-bullet-editor", TextArea)
+        lines = [l.strip() for l in editor.text.splitlines() if l.strip().startswith(("-", "*", "•"))]
+        assert len(lines) == 1
+        assert "Architected real-time streaming pipeline" in lines[0]
+        assert not any("Python, Go" in l for l in lines)
+        assert not any("Master of Science" in l for l in lines)
+
+        # Validator should have 100% quantified score (1/1) instead of diluted (1/4 = 25%)
+        validator = app.query_one("#lab-xyz-validator", XYZValidatorWidget)
+        assert validator.latest_report is not None
+        assert validator.latest_report.total_bullets == 1
+        assert validator.latest_report.quantified_score == 100
+
+
+def test_ml_linter_action_verbs_and_metrics():
+    from breadwinner.ui.editor import analyze_bullets_xyz
+
+    sample_bullets = (
+        "- Fine-tuned 70b parameter LLM across 500 gpu-hours achieving 0.94 f1 score on benchmark suite.\n"
+        "- Quantized transformer models into 4-bit weights reducing latency by 45% with 75,000 daily requests.\n"
+        "- Benchmarked distributed inference clusters sustaining 1,200 QPS with p99 < 15ms.\n"
+        "- Evaluated retrieval pipelines improving precision to 0.88 across 10,000 test cases.\n"
+        "- Curated 250,000 multimodal training samples for domain adaptation."
+    )
+
+    report = analyze_bullets_xyz(sample_bullets)
+    assert report.total_bullets == 5
+    assert report.action_verbs_count == 5
+    assert report.quantified_bullets == 5
+    assert report.quantified_score == 100

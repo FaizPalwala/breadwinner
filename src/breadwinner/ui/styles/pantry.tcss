@@ -95,7 +95,9 @@
 }
 #pantry-prompt-box {
     width: 1fr;
-    height: 3;
+    height: auto;
+    min-height: 3;
+    max-height: 5;
     layout: horizontal;
     background: #0C0E14;
     border: round #2A2E3D;
@@ -106,7 +108,8 @@
 }
 #pantry-ai-prompt {
     width: 1fr;
-    height: 1;
+    height: 3;
+    max-height: 5;
     border: none;
     background: transparent;
     color: #F8F8F2;
