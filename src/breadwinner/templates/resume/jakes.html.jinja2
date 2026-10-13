@@ -114,13 +114,15 @@
     <!-- Header -->
     <header class="header">
       <h1>{{ profile.full_name }}</h1>
+      {% set contact_items = [] %}
+      {% if profile.location %}{% set _ = contact_items.append(profile.location) %}{% endif %}
+      {% if profile.email %}{% set _ = contact_items.append('<a href="mailto:' ~ profile.email ~ '">' ~ profile.email ~ '</a>') %}{% endif %}
+      {% if profile.phone %}{% set _ = contact_items.append(profile.phone) %}{% endif %}
+      {% if profile.linkedin_url %}{% set _ = contact_items.append('<a href="' ~ profile.linkedin_url ~ '">LinkedIn</a>') %}{% endif %}
+      {% if profile.github_url %}{% set _ = contact_items.append('<a href="' ~ profile.github_url ~ '">GitHub</a>') %}{% endif %}
+      {% if profile.portfolio_url %}{% set _ = contact_items.append('<a href="' ~ profile.portfolio_url ~ '">Portfolio</a>') %}{% endif %}
       <div class="contact-line">
-        {% if profile.location %}{{ profile.location }} | {% endif %}
-        {% if profile.email %}<a href="mailto:{{ profile.email }}">{{ profile.email }}</a> | {% endif %}
-        {% if profile.phone %}{{ profile.phone }} | {% endif %}
-        {% if profile.linkedin_url %}<a href="{{ profile.linkedin_url }}">LinkedIn</a> | {% endif %}
-        {% if profile.github_url %}<a href="{{ profile.github_url }}">GitHub</a> | {% endif %}
-        {% if profile.portfolio_url %}<a href="{{ profile.portfolio_url }}">Portfolio</a>{% endif %}
+        {{ contact_items | join(' | ') }}
       </div>
     </header>
 
@@ -132,7 +134,7 @@
       <div class="entry">
         <div class="entry-header">
           <span class="entry-title">{{ edu.institution }}</span>
-          <span class="entry-date">{{ edu.start_date }}{% if edu.end_date %} -- {{ edu.end_date }}{% endif %}</span>
+          <span class="entry-date">{% if edu.start_date and edu.end_date %}{{ edu.start_date }} -- {{ edu.end_date }}{% elif edu.end_date %}{{ edu.end_date }}{% elif edu.start_date %}{{ edu.start_date }}{% endif %}</span>
         </div>
         <div class="entry-header">
           <span class="entry-subtitle">{{ edu.degree }}{% if edu.field_of_study %} in {{ edu.field_of_study }}{% endif %}</span>

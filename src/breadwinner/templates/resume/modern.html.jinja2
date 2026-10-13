@@ -195,7 +195,7 @@
       <div class="entry">
         <div class="entry-header">
           <span class="entry-role">{{ edu.degree }}{% if edu.field_of_study %} in {{ edu.field_of_study }}{% endif %}</span>
-          <span class="entry-date">{{ edu.start_date }} – {{ edu.end_date }}</span>
+          <span class="entry-date">{% if edu.start_date and edu.end_date %}{{ edu.start_date }} – {{ edu.end_date }}{% elif edu.end_date %}{{ edu.end_date }}{% elif edu.start_date %}{{ edu.start_date }}{% endif %}</span>
         </div>
         <div style="color: #4b5563; font-size: 9.5pt;">{{ edu.institution }}{% if edu.grade %} ({{ edu.grade }}){% endif %}</div>
         {% if edu.coursework %}
