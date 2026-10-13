@@ -57,3 +57,45 @@ def test_render_html_to_pdf_mocked_success(tmp_path: Path):
             assert result == out_pdf.resolve()
             assert out_pdf.exists()
             assert out_pdf.stat().st_size > 0
+
+
+def test_bake_application_package_dual_pdf(tmp_path: Path):
+    """Verify bake_application_package compiles dual PDFs (resume.pdf and cover_letter.pdf)."""
+    from breadwinner.core.pdf import bake_application_package
+
+    app_dir = tmp_path / "2026-10-13_DeepMind_Research"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    (app_dir / "resume.html").write_text("<html><body>Resume</body></html>", encoding="utf-8")
+    (app_dir / "cover_letter.md").write_text("Dear DeepMind,\n\nI am thrilled to apply for this role.", encoding="utf-8")
+
+    resume_json_data = {
+        "basics": {
+            "name": "Demis Hassabis",
+            "email": "demis@example.com"
+        },
+        "work": []
+    }
+    import json
+    (app_dir / "resume.json").write_text(json.dumps(resume_json_data), encoding="utf-8")
+
+    def fake_subprocess_run(cmd, **kwargs):
+        # cmd contains --print-to-pdf=<path>
+        for arg in cmd:
+            if arg.startswith("--print-to-pdf="):
+                pdf_target = Path(arg.split("=", 1)[1])
+                pdf_target.write_bytes(b"%PDF-1.4 Mock PDF bytes" * 100)
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stderr = ""
+        return mock
+
+    with patch("breadwinner.core.pdf.find_browser_executable", return_value="/fake/chrome"):
+        with patch("subprocess.run", side_effect=fake_subprocess_run):
+            res = bake_application_package(app_dir, open_after=False)
+
+            assert res["success"] is True
+            assert (app_dir / "resume.pdf").exists()
+            assert (app_dir / "cover_letter.pdf").exists()
+            assert (app_dir / "cover_letter.html").exists()
+            assert res["size_kb"] > 0
+            assert res["cover_letter_size_kb"] > 0

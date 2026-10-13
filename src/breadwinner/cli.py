@@ -32,7 +32,7 @@ from breadwinner.providers.discovery import ProviderDiscovery
 from breadwinner.db.sync import CsvSync
 from breadwinner.automations.health import JobHealthChecker
 from breadwinner.automations.reminders import ReminderEngine
-from breadwinner.core.pdf import render_html_to_pdf, PDFGenerationError
+from breadwinner.core.pdf import render_html_to_pdf, bake_application_package, PDFGenerationError
 from breadwinner.core.pantry import PantryManager
 from breadwinner.core.ingestor import UniversalIngestor, IngestionError
 from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
@@ -269,18 +269,20 @@ def apply(
         (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
         if application.cover_letter:
             (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
+            cl_html = renderer.render_cover_letter_html(profile, application)
+            (app_dir / "cover_letter.html").write_text(cl_html, encoding="utf-8")
         if application.portal_answers:
             (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
 
-        # 8. Render Print ATS PDF
+        # 8. Render Print ATS PDF Package
         pdf_generated = False
         if settings.auto_generate_pdf:
             try:
-                progress.add_task(description="Baking print-ready ATS PDF resume...", total=None)
-                render_html_to_pdf(app_dir / "resume.html", app_dir / "resume.pdf", open_after=False)
-                pdf_generated = True
+                progress.add_task(description="Baking print-ready ATS PDF package...", total=None)
+                bake_res = bake_application_package(app_dir, open_after=False)
+                pdf_generated = bool(bake_res.get("resume_pdf"))
             except Exception as e:
-                console.print(f"[yellow]Note: PDF auto-generation skipped ({e}). You can print resume.html or run 'breadwinner bake'.[/yellow]")
+                console.print(f"[yellow]Note: PDF auto-generation skipped ({e}). You can print HTML or run 'breadwinner bake'.[/yellow]")
 
         # 9. Record in Database
         repo = get_repo()
@@ -733,17 +735,29 @@ def bake_cmd(target: Optional[str], no_open: bool):
         console.print("[dim]Usage: breadwinner bake [path_or_job_id][/dim]")
         return
 
-    html_file = app_dir / "resume.html"
-    pdf_file = app_dir / "resume.pdf"
-
-    console.print(f"[cyan]Baking ATS PDF from:[/cyan] {html_file}")
+    console.print(f"[cyan]Baking application package from:[/cyan] {app_dir}")
     try:
-        render_html_to_pdf(html_file, pdf_file, open_after=not no_open)
+        bake_res = bake_application_package(app_dir, open_after=not no_open)
+        summary_lines = ["[bold green]✓ Fresh out of the oven![/bold green] 🍞\n"]
+        if bake_res.get("resume_pdf"):
+            summary_lines.append(f"• [bold]Resume PDF:[/bold] {bake_res['resume_pdf'].resolve()} ([green]{bake_res['resume_size_kb']} KB[/green])")
+        else:
+            summary_lines.append("• [bold red]Resume PDF:[/bold red] Failed to bake")
+
+        if bake_res.get("cover_letter_pdf"):
+            summary_lines.append(f"• [bold]Cover Letter PDF:[/bold] {bake_res['cover_letter_pdf'].resolve()} ([green]{bake_res['cover_letter_size_kb']} KB[/green])")
+        elif (app_dir / "cover_letter.md").exists():
+            summary_lines.append("• [yellow]Cover Letter PDF:[/yellow] Skipped or failed to bake")
+
+        if bake_res.get("errors"):
+            summary_lines.append("\n[bold red]Warnings / Errors:[/bold red]")
+            for err in bake_res["errors"]:
+                summary_lines.append(f"  - {err}")
+
+        summary_lines.append("\n[dim]Optimized for Applicant Tracking Systems (ATS) and vector printing.[/dim]")
+
         console.print(Panel(
-            f"[bold green]✓ Fresh out of the oven![/bold green] 🍞\n\n"
-            f"• [bold]Output PDF:[/bold] {pdf_file.resolve()}\n"
-            f"• [bold]File size:[/bold] {pdf_file.stat().st_size} bytes\n\n"
-            f"[dim]Optimized for Applicant Tracking Systems (ATS) and 1-page standard printing.[/dim]",
+            "\n".join(summary_lines),
             border_style="green",
             title="Breadwinner Bakery"
         ))

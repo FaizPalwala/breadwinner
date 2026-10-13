@@ -87,3 +87,38 @@ def test_cli_reset_all(tmp_path: Path):
     assert not pantry.is_initialized()
     assert not settings.database_path.exists()
     assert not app_folder.exists()
+
+
+def test_cli_bake_dual_pdf(tmp_path: Path):
+    """Verify that 'breadwinner bake <app_dir>' compiles dual PDFs and reports statuses."""
+    from unittest.mock import patch, MagicMock
+
+    app_folder = tmp_path / "2026-10-13_OpenAI_Research"
+    app_folder.mkdir(parents=True, exist_ok=True)
+    (app_folder / "resume.html").write_text("<html>Resume</html>", encoding="utf-8")
+    (app_folder / "cover_letter.md").write_text("Dear OpenAI,\n\nI love AGI safety.", encoding="utf-8")
+
+    resume_json = {"basics": {"name": "Ilya Sutskever", "email": "ilya@example.com"}, "work": []}
+    import json
+    (app_folder / "resume.json").write_text(json.dumps(resume_json), encoding="utf-8")
+
+    def fake_subprocess_run(cmd, **kwargs):
+        for arg in cmd:
+            if arg.startswith("--print-to-pdf="):
+                pdf_target = Path(arg.split("=", 1)[1])
+                pdf_target.write_bytes(b"%PDF-1.4 Mock PDF bytes" * 100)
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stderr = ""
+        return mock
+
+    runner = CliRunner()
+    with patch("breadwinner.core.pdf.find_browser_executable", return_value="/fake/chrome"):
+        with patch("subprocess.run", side_effect=fake_subprocess_run):
+            result = runner.invoke(main, ["bake", str(app_folder)])
+            assert result.exit_code == 0
+            assert "Fresh out of the oven" in result.output
+            assert "Resume PDF" in result.output
+            assert "Cover Letter PDF" in result.output
+            assert (app_folder / "resume.pdf").exists()
+            assert (app_folder / "cover_letter.pdf").exists()
