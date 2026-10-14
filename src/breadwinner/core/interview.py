@@ -80,7 +80,7 @@ def generate_gap_interview_questions(
     if provider and (unquantified_exps or vague_projects):
         try:
             sys_prompt = (
-                "You are Breadwinner's Senior Career Strategist & Anti-Hallucination Ingestion Auditor. "
+                "You are Breadwinner, a deterministic career engineering compiler. You enforce strict fact verification against candidate source data and reject ungrounded claims. "
                 "Audit the candidate's verified profile, projects, and dossier to uncover concrete metric gaps. "
                 "CRITICAL INSTRUCTION: ONLY generate a question if a role bullet or project description is genuinely vague or lacks quantifiable metrics (XYZ formula: Y = measured metric, Z = technical method). "
                 "If an accomplishment or project already specifies concrete metrics, scale, and technical architecture, DO NOT ask about it. "

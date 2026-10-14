@@ -308,7 +308,7 @@ class XYZValidatorWidget(Static):
 
         prov_line = ""
         if self.latest_provenance:
-            summary = self.latest_provenance.get("summary", "100% Grounded • 0 Hallucinations")
+            summary = self.latest_provenance.get("summary", "Pantry: Verified (Strict) | Lexicon: Clean (0 flags)")
             prov_line = f" [dim]•[/] [bold #50fa7b]{summary}[/bold #50fa7b]"
             healed = self.latest_provenance.get("hallucinations_healed", 0)
             if healed > 0:

@@ -197,7 +197,7 @@ class CrustSpectrumWidget(Static):
         sparkline = "".join(spark_glyphs[min(len(spark_glyphs) - 1, max(0, int(v * 0.8)))] for v in velocities)
 
         prov_seal = (
-            "[bold #50FA7B]PROVENANCE: 100% GROUNDED[/bold #50FA7B]"
+            r"[bold #50FA7B]Source: pantry/profile.yaml \[Clean][/bold #50FA7B]"
             if provenance_verified
             else "[bold #FFB86C]PROVENANCE WARNING: PENDING CHECK[/bold #FFB86C]"
         )

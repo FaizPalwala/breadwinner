@@ -68,6 +68,9 @@ htmlcov/
 .tmp*/
 *.pdf
 !src/**
+**/__pycache__/
+**/*.egg-info/
+**/.DS_Store
 
 # Agent Scaffolding & Prompts (Internal & Local Only - Never Commit)
 .agents/

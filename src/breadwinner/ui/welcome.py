@@ -559,7 +559,7 @@ class BakeryWelcomeModal(ModalScreen):
         with Vertical(id="welcome-container"):
             yield Label("CRUMB'S BREADWINNER BAKERY • EST. 2026", classes="welcome-title")
             yield Label(
-                "Anti-Hallucination Career Studio • Fresh Resumes from Verified Facts",
+                "Local-First Career Engineering Studio • Fresh Resumes from Verified Facts",
                 classes="welcome-subtitle",
                 id="welcome-subtitle"
             )

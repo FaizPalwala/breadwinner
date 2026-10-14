@@ -68,7 +68,7 @@ class ProvenanceCertificate(BaseModel):
     slop_words_cleaned: int = 0
     healing_log: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
-    summary: str = "100% Grounded • 0 Hallucinations • 0 Slop Words"
+    summary: str = "Pantry: Verified (Strict) | Lexicon: Clean (0 flags)"
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -306,7 +306,7 @@ class ProvenanceValidator:
         grounding_score = 100 if final_report.is_valid else max(75, 100 - (len(final_report.unverified_metrics) * 10))
 
         summary_text = (
-            f"100% Grounded • 0 Hallucinations • 0 Slop Words"
+            f"Pantry: Verified (Strict) | Lexicon: Clean (0 flags)"
             if final_report.is_valid
             else f"{grounding_score}% Grounded • {len(final_report.unverified_metrics)} Pending Warnings"
         )

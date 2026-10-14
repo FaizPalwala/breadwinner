@@ -203,4 +203,4 @@ def test_end_to_end_sprint3_pipeline_with_mock():
     assert tailored_app.provenance_report is not None
     assert tailored_app.provenance_report.get("is_valid") is True
     assert tailored_app.provenance_report.get("grounding_score") == 100
-    assert "100% Grounded" in tailored_app.provenance_report.get("summary", "")
+    assert "Pantry: Verified (Strict)" in tailored_app.provenance_report.get("summary", "")

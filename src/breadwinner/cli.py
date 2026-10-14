@@ -76,7 +76,7 @@ def try_expand_terminal(target_cols: int = 120, target_rows: int = 38) -> None:
 @click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx: click.Context):
-    """Breadwinner: Anti-Hallucination Local Career Studio 🍞"""
+    """Breadwinner: Local-First Career Engineering Studio 🍞"""
     if ctx.invoked_subcommand is None:
         try_expand_terminal()
         from breadwinner.ui.app import BreadwinnerApp

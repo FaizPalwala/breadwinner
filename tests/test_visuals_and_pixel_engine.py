@@ -135,7 +135,7 @@ def test_crust_spectrum_widget():
     rendered = str(widget.render())
     assert "IMPACT BREAKDOWN" in rendered
     assert "CAREER VELOCITY" in rendered
-    assert "PROVENANCE: 100% GROUNDED" in rendered
+    assert "Source: pantry/profile.yaml [Clean]" in rendered
 
     # Warning case
     widget.update_spectrum(provenance_verified=False)

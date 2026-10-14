@@ -1963,7 +1963,7 @@ class BreadwinnerApp(App):
                                 with Vertical(id="studio-mascot-banner"):
                                     with Horizontal(id="studio-banner-header-row"):
                                         yield Label("[bold #FFB86C]✦ THE OVEN: TAILOR STUDIO[/bold #FFB86C]", id="studio-banner-title")
-                                        yield Label("[bold #50FA7B]● Anti-Hallucination Active[/bold #50FA7B]", id="studio-banner-status")
+                                        yield Label("[bold #50FA7B]● Provenance Gate: Active[/bold #50FA7B]", id="studio-banner-status")
                                     yield Label(
                                         "[dim]Proof verified experience bullets against role requirements without keyword-stuffing slop.[/dim]",
                                         id="studio-banner-desc"

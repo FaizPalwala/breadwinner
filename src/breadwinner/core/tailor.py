@@ -124,7 +124,7 @@ Directly align verified candidate accomplishments against job requirements witho
             persona_slug = "direct"
 
         # Constrained Prompt
-        system_prompt = f"""You are Breadwinner, an automated career engineering studio and anti-hallucination resume tailoring engine.
+        system_prompt = f"""You are Breadwinner, a deterministic career engineering compiler. You enforce strict fact verification against candidate source data and reject ungrounded claims.
 {persona_block}
 {guardrails_block}
 {job_directives_block}

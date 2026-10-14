@@ -1278,8 +1278,7 @@ Respond in valid JSON matching this schema:
         writing_fallback: str = "",
         about_fallback: str = ""
     ) -> CandidateProfile:
-        """Single multi-evidence architect LLM pass with prompt enforcing anti-hallucination and canonical clustering."""
-        sys_prompt = """You are Breadwinner's Lead Career Architect and Anti-Hallucination Compiler.
+        sys_prompt = """You are Breadwinner, a deterministic career engineering compiler. You enforce strict fact verification against candidate source data and reject ungrounded claims.
 Your mission is to analyze all provided candidate evidence (resume, portfolio subpages, project repositories, academic research, and technical blogs) and synthesize a canonical, unified candidate profile.
 
 INVARIANTS & COMPILATION RULES:
