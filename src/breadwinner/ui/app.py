@@ -42,8 +42,8 @@ from breadwinner.core.persona import (
     synthesize_persona_from_braindump,
 )
 from breadwinner.core.tailor import TailoringEngine
-from breadwinner.core.renderer import TemplateRenderer
-from breadwinner.core.models import TailoredApplication, CandidateProfile, WorkExperience, JobPosting
+from breadwinner.core.renderer import TemplateRenderer, parse_markdown_resume_experiences
+from breadwinner.core.models import TailoredApplication, CandidateProfile, WorkExperience, JobPosting, MatchAnalysis
 from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer, PDFGenerationError
 from breadwinner.core.pantry import PantryManager
 from breadwinner.core.ingestor import UniversalIngestor, IngestionError, normalize_source
@@ -2029,6 +2029,7 @@ class BreadwinnerApp(App):
                                 yield Button("⇋ Stack", id="btn-lab-toggle-stack")
                                 yield Button("▲ Bake", id="btn-lab-bake-pdf")
                                 yield Button("▤ View", id="btn-lab-view-pdf")
+                                yield Button("▤ Letter", id="btn-lab-view-letter-pdf")
                                 yield Button("↗ Folder", id="btn-lab-folder")
 
                             with Horizontal(id="studio-lab-split"):
@@ -2867,6 +2868,66 @@ class BreadwinnerApp(App):
         except Exception as e:
             self.notify(f"Failed to save notes: {e}", severity="error")
 
+    def _ensure_application_context(self) -> None:
+        """Ensures self.current_profile and self.current_app_result are hydrated from disk if available."""
+        if not self.last_tailored_dir:
+            return
+
+        if not self.current_profile:
+            if (self.last_tailored_dir / "resume.json").exists():
+                try:
+                    self.current_profile = JsonResumeAdapter(self.last_tailored_dir / "resume.json").load_profile()
+                except Exception:
+                    pass
+            if not self.current_profile:
+                try:
+                    self.current_profile = self.pantry.load_profile()
+                except Exception:
+                    pass
+
+        if not self.current_app_result:
+            if self.selected_job:
+                job = JobPosting(
+                    id=str(getattr(self.selected_job, "id", "job_1")),
+                    title=self.selected_job.title,
+                    company=self.selected_job.company,
+                    url=getattr(self.selected_job, "url", None) or "",
+                    raw_text=""
+                )
+            else:
+                job = JobPosting(
+                    id="job_default",
+                    title="Software Engineer",
+                    company="Target Company",
+                    raw_text=""
+                )
+
+            match_score_val = 80
+            if self.selected_job and getattr(self.selected_job, "match_score", None) is not None:
+                try:
+                    match_score_val = int(self.selected_job.match_score)
+                except Exception:
+                    pass
+
+            match_analysis = MatchAnalysis(
+                match_score=match_score_val,
+                matched_skills=[],
+                missing_skills=[],
+                rationale="Loaded application from disk"
+            )
+            exps = list(self.current_profile.experiences if self.current_profile else [])
+            projs = list(self.current_profile.projects if self.current_profile else [])
+            skills = list(self.current_profile.skills if self.current_profile else [])
+            self.current_app_result = TailoredApplication(
+                job=job,
+                persona="engineering",
+                match_analysis=match_analysis,
+                tailored_summary=self.current_profile.summary if self.current_profile else "",
+                tailored_experiences=exps,
+                tailored_projects=projs,
+                tailored_skills=skills
+            )
+
     def action_pipeline_edit_studio(self) -> None:
         if not self.selected_job:
             self.notify("Please select a job from the table first.", severity="warning")
@@ -2890,6 +2951,8 @@ class BreadwinnerApp(App):
 
         if p_dir and p_dir.exists():
             self.last_tailored_dir = p_dir
+            self._ensure_application_context()
+
             try:
                 self.query_one("#lab-active-job-label", Label).update(
                     f"[bold white]{self.selected_job.company} — {self.selected_job.title}[/bold white]"
@@ -2911,52 +2974,13 @@ class BreadwinnerApp(App):
                         self.query_one("#lab-resume-editor", TextArea).text = r_txt
                     except Exception:
                         pass
-                    
-                    # Extract experience bullets strictly scoped to work experience to prevent metric dilution
-                    bullets = []
-                    if (p_dir / "resume.json").exists():
-                        try:
-                            import json
-                            rj = json.loads((p_dir / "resume.json").read_text(encoding="utf-8"))
-                            for w in rj.get("work", []):
-                                for h in w.get("highlights", []):
-                                    h_str = h.strip()
-                                    if not h_str.startswith(("- ", "* ", "• ")):
-                                        h_str = f"- {h_str}"
-                                    bullets.append(h_str)
-                        except Exception:
-                            pass
 
-                    if not bullets:
-                        in_exp = False
-                        for line in r_txt.splitlines():
-                            s = line.strip()
-                            upper = s.upper()
-                            if upper.startswith("#") and any(k in upper for k in ("EXPERIENCE", "WORK", "EMPLOYMENT")):
-                                in_exp = True
-                                continue
-                            elif in_exp and upper.startswith("#"):
-                                in_exp = False
-                                break
-                            if in_exp and s.startswith(("- ", "* ", "• ")):
-                                bullets.append(s)
+                    existing_exps = self.current_app_result.tailored_experiences if self.current_app_result else None
+                    updated_exps, bullet_text = parse_markdown_resume_experiences(r_txt, existing_exps)
+                    if self.current_app_result and updated_exps:
+                        self.current_app_result.tailored_experiences = updated_exps
 
-                    if not bullets:
-                        # Fallback: scan bullets excluding obvious non-experience sections (skills, education, courses)
-                        current_sec = ""
-                        for line in r_txt.splitlines():
-                            s = line.strip()
-                            upper = s.upper()
-                            if upper.startswith("#"):
-                                current_sec = upper
-                                continue
-                            if any(k in current_sec for k in ("SKILL", "EDUCATION", "COURSE", "LANGUAGE", "CERTIF")):
-                                continue
-                            if s.startswith(("- ", "* ", "• ")):
-                                bullets.append(s)
-
-                    if bullets:
-                        bullet_text = "\n".join(bullets)
+                    if bullet_text:
                         try:
                             editor = self.query_one("#lab-bullet-editor", TextArea)
                             editor.text = bullet_text
@@ -3164,12 +3188,20 @@ class BreadwinnerApp(App):
         try:
             editor = self.query_one("#lab-bullet-editor", TextArea)
             bullets_text = editor.text
-            if not bullets_text or not self.current_app_result or not self.last_tailored_dir:
+            if not bullets_text or not self.last_tailored_dir:
                 self.notify("No active tailored application to update.", severity="warning")
                 return
 
-            current_exp_idx = -1
-            new_experiences = list(self.current_app_result.tailored_experiences or [])
+            self._ensure_application_context()
+
+            has_headings = any(line.strip().startswith("### ") for line in bullets_text.splitlines())
+            new_experiences = list(self.current_app_result.tailored_experiences or []) if self.current_app_result else []
+            if not has_headings and new_experiences:
+                current_exp_idx = 0
+                new_experiences[0].bullets = []
+            else:
+                current_exp_idx = -1
+
             for line in bullets_text.splitlines():
                 s = line.strip()
                 if s.startswith("### "):
@@ -3181,7 +3213,8 @@ class BreadwinnerApp(App):
                     if b:
                         new_experiences[current_exp_idx].bullets.append(b)
 
-            self.current_app_result.tailored_experiences = new_experiences
+            if self.current_app_result:
+                self.current_app_result.tailored_experiences = new_experiences
             renderer = TemplateRenderer()
             resume_md = renderer.render_resume(self.current_profile, self.current_app_result, "ats")
             resume_html = renderer.render_resume(self.current_profile, self.current_app_result, self.current_template)
@@ -3208,6 +3241,15 @@ class BreadwinnerApp(App):
 
             self.query_one("#lab-resume-editor", TextArea).text = resume_md
             self.query_one("#preview-resume-md", Markdown).update(resume_md)
+
+            # Recalculate XYZ metrics
+            report = analyze_bullets_xyz(bullets_text, self.current_profile)
+            self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
+            self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                quantified_pct=report.quantified_score,
+                action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                provenance_verified=True
+            )
             self.notify("✓ Applied updated bullets to resume.md and re-baked resume.pdf!", title="Bullets Synced")
         except Exception as e:
             self.notify(f"Failed to apply bullets: {e}", severity="error")
@@ -3222,6 +3264,44 @@ class BreadwinnerApp(App):
             text = r_editor.text
             (self.last_tailored_dir / "resume.md").write_text(text, encoding="utf-8")
 
+            # 1. Hydrate profile & application if missing
+            self._ensure_application_context()
+
+            # 2. Parse updated resume.md to extract experience bullets and role headings
+            existing_exps = self.current_app_result.tailored_experiences if self.current_app_result else (self.current_profile.experiences if self.current_profile else None)
+            updated_exps, editor_bullet_text = parse_markdown_resume_experiences(text, existing_exps)
+
+            if self.current_app_result:
+                self.current_app_result.tailored_experiences = updated_exps
+
+            # 3. Update lab-bullet-editor and recalculate XYZ metrics
+            if editor_bullet_text:
+                try:
+                    self.query_one("#lab-bullet-editor", TextArea).text = editor_bullet_text
+                    report = analyze_bullets_xyz(editor_bullet_text, self.current_profile)
+                    self.query_one("#lab-xyz-validator", XYZValidatorWidget).update_report(report)
+                    self.query_one("#lab-crust-spectrum", CrustSpectrumWidget).update_spectrum(
+                        quantified_pct=report.quantified_score,
+                        action_verb_pct=int((report.action_verbs_count / max(1, report.total_bullets)) * 100),
+                        provenance_verified=True
+                    )
+                except Exception:
+                    pass
+
+            # 4. Sync resume.json on disk if present
+            resume_json_path = self.last_tailored_dir / "resume.json"
+            if resume_json_path.exists():
+                try:
+                    rj = json.loads(resume_json_path.read_text(encoding="utf-8"))
+                    if "work" in rj and isinstance(rj["work"], list):
+                        for i, exp in enumerate(updated_exps):
+                            if i < len(rj["work"]):
+                                rj["work"][i]["highlights"] = exp.bullets
+                    resume_json_path.write_text(json.dumps(rj, indent=2), encoding="utf-8")
+                except Exception:
+                    pass
+
+            # 5. Regenerate resume.html from template & re-bake resume.pdf
             if self.current_profile and self.current_app_result:
                 renderer = TemplateRenderer()
                 resume_html = renderer.render_resume(self.current_profile, self.current_app_result, self.current_template)
@@ -3232,7 +3312,7 @@ class BreadwinnerApp(App):
                     pass
 
             self.query_one("#preview-resume-md", Markdown).update(text)
-            self.notify("✓ Saved resume.md and updated ATS PDF!", title="Resume Saved")
+            self.notify("✓ Saved resume.md, synced bullets & baked ATS PDF!", title="Resume Synced")
         except Exception as e:
             self.notify(f"Failed to save resume: {e}", severity="error")
 
@@ -3244,7 +3324,27 @@ class BreadwinnerApp(App):
             text = self.query_one("#lab-letter-editor", TextArea).text
             (self.last_tailored_dir / "cover_letter.md").write_text(text, encoding="utf-8")
             self.query_one("#preview-letter-md", Markdown).update(text)
-            self.notify("✓ Saved cover_letter.md!", title="Cover Letter Saved")
+
+            # Re-render cover_letter.html and compile cover_letter.pdf
+            try:
+                self._ensure_application_context()
+                renderer = TemplateRenderer()
+                comp = self.selected_job.company if self.selected_job else None
+                title = self.selected_job.title if self.selected_job else None
+                letter_html = renderer.render_cover_letter_html(
+                    profile=self.current_profile,
+                    app=self.current_app_result,
+                    cover_letter_text=text,
+                    company=comp,
+                    title=title,
+                    template_name=self.current_template or "jakes"
+                )
+                (self.last_tailored_dir / "cover_letter.html").write_text(letter_html, encoding="utf-8")
+                render_html_to_pdf(self.last_tailored_dir / "cover_letter.html", self.last_tailored_dir / "cover_letter.pdf", open_after=False)
+            except Exception:
+                pass
+
+            self.notify("✓ Saved cover_letter.md & compiled cover_letter.pdf!", title="Cover Letter Saved")
         except Exception as e:
             self.notify(f"Failed to save cover letter: {e}", severity="error")
 
@@ -3483,20 +3583,31 @@ class BreadwinnerApp(App):
 
     def action_bake_pdf(self) -> None:
         target_dir = None
-        if self.last_tailored_dir and (self.last_tailored_dir / "resume.html").exists():
+        if self.last_tailored_dir and self.last_tailored_dir.exists():
             target_dir = self.last_tailored_dir
         elif self.selected_job and self.selected_job.folder_path:
             p = Path(self.selected_job.folder_path)
-            if p.exists() and (p / "resume.html").exists():
+            if p.exists():
                 target_dir = p
-            elif not p.is_absolute() and ((settings.applications_dir / p) / "resume.html").exists():
+            elif not p.is_absolute() and (settings.applications_dir / p).exists():
                 target_dir = settings.applications_dir / p
-            elif ((settings.applications_dir / p.name) / "resume.html").exists():
+            elif (settings.applications_dir / p.name).exists():
                 target_dir = settings.applications_dir / p.name
 
         if not target_dir:
-            self.notify("Please tailor a job first or select a job with resume.html.", severity="warning")
+            self.notify("Please tailor a job first or select a valid application folder.", severity="warning")
             return
+
+        self.last_tailored_dir = target_dir
+        if not (target_dir / "resume.html").exists() and (target_dir / "resume.md").exists():
+            try:
+                self._ensure_application_context()
+                if self.current_profile and self.current_app_result:
+                    renderer = TemplateRenderer()
+                    html = renderer.render_resume(self.current_profile, self.current_app_result, self.current_template or "jakes")
+                    (target_dir / "resume.html").write_text(html, encoding="utf-8")
+            except Exception:
+                pass
 
         self.push_screen(
             BakingModal(task_type="bake_pdf", target_info={"app_dir": target_dir}),
@@ -3507,11 +3618,13 @@ class BreadwinnerApp(App):
         if not result or not result.get("success"):
             return
         size_kb = result.get("size_kb", 0.0)
-        self.notify(f"✓ Fresh out of the oven! Baked resume.pdf ({size_kb} KB)", title="Bake Complete")
+        letter_size_kb = result.get("cover_letter_size_kb", 0.0)
+        extra = f" + cover_letter.pdf ({letter_size_kb} KB)" if letter_size_kb > 0 else ""
+        self.notify(f"✓ Fresh out of the oven! Baked resume.pdf ({size_kb} KB){extra}", title="Bake Complete")
         try:
             self.set_global_stage(4)
             mascot = self.query_one("#studio-mascot", AnimatedMascot)
-            mascot.set_message("Crisp ATS PDF Baked!")
+            mascot.set_message("Crisp ATS PDF Package Baked!")
             oven = self.query_one("#studio-oven", AnimatedOven)
             oven.set_state("celebrate")
         except Exception:
@@ -3531,6 +3644,21 @@ class BreadwinnerApp(App):
             self.notify(f"Opened resume.pdf in system viewer.", title="Preview")
         else:
             self.notify("No resume.pdf found. Press 'b' to bake one first!", severity="warning")
+
+    def action_view_letter_pdf(self) -> None:
+        target_dir = None
+        if self.last_tailored_dir and (self.last_tailored_dir / "cover_letter.pdf").exists():
+            target_dir = self.last_tailored_dir
+        elif self.selected_job and self.selected_job.folder_path:
+            p = Path(self.selected_job.folder_path)
+            if p.exists() and (p / "cover_letter.pdf").exists():
+                target_dir = p
+
+        if target_dir and (target_dir / "cover_letter.pdf").exists():
+            open_file_in_viewer(target_dir / "cover_letter.pdf")
+            self.notify("Opened cover_letter.pdf in system viewer.", title="Preview")
+        else:
+            self.notify("No cover_letter.pdf found. Save letter or bake package first!", severity="warning")
 
     def action_finetune_bullets(self) -> None:
         try:
@@ -3893,6 +4021,8 @@ class BreadwinnerApp(App):
             self.action_bake_pdf()
         elif bid in ("btn-studio-view-pdf", "btn-pipeline-view-pdf", "btn-lab-view-pdf"):
             self.action_view_pdf()
+        elif bid == "btn-lab-view-letter-pdf":
+            self.action_view_letter_pdf()
         elif bid == "btn-studio-browser":
             if self.last_tailored_dir and (self.last_tailored_dir / "resume.html").exists():
                 webbrowser.open(f"file://{self.last_tailored_dir / 'resume.html'}")

@@ -9,6 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Center, Middle
 from textual.widgets import Static, Label, Button
 from textual.screen import ModalScreen
+from textual.binding import Binding
 from textual import work
 
 from breadwinner.config import settings
@@ -18,7 +19,7 @@ from breadwinner.core.portfolio import get_profile_source
 from breadwinner.core.scraper import JobScraper
 from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
-from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer
+from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer, bake_application_package
 from breadwinner.db.repository import JobRecord
 from breadwinner.db.sync import CsvSync
 from breadwinner.providers.factory import get_llm_provider
@@ -666,6 +667,13 @@ class BakingModal(ModalScreen):
 
     DEFAULT_CSS = RETRO_THEME_CSS
 
+    BINDINGS = [
+        Binding("v", "view_resume_pdf", "View Resume PDF", show=False),
+        Binding("l", "view_letter_pdf", "View Letter PDF", show=False),
+        Binding("o", "open_folder", "Open Folder", show=False),
+        Binding("escape", "dismiss_modal", "Dismiss", show=False),
+    ]
+
     def __init__(
         self,
         task_type: str,  # "tailor" or "bake_pdf" or "ingest"
@@ -706,7 +714,8 @@ class BakingModal(ModalScreen):
                 yield Button("Cancel Bake", variant="error", id="btn-modal-cancel")
                 yield Button("Change Model", variant="warning", id="btn-modal-change-model", classes="hidden")
                 yield Button("Collect Loaf (Inspect)", variant="success", id="btn-modal-collect", classes="hidden")
-                yield Button("View PDF (v)", variant="primary", id="btn-modal-view-pdf", classes="hidden")
+                yield Button("View Resume PDF (v)", variant="primary", id="btn-modal-view-pdf", classes="hidden")
+                yield Button("View Letter PDF (l)", variant="primary", id="btn-modal-view-letter-pdf", classes="hidden")
                 yield Button("Open Folder (o)", variant="default", id="btn-modal-open-folder", classes="hidden")
 
     def on_mount(self) -> None:
@@ -714,6 +723,7 @@ class BakingModal(ModalScreen):
         self.query_one("#btn-modal-change-model", Button).display = False
         self.query_one("#btn-modal-collect", Button).display = False
         self.query_one("#btn-modal-view-pdf", Button).display = False
+        self.query_one("#btn-modal-view-letter-pdf", Button).display = False
         self.query_one("#btn-modal-open-folder", Button).display = False
         self.query_one("#baking-score-card", Vertical).display = False
 
@@ -817,6 +827,8 @@ class BakingModal(ModalScreen):
             (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
             if app_result.cover_letter:
                 (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
+                cl_html = renderer.render_cover_letter_html(profile, app_result)
+                (app_dir / "cover_letter.html").write_text(cl_html, encoding="utf-8")
             if app_result.portal_answers:
                 (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
 
@@ -826,11 +838,11 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(status_lbl.update, "[bold #50fa7b][★] Caramelizing crust into print-ready PDF...[/bold #50fa7b]")
 
             pdf_baked = False
-            pdf_path = app_dir / "resume.pdf"
+            bake_res = {}
             if settings.auto_generate_pdf:
                 try:
-                    render_html_to_pdf(app_dir / "resume.html", pdf_path, open_after=False)
-                    pdf_baked = True
+                    bake_res = bake_application_package(app_dir, open_after=False)
+                    pdf_baked = bool(bake_res.get("resume_pdf"))
                 except Exception:
                     pass
 
@@ -866,7 +878,8 @@ class BakingModal(ModalScreen):
                 "resume_md": resume_md,
                 "cover_letter": cover_letter,
                 "portal_qna": portal_qna,
-                "template": template_name
+                "template": template_name,
+                "bake_res": bake_res
             }
 
             # VICTORY STATE
@@ -888,8 +901,6 @@ class BakingModal(ModalScreen):
 
         try:
             target_dir = self.target_info.get("app_dir")
-            html_path = target_dir / "resume.html"
-            pdf_path = target_dir / "resume.pdf"
 
             self.app.call_from_thread(stepper.set_stage, 3)
             self.app.call_from_thread(gauge.update_progress, 40)
@@ -900,14 +911,15 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(gauge.update_progress, 75)
             self.app.call_from_thread(status_lbl.update, "[bold #50fa7b][★] Rendering crisp vector PDF typography...[/bold #50fa7b]")
 
-            render_html_to_pdf(html_path, pdf_path, open_after=False)
-            size_kb = round(pdf_path.stat().st_size / 1024, 1)
+            bake_res = bake_application_package(target_dir, open_after=False)
+            size_kb = bake_res.get("resume_size_kb") or 0.0
 
             self.baking_result = {
-                "success": True,
+                "success": bool(bake_res.get("resume_pdf")),
                 "app_dir": target_dir,
-                "pdf_baked": True,
-                "size_kb": size_kb
+                "pdf_baked": bool(bake_res.get("resume_pdf")),
+                "size_kb": size_kb,
+                "bake_res": bake_res
             }
 
             time.sleep(0.3)
@@ -1043,17 +1055,30 @@ class BakingModal(ModalScreen):
         score_title = self.query_one("#score-card-title", Label)
         score_title.update(f"[bold #f1fa8c][★] HIGH SCORE: {score}% ATS MATCH[/bold #f1fa8c] | [bold #50fa7b]{company} — {title}[/bold #50fa7b]")
 
-        pdf_status = "Baked [✓] (resume.pdf)" if pdf_baked else "Not baked (press 'b')"
+        resume_pdf = app_dir / "resume.pdf"
+        letter_pdf = app_dir / "cover_letter.pdf"
+
+        resume_size = round(resume_pdf.stat().st_size / 1024, 1) if resume_pdf.exists() else None
+        letter_size = round(letter_pdf.stat().st_size / 1024, 1) if letter_pdf.exists() else None
+
+        details = [f"[dim]Saved Package:[/] [cyan]{app_dir.name}[/cyan]"]
+        if resume_size is not None:
+            details.append(f"[dim]Resume PDF:[/] [bold green]{resume_pdf.name} ({resume_size} KB)[/bold green]")
+        else:
+            details.append("[dim]Resume PDF:[/] [yellow]Not baked (press 'b')[/yellow]")
+
+        if letter_size is not None:
+            details.append(f"[dim]Cover Letter PDF:[/] [bold green]{letter_pdf.name} ({letter_size} KB)[/bold green]")
+
         score_details = self.query_one("#score-card-details", Label)
-        score_details.update(
-            f"[dim]Saved Package:[/] [cyan]{app_dir.name}[/cyan]\n"
-            f"[dim]PDF Status:[/] [bold green]{pdf_status}[/bold green]"
-        )
+        score_details.update("\n".join(details))
 
         self.query_one("#btn-modal-cancel", Button).display = False
         self.query_one("#btn-modal-collect", Button).display = True
-        if pdf_baked:
+        if resume_pdf.exists():
             self.query_one("#btn-modal-view-pdf", Button).display = True
+        if letter_pdf.exists():
+            self.query_one("#btn-modal-view-letter-pdf", Button).display = True
         self.query_one("#btn-modal-open-folder", Button).display = True
 
     def _show_victory_pdf_screen(self, app_dir: Path, size_kb: float) -> None:
@@ -1073,12 +1098,25 @@ class BakingModal(ModalScreen):
         score_title = self.query_one("#score-card-title", Label)
         score_title.update(f"[bold #f1fa8c][DOC] ATS PDF READY[/bold #f1fa8c] | [bold #50fa7b]{size_kb} KB[/bold #50fa7b]")
 
+        resume_pdf = app_dir / "resume.pdf"
+        letter_pdf = app_dir / "cover_letter.pdf"
+
+        resume_size = round(resume_pdf.stat().st_size / 1024, 1) if resume_pdf.exists() else size_kb
+        letter_size = round(letter_pdf.stat().st_size / 1024, 1) if letter_pdf.exists() else None
+
+        details = [f"[dim]Resume PDF:[/] [cyan]{resume_pdf.name}[/cyan] [green]({resume_size} KB)[/green]"]
+        if letter_size is not None:
+            details.append(f"[dim]Cover Letter PDF:[/] [cyan]{letter_pdf.name}[/cyan] [green]({letter_size} KB)[/green]")
+        details.append(f"[dim]Location:[/] [cyan]{app_dir}[/cyan]")
+
         score_details = self.query_one("#score-card-details", Label)
-        score_details.update(f"[dim]Location:[/] [cyan]{app_dir / 'resume.pdf'}[/cyan]")
+        score_details.update("\n".join(details))
 
         self.query_one("#btn-modal-cancel", Button).display = False
         self.query_one("#btn-modal-collect", Button).display = True
         self.query_one("#btn-modal-view-pdf", Button).display = True
+        if letter_pdf.exists():
+            self.query_one("#btn-modal-view-letter-pdf", Button).display = True
         self.query_one("#btn-modal-open-folder", Button).display = True
 
     def _show_error_screen(self, error_msg: str) -> None:
@@ -1126,7 +1164,7 @@ class BakingModal(ModalScreen):
             pass
 
     # --------------------------------------------------------------------------
-    # BUTTON INTERACTIONS
+    # BUTTON INTERACTIONS & KEY ACTIONS
     # --------------------------------------------------------------------------
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1142,11 +1180,28 @@ class BakingModal(ModalScreen):
         elif bid == "btn-modal-collect":
             self.dismiss(self.baking_result)
         elif bid == "btn-modal-view-pdf":
-            if self.baking_result and self.baking_result.get("app_dir"):
-                p = self.baking_result["app_dir"] / "resume.pdf"
-                if p.exists():
-                    open_file_in_viewer(p)
+            self.action_view_resume_pdf()
+        elif bid == "btn-modal-view-letter-pdf":
+            self.action_view_letter_pdf()
         elif bid == "btn-modal-open-folder":
-            if self.baking_result and self.baking_result.get("app_dir"):
-                import subprocess
-                subprocess.run(["open", str(self.baking_result["app_dir"])])
+            self.action_open_folder()
+
+    def action_view_resume_pdf(self) -> None:
+        if self.baking_result and self.baking_result.get("app_dir"):
+            p = self.baking_result["app_dir"] / "resume.pdf"
+            if p.exists():
+                open_file_in_viewer(p)
+
+    def action_view_letter_pdf(self) -> None:
+        if self.baking_result and self.baking_result.get("app_dir"):
+            p = self.baking_result["app_dir"] / "cover_letter.pdf"
+            if p.exists():
+                open_file_in_viewer(p)
+
+    def action_open_folder(self) -> None:
+        if self.baking_result and self.baking_result.get("app_dir"):
+            import subprocess
+            subprocess.run(["open", str(self.baking_result["app_dir"])])
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(self.baking_result if self.is_done else None)

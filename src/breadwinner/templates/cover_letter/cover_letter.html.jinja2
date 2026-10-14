@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ profile.full_name }} - Cover Letter</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm 20mm 15mm 20mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Times New Roman", Times, "Cambria", Georgia, serif;
+      font-size: 11pt;
+      line-height: 1.5;
+      color: #111111;
+      background: #ffffff;
+      padding: 0;
+    }
+    .container {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    /* Header matching Jake's resume */
+    .header {
+      text-align: center;
+      margin-bottom: 14pt;
+      border-bottom: 1px solid #111111;
+      padding-bottom: 8pt;
+    }
+    .header h1 {
+      font-size: 19pt;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 3pt;
+    }
+    .header .contact-line {
+      font-size: 9.5pt;
+      color: #333333;
+    }
+    .header .contact-line a {
+      color: #111111;
+      text-decoration: none;
+    }
+    /* Letter Meta (Date & Recipient) */
+    .letter-meta {
+      margin-top: 14pt;
+      margin-bottom: 16pt;
+      font-size: 10.5pt;
+    }
+    .letter-date {
+      color: #333333;
+      margin-bottom: 12pt;
+    }
+    .recipient-block {
+      margin-bottom: 10pt;
+      line-height: 1.35;
+    }
+    .recipient-block .hiring-title {
+      font-weight: 700;
+    }
+    .subject-line {
+      font-weight: 700;
+      margin-top: 8pt;
+      margin-bottom: 12pt;
+      color: #111111;
+    }
+    /* Body */
+    .letter-body {
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: #111111;
+      text-align: justify;
+    }
+    .letter-body p {
+      margin-bottom: 11pt;
+    }
+    /* Sign-off */
+    .sign-off {
+      margin-top: 18pt;
+      font-size: 10.5pt;
+      line-height: 1.4;
+    }
+    .sign-off .signature-name {
+      font-weight: 700;
+      margin-top: 16pt;
+    }
+    @media print {
+      body {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>{{ profile.full_name }}</h1>
+      {% set contact_items = [] %}
+      {% if profile.location %}{% set _ = contact_items.append(profile.location) %}{% endif %}
+      {% if profile.email %}{% set _ = contact_items.append('<a href="mailto:' ~ profile.email ~ '">' ~ profile.email ~ '</a>') %}{% endif %}
+      {% if profile.phone %}{% set _ = contact_items.append(profile.phone) %}{% endif %}
+      {% if profile.linkedin_url %}{% set _ = contact_items.append('<a href="' ~ profile.linkedin_url ~ '">LinkedIn</a>') %}{% endif %}
+      {% if profile.github_url %}{% set _ = contact_items.append('<a href="' ~ profile.github_url ~ '">GitHub</a>') %}{% endif %}
+      {% if profile.portfolio_url %}{% set _ = contact_items.append('<a href="' ~ profile.portfolio_url ~ '">Portfolio</a>') %}{% endif %}
+      <div class="contact-line">
+        {{ contact_items | join(' | ') }}
+      </div>
+    </header>
+
+    <!-- Letter Meta -->
+    <div class="letter-meta">
+      <div class="letter-date">{{ today }}</div>
+      <div class="recipient-block">
+        <div class="hiring-title">Hiring Team</div>
+        {% if company %}<div>{{ company }}</div>{% endif %}
+      </div>
+      {% if title %}<div class="subject-line">RE: Application for {{ title }}</div>{% endif %}
+    </div>
+
+    <!-- Letter Body -->
+    <div class="letter-body">
+      {% for para in paragraphs %}
+      <p>{{ para }}</p>
+      {% endfor %}
+    </div>
+
+    <!-- Sign-off -->
+    <div class="sign-off">
+      <div>Sincerely,</div>
+      <div class="signature-name">{{ profile.full_name }}</div>
+    </div>
+  </div>
+</body>
+</html>

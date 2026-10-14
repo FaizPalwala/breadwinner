@@ -195,12 +195,12 @@
     background: #4A2D82;
     color: #FFFFFF;
 }
-#btn-lab-view-pdf {
+#btn-lab-view-pdf, #btn-lab-view-letter-pdf {
     background: #16281E;
     color: #50FA7B;
     margin-right: 1;
 }
-#btn-lab-view-pdf:hover {
+#btn-lab-view-pdf:hover, #btn-lab-view-letter-pdf:hover {
     background: #264A35;
     color: #FFFFFF;
 }

@@ -892,3 +892,101 @@ def test_ml_linter_action_verbs_and_metrics():
     assert report.action_verbs_count == 5
     assert report.quantified_bullets == 5
     assert report.quantified_score == 100
+
+
+@pytest.mark.anyio
+async def test_studio_bidirectional_sync_markdown_html_and_pdf(tmp_path):
+    """Verify editing resume.md in Studio updates #lab-bullet-editor, gauges, resume.html, and resume.pdf."""
+    from pathlib import Path
+    from breadwinner.db.repository import JobRecord
+    from textual.widgets import TextArea
+    from unittest.mock import patch
+
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        test_dir = tmp_path / "2026-10-13_Sync_Test"
+        test_dir.mkdir(parents=True, exist_ok=True)
+        initial_resume_md = (
+            "# Alice Walker\n\n"
+            "## EXPERIENCE\n\n"
+            "### Principal Engineer @ Anthropic\n"
+            "- Trained frontier reasoning model over 10,000 GPU-hours.\n"
+        )
+        (test_dir / "resume.md").write_text(initial_resume_md, encoding="utf-8")
+        (test_dir / "cover_letter.md").write_text("Dear Hiring Team,\n\nExcited to apply.", encoding="utf-8")
+
+        resume_json = {
+            "basics": {"name": "Alice Walker", "email": "alice@example.com"},
+            "work": [{"name": "Anthropic", "position": "Principal Engineer", "highlights": ["Trained frontier reasoning model over 10,000 GPU-hours."]}]
+        }
+        import json
+        (test_dir / "resume.json").write_text(json.dumps(resume_json), encoding="utf-8")
+
+        job = JobRecord(
+            id="sync_test_job",
+            company="Anthropic",
+            title="Principal Engineer",
+            url="https://anthropic.com/jobs/1",
+            status="tailored",
+            match_score=96,
+            folder_path=str(test_dir),
+            date_added="2026-10-13"
+        )
+        app.repo.upsert_job(job)
+        app.load_pipeline_table()
+        await pilot.pause()
+
+        # 1. Load job into studio
+        app.action_pipeline_edit_studio()
+        await pilot.pause()
+
+        # 2. Edit resume.md in #lab-resume-editor
+        r_editor = app.query_one("#lab-resume-editor", TextArea)
+        new_resume_md = (
+            "# Alice Walker\n\n"
+            "## EXPERIENCE\n\n"
+            "### Principal Engineer @ Anthropic\n"
+            "- Quantized multimodal transformer models reducing latency by 50% with 25,000 QPS.\n"
+            "- Benchmarked inference engine achieving 99.9% uptime across 1,000 nodes.\n"
+        )
+        r_editor.text = new_resume_md
+
+        # Mock render_html_to_pdf
+        pdf_baked = []
+        def fake_render_pdf(src, dst, **kwargs):
+            pdf_baked.append((Path(src).name, Path(dst).name))
+            Path(dst).write_bytes(b"%PDF-1.4 Mock PDF bytes" * 100)
+            return Path(dst)
+
+        with patch("breadwinner.ui.app.render_html_to_pdf", side_effect=fake_render_pdf):
+            # Save resume (Ctrl+S / action_save_lab_resume)
+            app.action_save_lab_resume()
+            await pilot.pause()
+
+            # Verify #lab-bullet-editor received the updated bullets
+            bullet_editor = app.query_one("#lab-bullet-editor", TextArea)
+            assert "Quantized multimodal transformer models" in bullet_editor.text
+            assert "Benchmarked inference engine" in bullet_editor.text
+
+            # Verify resume.html was regenerated with updated text
+            html_txt = (test_dir / "resume.html").read_text(encoding="utf-8")
+            assert "Quantized multimodal transformer models" in html_txt
+            assert "Benchmarked inference engine" in html_txt
+
+            # Verify resume.pdf was compiled
+            assert ("resume.html", "resume.pdf") in pdf_baked
+            assert (test_dir / "resume.pdf").exists()
+
+            # Verify cover letter save re-bakes cover_letter.pdf
+            l_editor = app.query_one("#lab-letter-editor", TextArea)
+            l_editor.text = "Dear Anthropic,\n\nI love Claude and constitutional AI."
+            app.action_save_lab_letter()
+            await pilot.pause()
+
+            assert (test_dir / "cover_letter.html").exists()
+            assert ("cover_letter.html", "cover_letter.pdf") in pdf_baked
+            assert (test_dir / "cover_letter.pdf").exists()
