@@ -1,6 +1,7 @@
 """Tailoring, match analysis, and metric-frozen constrained generation orchestrator."""
 
 import json
+import re
 from typing import Dict, Any, List, Optional
 from breadwinner.core.models import (
     CandidateProfile,
@@ -131,8 +132,8 @@ Directly align verified candidate accomplishments against job requirements witho
 TARGET JOB: {job.title} at {job.company} (Domain: {deconstructed_job.domain})
 
 CORE TAILORING INVARIANTS:
-1. STRICT GOOGLE XYZ FORMULA: Structure all bullet points strictly as "Accomplished [X] as measured by [Y], by doing [Z]".
-2. ACTION VERBS ONLY: Every bullet must lead with an authoritative, technical past-tense action verb (e.g., "Architected", "Engineered", "Implemented", "Scaled", "Automated"). NEVER use passive or weak verbs ("assisted", "helped", "worked on", "participated in", "responsible for").
+1. STRICT GOOGLE XYZ FORMULA: Structure all bullet points strictly as "Accomplished [X outcome] as measured by [Y metric], by doing [Z technical architecture/method]". Do NOT invert to Z-first (do not lead with the tool; lead with the achievement/outcome). Always begin with a strong, past-tense action verb (e.g. Architected, Scaled, Optimized, Stabilized, Engineered).
+2. ACTION VERBS ONLY: Every bullet must lead with an authoritative, technical past-tense action verb (e.g., "Architected", "Engineered", "Implemented", "Scaled", "Automated", "Stabilized", "Optimized"). NEVER use passive or weak verbs ("assisted", "helped", "worked on", "participated in", "responsible for").
 3. METRIC FREEZING & IMMUTABILITY: You may ONLY use the exact verified metrics listed under 'verified_metrics' for each experience. NEVER invent, fabricate, inflate, or round up metrics, scale, throughput, or percentages. If an experience lacks a verified metric, describe the concrete technical mechanism, concurrency model, or architecture instead of inventing a number.
 4. TECH STACK GROUNDING: Do NOT smuggle unverified technologies into a work experience that the candidate never used in that role.
 5. FORBIDDEN AI SLOP BLACKLIST: Strictly DO NOT use any of the following banned AI buzzwords or fluff phrases:
@@ -216,6 +217,9 @@ Respond ONLY in valid JSON with this exact schema:
                 ))
         else:
             tailored_exps = profile.experiences
+
+        # Internal Verification Gate: Validate drafted bullets against XYZ auditor, heal truncation, and enforce >=80% metric quality
+        tailored_exps = self._verify_and_heal_tailored_bullets(tailored_exps, profile)
 
         # Parse selected projects
         tailored_projs = []
@@ -332,3 +336,78 @@ JOB CONTEXT:
 """
 
         return self.provider.generate_text(sys_prompt, user_prompt, temperature=0.1).strip()
+
+    def _verify_and_heal_tailored_bullets(
+        self,
+        experiences: List[WorkExperience],
+        profile: CandidateProfile
+    ) -> List[WorkExperience]:
+        """Internal verification gate: validate drafted bullets against XYZ auditor, heal truncation bugs, and enforce >=80% metric quality."""
+        from breadwinner.ui.editor import analyze_bullets_xyz, METRIC_PATTERNS
+
+        healed_exps = []
+        for exp in experiences:
+            orig = next((e for e in profile.experiences if e.company.lower() in exp.company.lower()), None)
+            orig_bullets = orig.bullets if orig else []
+
+            clean_bullets = []
+            for b_idx, bullet in enumerate(exp.bullets):
+                b = bullet.strip().lstrip("-*• ").strip()
+                if not b:
+                    continue
+
+                # 1. Truncation healing (e.g. cutting off mid-sentence or ending with dangling conjunctions/prepositions)
+                dangling_ends = (",", ";", ":", "-", "--", "...", "and", "with", "by", "or", "to", "for")
+                is_truncated = (
+                    b.endswith(dangling_ends)
+                    or (len(b.split()) > 2 and b.split()[-1].lower() in ("and", "with", "by", "or", "the", "a", "an", "to", "for", "in", "on", "at"))
+                )
+
+                if is_truncated:
+                    if orig_bullets and b_idx < len(orig_bullets):
+                        b = orig_bullets[b_idx].strip()
+                    else:
+                        for punct in [",", ";", ":", "-", "--", "..."]:
+                            if b.endswith(punct):
+                                b = b[:-len(punct)].rstrip()
+                        words = b.split()
+                        while words and words[-1].lower() in ("and", "with", "by", "or", "the", "a", "an", "to", "for", "in", "on", "at"):
+                            words.pop()
+                        b = " ".join(words)
+
+                # Ensure proper terminal punctuation
+                if b and not b.endswith((".", "!", "?")):
+                    b = f"{b}."
+
+                clean_bullets.append(b)
+
+            if not clean_bullets and orig_bullets:
+                clean_bullets = list(orig_bullets)
+
+            # 2. Metric Quality Gate (>= 80% metric quality score)
+            if clean_bullets:
+                report = analyze_bullets_xyz("\n".join(f"- {b}" for b in clean_bullets), profile=profile)
+                if report.quantified_score < 80 and orig_bullets:
+                    # Find verified original bullets that contain metrics
+                    quantified_orig = [
+                        ob for ob in orig_bullets
+                        if any(re.search(p, ob.lower()) for p in METRIC_PATTERNS)
+                    ]
+                    for q_orig in quantified_orig:
+                        if report.quantified_score >= 80:
+                            break
+                        unquant_idx = next(
+                            (idx for idx, cb in enumerate(clean_bullets)
+                             if not any(re.search(p, cb.lower()) for p in METRIC_PATTERNS)),
+                            None
+                        )
+                        if unquant_idx is not None:
+                            clean_bullets[unquant_idx] = q_orig
+                        else:
+                            clean_bullets.append(q_orig)
+                        report = analyze_bullets_xyz("\n".join(f"- {b}" for b in clean_bullets), profile=profile)
+
+            healed_exp = exp.model_copy(update={"bullets": clean_bullets})
+            healed_exps.append(healed_exp)
+
+        return healed_exps
