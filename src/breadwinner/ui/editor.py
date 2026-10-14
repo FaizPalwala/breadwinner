@@ -17,12 +17,14 @@ from breadwinner.ui.audio_widgets import AudioDictationModal
 
 STRONG_ACTION_VERBS = {
     "architected", "engineered", "designed", "implemented", "spearheaded",
-    "developed", "scaled", "optimized", "streamlined", "accelerated",
+    "developed", "scaled", "optimized", "optimised", "streamlined", "accelerated",
     "automated", "reduced", "increased", "decreased", "eliminated",
     "mentored", "orchestrated", "refactored", "migrated", "delivered",
     "authored", "built", "launched", "executed", "configured", "deployed",
     "benchmarked", "evaluated", "trained", "quantized", "ablated",
-    "finetuned", "fine-tuned", "curated"
+    "finetuned", "fine-tuned", "curated",
+    "stabilised", "stabilized", "standardised", "reconciled", "resolved",
+    "partitioned", "provisioned", "shipped", "modernised"
 }
 
 METRIC_PATTERNS = [
@@ -36,6 +38,7 @@ METRIC_PATTERNS = [
     r"\b0\.\d+\b",                # Decimals like 0.94, 0.02
     r"\b\d+[bBmM]\s*(parameters|tokens|weights)\b", # LLM scale like 7b parameters, 70b tokens
     r"\b\d+\+?\s*(events|users|requests|qps|ms|seconds|minutes|hours|days|engineers|services|nodes|clusters)\b",
+    r"\b\d+\+?\s*(records|anomalies|incidents|features|releases|cycles|microservices|claims|endpoints|tickets|prs|pipelines)\b",
     r"\b(zero|single-digit)\s*(downtime|latency)\b",
     r"\bp9[0-9]\b"                # p99, p95
 ]

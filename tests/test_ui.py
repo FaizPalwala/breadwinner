@@ -894,6 +894,24 @@ def test_ml_linter_action_verbs_and_metrics():
     assert report.quantified_score == 100
 
 
+def test_distributed_systems_linter_action_verbs_and_metrics():
+    from breadwinner.ui.editor import analyze_bullets_xyz
+
+    sample_bullets = (
+        "- Stabilized 14 microservices under peak traffic, mitigating 120 incidents with 0 downtime.\n"
+        "- Standardised event serialization pipelines, processing 5,000,000 records daily with zero data loss.\n"
+        "- Partitioned streaming state stores across 24 endpoints, accelerating throughput by 3x.\n"
+        "- Provisioned cloud infrastructure across multi-region clusters, resolving 45 tickets with 99.9% uptime.\n"
+        "- Shipped 18 features across 4 release cycles, modernising legacy core billing engine."
+    )
+
+    report = analyze_bullets_xyz(sample_bullets)
+    assert report.total_bullets == 5
+    assert report.action_verbs_count == 5
+    assert report.quantified_bullets == 5
+    assert report.quantified_score == 100
+
+
 @pytest.mark.anyio
 async def test_studio_bidirectional_sync_markdown_html_and_pdf(tmp_path):
     """Verify editing resume.md in Studio updates #lab-bullet-editor, gauges, resume.html, and resume.pdf."""
