@@ -29,7 +29,7 @@ class MockLLMProvider(BaseLLMProvider):
 
 
     def generate_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
-        if "ingestion auditor" in system_prompt.lower() or "gap-filling" in system_prompt.lower() or "gap interview" in system_prompt.lower():
+        if "ingestion auditor" in system_prompt.lower() or "metric gaps" in system_prompt.lower() or "gap-filling" in system_prompt.lower() or "gap interview" in system_prompt.lower():
             return {
                 "questions": [
                     {
@@ -100,7 +100,7 @@ class MockLLMProvider(BaseLLMProvider):
                 "keywords": ["Go", "Kubernetes", "Kafka", "Docker", "Distributed Systems", "AWS"]
             }
 
-        if ("tailoring engine" not in system_prompt.lower()) and ("reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()) or "persona architect" in system_prompt.lower()):
+        if ("career engineering compiler" not in system_prompt.lower() and "tailoring engine" not in system_prompt.lower()) and ("reusable narrative persona" in system_prompt.lower() or ("synthesize" in system_prompt.lower() and "persona" in system_prompt.lower()) or "persona architect" in system_prompt.lower()):
             return {
                 "name": "Target Role Strategist",
                 "slug": "target_role_strategist",
@@ -131,7 +131,7 @@ class MockLLMProvider(BaseLLMProvider):
                 "deep_dossier_markdown": "# Project Deep Dive: Breadwinner Ingestion Engine\n\n## Architecture & System Design\nHigh-throughput two-ledger compiler with deterministic verification."
             }
 
-        if "resume tailoring engine" in system_prompt.lower() or "tailor candidate work experience" in system_prompt.lower():
+        if "career engineering compiler" in system_prompt.lower() or "resume tailoring engine" in system_prompt.lower() or "tailor candidate work experience" in system_prompt.lower():
             return {
                 "match_score": 88,
                 "matched_skills": ["Python", "Java", "Distributed Systems", "Cloud", "Agile"],
