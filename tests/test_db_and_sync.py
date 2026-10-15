@@ -60,3 +60,27 @@ def test_csv_sync(tmp_path: Path):
     content = csv_file.read_text(encoding="utf-8")
     assert "Faculty AI" in content
     assert "Applied AI Engineer" in content
+
+
+def test_db_delete_job(tmp_path: Path):
+    db_file = tmp_path / "test.db"
+    repo = JobRepository(db_file)
+
+    rec = JobRecord(
+        id="stripe-infra",
+        company="Stripe",
+        title="Infrastructure Engineer",
+        status="tailored",
+        date_added="2026-10-14"
+    )
+    repo.upsert_job(rec)
+    assert repo.get_job("stripe-infra") is not None
+
+    # Delete existing job
+    deleted = repo.delete_job("stripe-infra")
+    assert deleted is True
+    assert repo.get_job("stripe-infra") is None
+
+    # Delete non-existent job
+    deleted_again = repo.delete_job("stripe-infra")
+    assert deleted_again is False

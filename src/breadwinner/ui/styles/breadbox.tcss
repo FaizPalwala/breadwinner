@@ -127,6 +127,22 @@
     background: #3A1F26;
     color: #FFFFFF;
 }
+#btn-rebake-job {
+    background: #2D1B4E;
+    color: #BD93F9;
+}
+#btn-rebake-job:hover {
+    background: #4A2D82;
+    color: #FFFFFF;
+}
+#btn-delete-job {
+    background: #36171B;
+    color: #FF5555;
+}
+#btn-delete-job:hover {
+    background: #5A2228;
+    color: #FFFFFF;
+}
 #details-header {
     color: #FFB86C;
     text-style: bold;

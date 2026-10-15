@@ -1,7 +1,9 @@
 """Unit tests for Textual UI application."""
 
 import pytest
+from textual.widgets import Button
 from breadwinner.ui.app import BreadwinnerApp
+from breadwinner.db.repository import JobRepository
 
 
 @pytest.mark.anyio
@@ -621,7 +623,7 @@ async def test_tailor_studio_and_pantry_ui_enhancements(monkeypatch):
         app.action_view_lab()
         await pilot.pause()
         folder_btn = app.query_one("#btn-lab-folder", Button)
-        assert str(folder_btn.label) == "↗ Folder"
+        assert str(folder_btn.label) == "Folder"
         assert len(app.query("#lab-refine-prompt-label")) == 0
         assert app.query_one("#lab-refine-prompt", TextArea) is not None
 
@@ -1008,3 +1010,128 @@ async def test_studio_bidirectional_sync_markdown_html_and_pdf(tmp_path):
             assert (test_dir / "cover_letter.html").exists()
             assert ("cover_letter.html", "cover_letter.pdf") in pdf_baked
             assert (test_dir / "cover_letter.pdf").exists()
+
+
+@pytest.mark.anyio
+async def test_studio_compact_top_bar_layout():
+    """Verify that Studio top bar buttons are compact and btn-lab-rebake replaces btn-lab-bake-pdf."""
+    app = BreadwinnerApp()
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Check button existence and labels
+        btn_rebake = app.query_one("#btn-lab-rebake", Button)
+        assert btn_rebake.label.plain == "↻ Re-bake"
+
+        # Verify old bake button is absent
+        assert len(app.query("#btn-lab-bake-pdf")) == 0
+
+        # Check compact labels
+        assert app.query_one("#btn-lab-back", Button).label.plain == "← Setup"
+        assert app.query_one("#btn-lab-toggle-stack", Button).label.plain == "Stack"
+        assert app.query_one("#btn-lab-view-pdf", Button).label.plain == "View"
+        assert app.query_one("#btn-lab-view-letter-pdf", Button).label.plain == "Letter"
+        assert app.query_one("#btn-lab-folder", Button).label.plain == "Folder"
+
+        # Check Breadbox action buttons
+        assert app.query_one("#btn-rebake-job", Button).label.plain == "↻ Re-bake (r)"
+        assert app.query_one("#btn-delete-job", Button).label.plain == "✕ Delete (d)"
+
+
+@pytest.mark.anyio
+async def test_breadbox_delete_application(tmp_path):
+    """Verify application deletion modal and filesystem / DB purge."""
+    from breadwinner.db.repository import JobRecord
+    from breadwinner.ui.app import DeleteJobModal
+
+    app = BreadwinnerApp()
+    test_db = tmp_path / "tracker.db"
+    app.repo = JobRepository(test_db)
+
+    # Create dummy application folder and files
+    app_folder = tmp_path / "apps" / "2026-10-15_Anthropic_Staff"
+    app_folder.mkdir(parents=True)
+    (app_folder / "resume.md").write_text("# Resume", encoding="utf-8")
+    (app_folder / "resume.pdf").write_bytes(b"%PDF")
+
+    job = JobRecord(
+        id="anthropic-mle",
+        company="Anthropic",
+        title="Staff ML Engineer",
+        status="tailored",
+        date_added="2026-10-15",
+        folder_path=str(app_folder)
+    )
+    app.repo.upsert_job(job)
+    app.selected_job = job
+
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Trigger delete action
+        app.action_delete_job()
+        await pilot.pause()
+
+        # Verify DeleteJobModal is on top
+        assert isinstance(app.screen, DeleteJobModal)
+
+        # Press confirm button
+        confirm_btn = app.screen.query_one("#btn-confirm-delete", Button)
+        confirm_btn.press()
+        await pilot.pause()
+
+        # Verify folder was removed
+        assert not app_folder.exists()
+
+        # Verify DB record was deleted
+        assert app.repo.get_job("anthropic-mle") is None
+
+
+@pytest.mark.anyio
+async def test_breadbox_rebake_application(tmp_path):
+    """Verify triggering re-bake launches the BakingModal with existing folder context."""
+    from breadwinner.db.repository import JobRecord
+    from breadwinner.ui.retro import BakingModal
+
+    app = BreadwinnerApp()
+    test_db = tmp_path / "tracker.db"
+    app.repo = JobRepository(test_db)
+
+    app_folder = tmp_path / "apps" / "2026-10-15_OpenAI_Research"
+    app_folder.mkdir(parents=True)
+    (app_folder / "job_description.txt").write_text("Research Scientist at OpenAI", encoding="utf-8")
+
+    job = JobRecord(
+        id="openai-rs",
+        company="OpenAI",
+        title="Research Scientist",
+        status="tailored",
+        date_added="2026-10-15",
+        folder_path=str(app_folder)
+    )
+    app.repo.upsert_job(job)
+    app.selected_job = job
+
+    async with app.run_test() as pilot:
+        if len(app._screen_stack) > 1:
+            app.pop_screen()
+            await pilot.pause()
+
+        # Trigger re-bake action
+        app.action_rebake_job()
+        await pilot.pause()
+
+        # Verify BakingModal is active with task_type="tailor" and existing_folder set
+        assert isinstance(app.screen, BakingModal)
+        assert app.screen.task_type == "tailor"
+        assert app.screen.target_info["existing_folder"] == str(app_folder.resolve())
+        assert app.screen.target_info["job_id"] == "openai-rs"
+
+        # Dismiss modal
+        app.screen.dismiss(None)
+        await pilot.pause()
+

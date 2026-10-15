@@ -147,9 +147,9 @@
 }
 #studio-lab-top-bar Button {
     height: 1;
-    min-width: 8;
+    min-width: 6;
     border: none;
-    padding: 0 1;
+    padding: 0;
     margin-right: 1;
     text-style: bold;
 }
@@ -163,12 +163,13 @@
     color: #FFFFFF;
 }
 #lab-active-job-label {
-    width: 1fr;
-    min-width: 10;
-    max-width: 28;
+    width: auto;
+    min-width: 8;
+    max-width: 20;
     text-style: bold;
     color: #FFB86C;
     padding-right: 1;
+    text-overflow: ellipsis;
 }
 #lab-ats-badge {
     color: #50FA7B;
@@ -186,12 +187,12 @@
     background: #323A52;
     color: #FFFFFF;
 }
-#btn-lab-bake-pdf {
+#btn-lab-rebake {
     background: #2D1B4E;
     color: #BD93F9;
     margin-right: 1;
 }
-#btn-lab-bake-pdf:hover {
+#btn-lab-rebake:hover {
     background: #4A2D82;
     color: #FFFFFF;
 }
@@ -208,7 +209,7 @@
     background: #212330;
     color: #F8F8F2;
     margin-right: 0;
-    min-width: 10;
+    min-width: 6;
 }
 #btn-lab-folder:hover {
     background: #32364A;

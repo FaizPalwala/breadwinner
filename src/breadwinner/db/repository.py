@@ -140,3 +140,10 @@ class JobRepository:
             conn.commit()
             return cursor.rowcount > 0
 
+    def delete_job(self, job_id: str) -> bool:
+        """Permanently delete a job record from the database."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+

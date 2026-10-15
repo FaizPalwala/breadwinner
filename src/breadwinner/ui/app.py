@@ -1,6 +1,7 @@
 """Full-featured Textual Terminal User Interface for Breadwinner."""
 
 import os
+import shutil
 import json
 import difflib
 import subprocess
@@ -623,6 +624,80 @@ class FlagModal(ModalScreen):
                 if settings.csv_tracker_path:
                     CsvSync.export_to_csv(self.repo, settings.csv_tracker_path)
             self.dismiss(True)
+
+
+class DeleteJobModal(ModalScreen[bool]):
+    """Modal screen for confirming permanent application deletion."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_cancel", "Cancel", show=False),
+    ]
+
+    DEFAULT_CSS = """
+    DeleteJobModal {
+        align: center middle;
+    }
+    #delete-dialog {
+        padding: 1 2;
+        background: #18111B;
+        border: heavy #FF5555;
+        width: 56;
+        max-width: 62;
+        height: auto;
+    }
+    #delete-title {
+        color: #FF5555;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    #delete-warning-text {
+        color: #F8F8F2;
+        margin-bottom: 1;
+    }
+    #delete-folder-text {
+        color: #A89F91;
+        margin-bottom: 1;
+    }
+    #delete-action-row {
+        height: 3;
+        align: right middle;
+    }
+    #delete-action-row Button {
+        margin-left: 1;
+    }
+    """
+
+    def __init__(self, job: JobRecord):
+        super().__init__()
+        self.job = job
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="delete-dialog"):
+            yield Label("[!] PERMANENT APPLICATION DELETION", id="delete-title")
+            yield Label(
+                f"Are you sure you want to delete [bold white]{self.job.title}[/bold white] at [bold #FFB86C]{self.job.company}[/bold #FFB86C]?",
+                id="delete-warning-text"
+            )
+            folder_str = self.job.folder_path or f"output/{self.job.id}"
+            yield Label(f"This will permanently delete tracked data and application folder:\n[dim]{folder_str}[/dim]", id="delete-folder-text")
+            with Horizontal(id="delete-action-row"):
+                yield Button("Cancel (Esc)", variant="default", id="btn-cancel-delete")
+                yield Button("✕ Delete Application", variant="error", id="btn-confirm-delete")
+
+    def on_mount(self) -> None:
+        try:
+            self.query_one("#btn-cancel-delete", Button).focus()
+        except Exception:
+            pass
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-confirm-delete":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+    def action_dismiss_cancel(self) -> None:
+        self.dismiss(False)
 
 
 class DiffModal(ModalScreen[Optional[str]]):
@@ -1879,6 +1954,8 @@ class BreadwinnerApp(App):
         Binding("h", "pantry_history", "History", show=False),
         Binding("f", "toggle_flag", "Toggle Flag", show=False),
         Binding("o", "open_folder", "Open Folder", show=False),
+        Binding("d", "delete_job", "Delete", show=True),
+        Binding("r", "rebake_job", "Re-bake", show=True),
     ]
 
     def __init__(self, initial_url: Optional[str] = None):
@@ -1935,7 +2012,7 @@ class BreadwinnerApp(App):
                         with Horizontal(id="pipeline-container"):
                             with Vertical(id="pipeline-table-col"):
                                 yield DataTable(id="pipeline-table", cursor_type="row")
-                                yield Label("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio\n            (b) Bake • (v) PDF • (o) Folder[/dim]", id="pipeline-table-hint")
+                                yield Label("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio • (r) Re-bake\n            (b) Bake • (v) PDF • (o) Folder • (d) Delete[/dim]", id="pipeline-table-hint")
                             with VerticalScroll(id="job-details-pane"):
                                 yield Label("[bold #FFB86C]APPLICATION INSPECTOR[/bold #FFB86C] [dim]• Dossier[/dim]", id="details-header")
                                 yield Static(
@@ -1951,6 +2028,9 @@ class BreadwinnerApp(App):
                                     yield Button("↗ Folder (o)", id="btn-open-folder")
                                     yield Button("↻ Status (s)", id="btn-status")
                                     yield Button("⚑ Flag (f)", id="btn-flag")
+                                with Horizontal(classes="inspector-btn-row"):
+                                    yield Button("↻ Re-bake (r)", id="btn-rebake-job")
+                                    yield Button("✕ Delete (d)", variant="error", id="btn-delete-job")
                                 with Horizontal(id="notes-header-row"):
                                     yield Label("Application Notes:", id="details-notes-label")
                                     yield Button("✓ Save", id="btn-save-notes")
@@ -2026,11 +2106,11 @@ class BreadwinnerApp(App):
                                 yield Button("← Setup", id="btn-lab-back")
                                 yield Label("[bold white]Active Application[/bold white]", id="lab-active-job-label")
                                 yield Label("[bold #50FA7B]94% Match[/bold #50FA7B]", id="lab-ats-badge")
-                                yield Button("⇋ Stack", id="btn-lab-toggle-stack")
-                                yield Button("▲ Bake", id="btn-lab-bake-pdf")
-                                yield Button("▤ View", id="btn-lab-view-pdf")
-                                yield Button("▤ Letter", id="btn-lab-view-letter-pdf")
-                                yield Button("↗ Folder", id="btn-lab-folder")
+                                yield Button("Stack", id="btn-lab-toggle-stack")
+                                yield Button("↻ Re-bake", id="btn-lab-rebake")
+                                yield Button("View", id="btn-lab-view-pdf")
+                                yield Button("Letter", id="btn-lab-view-letter-pdf")
+                                yield Button("Folder", id="btn-lab-folder")
 
                             with Horizontal(id="studio-lab-split"):
                                 with Vertical(id="lab-left-col"):
@@ -2138,9 +2218,9 @@ class BreadwinnerApp(App):
         try:
             hint = self.query_one("#pipeline-table-hint", Label)
             if width < 150:
-                hint.update("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio\n            (b) Bake • (v) PDF • (o) Folder[/dim]")
+                hint.update("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio • (r) Re-bake\n            (b) Bake • (v) PDF • (o) Folder • (d) Delete[/dim]")
             else:
-                hint.update("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio • (b) Bake • (v) PDF • (o) Folder[/dim]")
+                hint.update("[dim]Quick keys: (s) Status • (f) Flag • (e) Studio • (r) Re-bake • (b) Bake • (v) PDF • (o) Folder • (d) Delete[/dim]")
         except Exception:
             pass
 
@@ -2765,7 +2845,7 @@ class BreadwinnerApp(App):
                 brand.update("[bold #FFB86C]◈ BREADWINNER[/]")
                 pipeline_box.add_class("-vertical-stack")
                 lab_split.add_class("-vertical-stack")
-                toggle_stack_btn.label = "⇋ Side-by-Side"
+                toggle_stack_btn.label = "Side-by-Side"
             else:
                 sidebar.styles.display = "block"
                 top_pills.styles.display = "none"
@@ -2776,7 +2856,7 @@ class BreadwinnerApp(App):
                 brand.update("[bold #FFB86C]◈ BREADWINNER[/]")
                 pipeline_box.remove_class("-vertical-stack")
                 lab_split.remove_class("-vertical-stack")
-                toggle_stack_btn.label = "⇋ Stack"
+                toggle_stack_btn.label = "Stack"
                 self._sync_sidebar_state()
         except Exception:
             pass
@@ -2867,6 +2947,112 @@ class BreadwinnerApp(App):
             self.notify("✓ Saved application notes!", title="Notes Saved")
         except Exception as e:
             self.notify(f"Failed to save notes: {e}", severity="error")
+
+    def action_delete_job(self) -> None:
+        """Prompt confirmation and permanently delete the selected application."""
+        target_job = self.selected_job
+        if not target_job:
+            self.notify("Please select an application from the table first.", severity="warning")
+            return
+
+        def on_confirmed(confirmed: Optional[bool]) -> None:
+            if not confirmed:
+                return
+            try:
+                # 1. Wipe application folder on disk if it exists
+                if target_job.folder_path:
+                    folder = Path(target_job.folder_path)
+                    if not folder.is_absolute():
+                        folder = settings.applications_dir / folder
+                    if folder.exists() and folder.is_dir():
+                        shutil.rmtree(folder, ignore_errors=True)
+
+                # 2. Delete record from DB
+                self.repo.delete_job(target_job.id)
+
+                # 3. Re-export CSV tracker
+                if settings.csv_tracker_path:
+                    CsvSync.export_to_csv(self.repo, settings.csv_tracker_path)
+
+                # 4. If current studio active application matches target_job, clear studio state
+                if self.selected_job and self.selected_job.id == target_job.id:
+                    self.selected_job = None
+                if self.last_tailored_dir and target_job.folder_path and Path(target_job.folder_path).name in str(self.last_tailored_dir):
+                    self.last_tailored_dir = None
+                    self.current_app_result = None
+
+                # 5. Refresh Breadbox UI
+                self.load_pipeline_table()
+                self.update_details_pane()
+                self.notify(f"✓ Permanently deleted application for {target_job.company} ({target_job.title}).", severity="information")
+            except Exception as e:
+                self.notify(f"Failed to delete application: {e}", severity="error")
+
+        self.push_screen(DeleteJobModal(target_job), on_confirmed)
+
+    def action_rebake_job(self) -> None:
+        """Re-compile the application from Pantry using the active model, update files and match score."""
+        target_job = self.selected_job
+        if not target_job:
+            self.notify("Please select an application to re-bake.", severity="warning")
+            return
+
+        # Determine input for re-baking
+        url_input = ""
+        folder_path = None
+        if target_job.folder_path:
+            p_candidate = Path(target_job.folder_path)
+            if p_candidate.exists():
+                folder_path = p_candidate
+            elif not p_candidate.is_absolute() and (settings.applications_dir / p_candidate).exists():
+                folder_path = settings.applications_dir / p_candidate
+            elif (settings.applications_dir / p_candidate.name).exists():
+                folder_path = settings.applications_dir / p_candidate.name
+
+        if folder_path and (folder_path / "job_description.txt").exists():
+            url_input = str((folder_path / "job_description.txt").resolve())
+        elif target_job.url:
+            url_input = target_job.url
+        elif folder_path and (folder_path / "resume.md").exists():
+            url_input = f"Company: {target_job.company}\nTitle: {target_job.title}\n"
+        else:
+            url_input = f"Company: {target_job.company}\nTitle: {target_job.title}\n"
+
+        persona = None
+        if target_job.persona and target_job.persona != "direct":
+            try:
+                persona = PersonaManager.load_persona(target_job.persona)
+            except Exception:
+                persona = None
+
+        template_name = self.current_template or "jakes"
+        try:
+            sel_tmpl = self.query_one("#select-template", Select).value
+            if sel_tmpl:
+                template_name = str(sel_tmpl)
+        except Exception:
+            pass
+
+        target_info = {
+            "url_input": url_input,
+            "pantry": self.pantry,
+            "repo": self.repo,
+            "job_directives": None,
+            "persona": persona,
+            "template_name": template_name,
+            "existing_folder": str(folder_path.resolve()) if folder_path else None,
+            "job_id": target_job.id,
+        }
+
+        try:
+            self.set_global_stage(1)
+        except Exception:
+            pass
+
+        self.push_screen(
+            BakingModal(task_type="tailor", target_info=target_info),
+            self._on_tailoring_modal_dismissed
+        )
 
     def _ensure_application_context(self) -> None:
         """Ensures self.current_profile and self.current_app_result are hydrated from disk if available."""
@@ -3174,11 +3360,11 @@ class BreadwinnerApp(App):
             btn = self.query_one("#btn-lab-toggle-stack", Button)
             if lab_split.has_class("-vertical-stack"):
                 lab_split.remove_class("-vertical-stack")
-                btn.label = "⇋ Stack Columns"
+                btn.label = "Stack"
                 self.notify("Switched Studio Lab to Side-by-Side Columns", title="Layout")
             else:
                 lab_split.add_class("-vertical-stack")
-                btn.label = "⇋ Side-by-Side"
+                btn.label = "Side-by-Side"
                 self.notify("Switched Studio Lab to Vertical Stack", title="Layout")
         except Exception:
             pass
@@ -4017,7 +4203,11 @@ class BreadwinnerApp(App):
             self.action_dismiss_diff()
         elif bid == "btn-studio-finetune":
             self.action_finetune_bullets()
-        elif bid in ("btn-studio-bake", "btn-pipeline-bake", "btn-lab-bake-pdf"):
+        elif bid in ("btn-rebake-job", "btn-lab-rebake"):
+            self.action_rebake_job()
+        elif bid == "btn-delete-job":
+            self.action_delete_job()
+        elif bid in ("btn-studio-bake", "btn-pipeline-bake"):
             self.action_bake_pdf()
         elif bid in ("btn-studio-view-pdf", "btn-pipeline-view-pdf", "btn-lab-view-pdf"):
             self.action_view_pdf()

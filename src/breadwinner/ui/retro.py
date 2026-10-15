@@ -816,15 +816,22 @@ class BakingModal(ModalScreen):
             portal_qna = renderer.render_portal_qna(profile, app_result)
             json_resume = renderer.export_json_resume(profile)
 
-            date_slug = datetime.now().strftime("%Y-%m-%d")
-            safe_c = "".join(c for c in job.company if c.isalnum() or c in "-_")
-            safe_t = "".join(c for c in job.title if c.isalnum() or c in "-_")
-            app_dir = settings.applications_dir / f"{date_slug}_{safe_c}_{safe_t}"
-            app_dir.mkdir(parents=True, exist_ok=True)
+            if self.target_info.get("existing_folder"):
+                app_dir = Path(self.target_info["existing_folder"])
+                app_dir.mkdir(parents=True, exist_ok=True)
+                date_slug = datetime.now().strftime("%Y-%m-%d")
+            else:
+                date_slug = datetime.now().strftime("%Y-%m-%d")
+                safe_c = "".join(c for c in job.company if c.isalnum() or c in "-_")
+                safe_t = "".join(c for c in job.title if c.isalnum() or c in "-_")
+                app_dir = settings.applications_dir / f"{date_slug}_{safe_c}_{safe_t}"
+                app_dir.mkdir(parents=True, exist_ok=True)
 
             (app_dir / "resume.html").write_text(resume_html, encoding="utf-8")
             (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
             (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
+            if getattr(job, "raw_text", None):
+                (app_dir / "job_description.txt").write_text(job.raw_text, encoding="utf-8")
             if app_result.cover_letter:
                 (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
                 cl_html = renderer.render_cover_letter_html(profile, app_result)
@@ -848,8 +855,9 @@ class BakingModal(ModalScreen):
 
             # Update DB Record
             score = app_result.match_analysis.match_score
+            job_id = self.target_info.get("job_id") or job.id
             job_rec = JobRecord(
-                id=job.id,
+                id=job_id,
                 company=job.company,
                 title=job.title,
                 url=job.url,
