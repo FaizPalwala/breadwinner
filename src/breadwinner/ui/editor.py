@@ -18,7 +18,7 @@ from breadwinner.ui.audio_widgets import AudioDictationModal
 STRONG_ACTION_VERBS = {
     "architected", "engineered", "designed", "implemented", "spearheaded",
     "developed", "scaled", "optimized", "optimised", "streamlined", "accelerated",
-    "automated", "reduced", "increased", "decreased", "eliminated",
+    "automated", "reduced", "increased", "decreased", "eliminated", "achieved",
     "mentored", "orchestrated", "refactored", "migrated", "delivered",
     "authored", "built", "launched", "executed", "configured", "deployed",
     "benchmarked", "evaluated", "trained", "quantized", "ablated",
@@ -28,7 +28,7 @@ STRONG_ACTION_VERBS = {
 }
 
 METRIC_PATTERNS = [
-    r"\b\d+%\b",                  # 45%
+    r"\b\d+(?:\.\d+)?%\+?",       # 45%, 35%, 90%+
     r"\b\d+x\b|\b\d+X\b",         # 10x
     r"\$\d+[\d,.]*[kKmMbB]?",     # $100k, $1.5M
     r"\b\d+[\d,.]*\s*[kKmMbB]\b", # 10M, 500k
@@ -38,7 +38,7 @@ METRIC_PATTERNS = [
     r"\b0\.\d+\b",                # Decimals like 0.94, 0.02
     r"\b\d+[bBmM]\s*(parameters|tokens|weights)\b", # LLM scale like 7b parameters, 70b tokens
     r"\b\d+\+?\s*(events|users|requests|qps|ms|seconds|minutes|hours|days|engineers|services|nodes|clusters)\b",
-    r"\b\d+\+?\s*(records|anomalies|incidents|features|releases|cycles|microservices|claims|endpoints|tickets|prs|pipelines)\b",
+    r"\b\d+\+?\s*(?:[a-zA-Z-]+\s+)?(records|anomalies|incidents|features|releases|cycles|microservices|claims|endpoints|tickets|prs|pipelines)\b",
     r"\b(zero|single-digit)\s*(downtime|latency)\b",
     r"\bp9[0-9]\b"                # p99, p95
 ]

@@ -46,18 +46,20 @@ class PantryManager:
 
     def is_initialized(self) -> bool:
         """Check if Pantry has a valid canonical profile."""
-        return self.profile_path.exists() or self.profile_yaml_path.exists()
+        return self.profile_yaml_path.exists() or self.profile_path.exists()
 
     def load_profile(self) -> CandidateProfile:
-        """Load the canonical CandidateProfile from profile.json or profile.yaml."""
-        if self.profile_path.exists():
+        """Load the canonical CandidateProfile from profile.yaml (primary) or profile.json (fallback)."""
+        if self.profile_yaml_path.exists():
+            profile = CandidateProfile.from_yaml(self.profile_yaml_path.read_text(encoding="utf-8"))
+        elif self.profile_path.exists():
             data = json.loads(self.profile_path.read_text(encoding="utf-8"))
             adapter = JsonResumeAdapter(data)
             profile = adapter.load_profile()
-        elif self.profile_yaml_path.exists():
-            profile = CandidateProfile.from_yaml(self.profile_yaml_path.read_text(encoding="utf-8"))
+            # Promote to YAML so YAML is canonical source of truth going forward
+            self.profile_yaml_path.write_text(profile.to_yaml(), encoding="utf-8")
         else:
-            raise FileNotFoundError(f"Pantry profile.json not found in {self.pantry_dir}")
+            raise FileNotFoundError(f"Pantry profile.yaml or profile.json not found in {self.pantry_dir}")
 
         # Inject context.md into raw_context if present
         if self.context_path.exists():
