@@ -24,7 +24,7 @@ from breadwinner.core.universal import UniversalJobIngestor
 from breadwinner.core.scraper import JobScraper
 from breadwinner.core.provenance import ProvenanceValidator
 from breadwinner.core.renderer import TemplateRenderer
-from breadwinner.core.pdf import render_html_to_pdf, find_browser_executable
+from breadwinner.core.pdf import render_html_to_pdf, find_browser_executable, PDFGenerationError
 from breadwinner.db.repository import JobRepository, JobRecord
 from breadwinner.db.sync import CsvSync
 
@@ -202,10 +202,16 @@ def test_contract_4_headless_pdf_compilation(golden_profile: CandidateProfile, t
     if not browser:
         pytest.skip("No chromium browser available in this environment")
 
-    output_pdf = render_html_to_pdf(html_path, pdf_path, open_after=False)
+    try:
+        output_pdf = render_html_to_pdf(html_path, pdf_path, open_after=False)
+    except PDFGenerationError as e:
+        if "Permission denied" in str(e) or "MachPort" in str(e) or "bootstrap_check_in" in str(e):
+            pytest.skip(f"Browser execution restricted by environment sandbox: {e}")
+        raise
     assert output_pdf.exists()
     assert output_pdf.stat().st_size > 1024
     assert output_pdf.read_bytes().startswith(b"%PDF")
+
 
 
 def test_contract_5_telemetry_and_persistence(tmp_path: Path):

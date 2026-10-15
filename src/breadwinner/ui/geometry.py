@@ -155,3 +155,104 @@ def resize_terminal_window(target_cols: int, target_rows: int) -> bool:
             pass
 
     return success
+
+
+def sync_app_sidebar(app) -> None:
+    """Synchronize collapsed vs expanded visual styling of the app sidebar."""
+    try:
+        from textual.widgets import Button
+        sidebar = app.query_one("#app-sidebar")
+        toggle_btn = app.query_one("#btn-sidebar-toggle", Button)
+        btn_bb = app.query_one("#btn-sidebar-breadbox", Button)
+        btn_st = app.query_one("#btn-sidebar-studio", Button)
+        btn_pa = app.query_one("#btn-sidebar-pantry", Button)
+        btn_mod = app.query_one("#btn-sidebar-model", Button)
+        blade = app.query_one("#blade-sidebar-engine")
+        btn_set = app.query_one("#btn-sidebar-settings", Button)
+
+        if app.sidebar_collapsed:
+            sidebar.add_class("-collapsed")
+            toggle_btn.label = "►"
+            btn_bb.label = "▣"
+            btn_st.label = "♨"
+            btn_pa.label = "▤"
+            btn_mod.styles.display = "none"
+            blade.styles.display = "block"
+            blade.update_provider(app.get_active_provider_name())
+            btn_set.label = "[§]"
+        else:
+            sidebar.remove_class("-collapsed")
+            toggle_btn.label = "◄"
+            btn_bb.label = "▣ Breadbox (1)"
+            btn_st.label = "♨ Studio (2)"
+            btn_pa.label = "▤ Pantry (3)"
+            btn_mod.styles.display = "block"
+            blade.styles.display = "none"
+            btn_set.label = "[§] Settings"
+    except Exception:
+        pass
+
+
+def apply_app_layout_preset(app, preset: str, resize_window: bool = True) -> None:
+    """Adapt the TUI layout to a target preset geometry (split, normal, full)."""
+    from textual.widgets import Button, Label
+    app.layout_preset = preset.lower()
+    cols, rows = get_preset_geometry(app.layout_preset)
+    app._last_width = cols
+    app._update_quick_keys_hint(cols)
+    if resize_window:
+        resize_terminal_window(cols, rows)
+
+    try:
+        cycle_btn = app.query_one("#btn-app-cycle-preset", Button)
+        if app.layout_preset == "split":
+            cycle_btn.label = "⛶ Split"
+        elif app.layout_preset in ("full", "fullscreen"):
+            cycle_btn.label = "⛶ Full"
+        else:
+            cycle_btn.label = "⛶ Normal"
+    except Exception:
+        pass
+
+    try:
+        sidebar = app.query_one("#app-sidebar")
+        top_pills = app.query_one("#top-bar-nav-pills")
+        screen_title = app.query_one("#top-bar-screen-title")
+        toggle_btn = app.query_one("#btn-sidebar-toggle")
+        model_chip = app.query_one("#btn-active-model-chip", Button)
+        pipeline_box = app.query_one("#pipeline-container")
+        lab_split = app.query_one("#studio-lab-split")
+        toggle_stack_btn = app.query_one("#btn-lab-toggle-stack", Button)
+        quit_btn = app.query_one("#btn-app-quit", Button)
+        brand = app.query_one("#top-bar-brand", Label)
+
+        if app.layout_preset == "split":
+            sidebar.styles.display = "none"
+            top_pills.styles.display = "block"
+            screen_title.styles.display = "none"
+            toggle_btn.styles.display = "none"
+            model_chip.styles.display = "block"
+            model_chip.label = f"● {app.get_active_provider_name()} ▾"
+            quit_btn.label = "✕ (q)"
+            brand.update("[bold #FFB86C]◈ BREADWINNER[/]")
+            pipeline_box.add_class("-vertical-stack")
+            lab_split.add_class("-vertical-stack")
+            toggle_stack_btn.label = "Side-by-Side"
+        else:
+            sidebar.styles.display = "block"
+            top_pills.styles.display = "none"
+            screen_title.styles.display = "block"
+            toggle_btn.styles.display = "block"
+            model_chip.styles.display = "none"
+            quit_btn.label = "✕ Quit (q)"
+            brand.update("[bold #FFB86C]◈ BREADWINNER[/]")
+            pipeline_box.remove_class("-vertical-stack")
+            lab_split.remove_class("-vertical-stack")
+            toggle_stack_btn.label = "Stack"
+            sync_app_sidebar(app)
+    except Exception:
+        pass
+
+    if resize_window:
+        app.notify(f"Layout adapted to {app.layout_preset.upper()} ({cols}×{rows})", title="Terminal Geometry")
+
