@@ -304,13 +304,28 @@ class JsonResumeAdapter(BaseProfileSource):
             for s in data.get("skills", [])
         ]
 
+        linkedin_url = None
+        github_url = None
+        for p in basics.get("profiles", []):
+            net = p.get("network", "").lower()
+            if "linkedin" in net:
+                linkedin_url = p.get("url")
+            elif "github" in net:
+                github_url = p.get("url")
+
+        loc = basics.get("location")
+        location_str = loc.get("city") if isinstance(loc, dict) else (loc or "")
+
         return CandidateProfile(
             full_name=basics.get("name", "Candidate"),
             title=basics.get("label", "Software Engineer"),
             email=basics.get("email"),
             phone=basics.get("phone"),
-            location=basics.get("location", {}).get("city"),
+            location=location_str,
             summary=basics.get("summary", ""),
+            linkedin_url=linkedin_url,
+            github_url=github_url,
+            portfolio_url=basics.get("url"),
             experiences=experiences,
             education=education,
             projects=projects,
