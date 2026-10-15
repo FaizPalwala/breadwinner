@@ -1,0 +1,105 @@
+{
+  "full_name": "Alex Taylor",
+  "title": "Senior Distributed Systems Engineer",
+  "email": "alex.taylor@example.com",
+  "phone": "+44 7700 900123",
+  "location": "London, UK",
+  "linkedin_url": "https://linkedin.com/in/alextaylor-systems",
+  "github_url": "https://github.com/alextaylor-systems",
+  "portfolio_url": "https://alextaylor.example.com",
+  "summary": "Senior Distributed Systems Engineer specializing in high-throughput event streaming, fault-tolerant consensus, and cloud infrastructure.",
+  "experiences": [
+    {
+      "company": "Apex Cloud Systems",
+      "role": "Senior Distributed Systems Engineer",
+      "location": "London, UK",
+      "start_date": "2021-03",
+      "end_date": "Present",
+      "is_current": true,
+      "bullets": [
+        "Architected distributed event streaming platform in Go processing 10M events/day with 99.999% uptime.",
+        "Optimized Kafka and Redis caching tiers, achieving sub-10ms p99 latency across all regional clusters.",
+        "Redesigned multi-tenant PostgreSQL storage layer resulting in a 45% cost reduction on cloud compute."
+      ],
+      "technologies": [
+        "Go",
+        "Python",
+        "PostgreSQL",
+        "Kafka",
+        "Redis"
+      ]
+    },
+    {
+      "company": "Beacon Infrastructure",
+      "role": "Software Engineer",
+      "location": "London, UK",
+      "start_date": "2019-06",
+      "end_date": "2021-02",
+      "is_current": false,
+      "bullets": [
+        "Engineered microservices backend in Go and Python serving active enterprise users.",
+        "Automated cluster provisioning and CI/CD pipelines reducing deployment failure rates."
+      ],
+      "technologies": [
+        "Go",
+        "Python",
+        "PostgreSQL",
+        "Docker",
+        "Kubernetes"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "University of Leeds",
+      "degree": "BSc Computer Science",
+      "field_of_study": "Computer Science",
+      "start_date": "2016",
+      "end_date": "2019",
+      "grade": "First Class Honours",
+      "coursework": [
+        "Distributed Systems",
+        "Algorithms",
+        "Operating Systems"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "RaftKV",
+      "description": "Distributed, fault-tolerant key-value store implementing the Raft consensus protocol in Go.",
+      "tech_stack": [
+        "Go",
+        "Raft",
+        "gRPC",
+        "Redis"
+      ],
+      "highlights": [
+        "Implemented leader election and log replication handling node failures with sub-10ms p99 latency."
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "category": "Languages",
+      "skills": [
+        "Go",
+        "Python",
+        "SQL"
+      ]
+    },
+    {
+      "category": "Systems & Data",
+      "skills": [
+        "PostgreSQL",
+        "Kafka",
+        "Redis",
+        "Docker",
+        "Kubernetes"
+      ]
+    }
+  ],
+  "raw_context": {
+    "personal_context": "Targeting Staff and Principal level Distributed Systems and Backend Platform roles."
+  }
+}

@@ -1,0 +1,17 @@
+Title: Staff Distributed Systems Engineer
+Company: Apex Cloud Systems
+Location: London, UK (Hybrid)
+
+About the Role:
+Apex Cloud Systems is seeking a Staff Distributed Systems Engineer to lead the design and execution of our global streaming fabric.
+
+Responsibilities:
+- Architect and scale real-time event streaming systems handling over 10M events/day.
+- Optimize distributed storage and caching using PostgreSQL, Kafka, and Redis.
+- Maintain high resilience and 99.999% availability across multi-region deployments.
+
+Requirements:
+- 5+ years of production experience with Go and Python in distributed systems.
+- Demonstrated experience tuning systems for sub-10ms p99 latency.
+- Deep expertise in PostgreSQL indexing, query planning, and replication.
+- Production experience with Kafka consumer groups and Redis clustering.

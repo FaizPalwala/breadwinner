@@ -4,6 +4,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -115,30 +116,33 @@ def render_html_to_pdf(
             "Please install Google Chrome or set BROWSER_PATH in your .env file."
         )
 
-    cmd = [
-        browser,
-        "--headless=new",
-        "--disable-gpu",
-        "--no-pdf-header-footer",
-        f"--print-to-pdf={output_pdf_path}",
-        f"file://{html_path}"
-    ]
+    with tempfile.TemporaryDirectory() as user_data_dir:
+        cmd = [
+            browser,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            f"--user-data-dir={user_data_dir}",
+            "--no-pdf-header-footer",
+            f"--print-to-pdf={output_pdf_path}",
+            f"file://{html_path}"
+        ]
 
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=45
-        )
-    except subprocess.TimeoutExpired:
-        raise PDFGenerationError("Headless browser timed out after 45 seconds while rendering PDF.")
-    except Exception as e:
-        raise PDFGenerationError(f"Failed to execute headless browser: {e}")
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=45
+            )
+        except subprocess.TimeoutExpired:
+            raise PDFGenerationError("Headless browser timed out after 45 seconds while rendering PDF.")
+        except Exception as e:
+            raise PDFGenerationError(f"Failed to execute headless browser: {e}")
 
-    if not output_pdf_path.exists() or output_pdf_path.stat().st_size == 0:
-        err_msg = result.stderr.strip() if result.stderr else "Unknown browser error"
-        raise PDFGenerationError(f"PDF was not generated. Output: {err_msg}")
+        if not output_pdf_path.exists() or output_pdf_path.stat().st_size == 0:
+            err_msg = result.stderr.strip() if result.stderr else "Unknown browser error"
+            raise PDFGenerationError(f"PDF was not generated. Output: {err_msg}")
 
     if open_after:
         open_file_in_viewer(output_pdf_path)

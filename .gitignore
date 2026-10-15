@@ -78,6 +78,7 @@ GEMINI.md
 CLAUDE.md
 .cursorrules
 *.html
+!tests/fixtures/**
 .prototypes/
 screenshots/
 

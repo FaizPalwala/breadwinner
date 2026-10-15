@@ -18,7 +18,9 @@ DEFAULT_BANNED_WORDS = [
     "passionate",
     "tapestry",
     "delve",
+    "testament",
     "testament to",
+    "pivotal",
     "elevate",
     "synergy",
     "groundbreaking",
@@ -37,7 +39,9 @@ SLOP_REPLACEMENTS = {
     "synergy": "coordination",
     "delve": "investigate",
     "tapestry": "architecture",
+    "testament": "demonstration",
     "testament to": "demonstration of",
+    "pivotal": "critical",
     "elevate": "improve",
     "groundbreaking": "high-impact",
     "game-changer": "key improvement",
@@ -188,7 +192,12 @@ class ProvenanceValidator:
                 verified.append(m)
             else:
                 numeric_core = re.sub(r"[^\d.]", "", m)
-                if numeric_core and any(numeric_core in sm for sm in source_metrics):
+                if numeric_core and any(
+                    numeric_core == re.sub(r"[^\d.]", "", sm)
+                    and (("%" in m) == ("%" in sm))
+                    and (("$" in m) == ("$" in sm))
+                    for sm in source_metrics
+                ):
                     verified.append(m)
                 else:
                     unverified.append(m)
@@ -249,7 +258,12 @@ class ProvenanceValidator:
                 for m in b_metrics:
                     if m not in source_metrics:
                         numeric_core = re.sub(r"[^\d.]", "", m)
-                        if not (numeric_core and any(numeric_core in sm for sm in source_metrics)):
+                        if not (numeric_core and any(
+                            numeric_core == re.sub(r"[^\d.]", "", sm)
+                            and (("%" in m) == ("%" in sm))
+                            and (("$" in m) == ("$" in sm))
+                            for sm in source_metrics
+                        )):
                             bad_metrics.append(m)
 
                 if bad_metrics:
