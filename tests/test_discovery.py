@@ -174,9 +174,9 @@ def test_discover_all_ingredients_bracketed_titles_do_not_vanish(monkeypatch):
     for item in items:
         # Render the label with Rich to verify no tags get stripped into empty dashes
         rendered = Text.from_markup(item.label).plain
-        assert "—" in rendered
-        title_part = rendered.split("—", 1)[1].strip()
-        assert len(title_part) > 0, f"Title vanished after dash in label: {item.label}"
+        assert ":" in rendered
+        title_part = rendered.split(":", 1)[1].strip()
+        assert len(title_part) > 0, f"Title vanished after separator in label: {item.label}"
         assert not title_part.startswith("[]"), f"Uncleaned brackets in: {title_part}"
 
 

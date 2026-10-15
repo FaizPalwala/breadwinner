@@ -59,7 +59,7 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                 display_host = root_url.replace("https://", "").replace("http://", "")
                 discovered.append(
                     DiscoveredIngredient(
-                        label=f"[bold #50fa7b][WEB][/bold #50fa7b] Portfolio Homepage — [bold #fefae0]{escape(display_host)}[/bold #fefae0]",
+                        label=f"[bold #50fa7b][WEB][/bold #50fa7b] Portfolio Homepage: [bold #fefae0]{escape(display_host)}[/bold #fefae0]",
                         value=root_url,
                         category="web",
                         is_default=True
@@ -88,22 +88,22 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
 
                     if cat == "resume_pdf":
                         badge = "[bold #ffb86c][RESUME][/bold #ffb86c]"
-                        lbl = f"{badge} Discovered PDF — [bold #fefae0]{esc_title}[/bold #fefae0] [dim]({esc_path})[/dim]"
+                        lbl = f"{badge} Discovered PDF: [bold #fefae0]{esc_title}[/bold #fefae0] [dim]({esc_path})[/dim]"
                     elif cat == "about":
                         badge = "[bold #8be9fd][BIO][/bold #8be9fd]"
-                        lbl = f"{badge} About & Experience — [bold #fefae0]{esc_title}[/bold #fefae0]"
+                        lbl = f"{badge} About & Experience: [bold #fefae0]{esc_title}[/bold #fefae0]"
                     elif cat == "projects":
                         badge = "[bold #bd93f9][PROJECT][/bold #bd93f9]"
-                        lbl = f"{badge} Projects & Showcase — [bold #fefae0]{esc_title}[/bold #fefae0]"
+                        lbl = f"{badge} Projects & Showcase: [bold #fefae0]{esc_title}[/bold #fefae0]"
                     elif cat == "research":
                         badge = "[bold #f1fa8c][RESEARCH][/bold #f1fa8c]"
-                        lbl = f"{badge} Research & Thesis — [bold #fefae0]{esc_title}[/bold #fefae0]"
+                        lbl = f"{badge} Research & Thesis: [bold #fefae0]{esc_title}[/bold #fefae0]"
                     elif cat == "articles":
                         badge = "[bold #ff79c6][DOSSIER][/bold #ff79c6]"
-                        lbl = f"{badge} Technical Writing / Blog — [bold #fefae0]{esc_title}[/bold #fefae0]"
+                        lbl = f"{badge} Technical Writing / Blog: [bold #fefae0]{esc_title}[/bold #fefae0]"
                     else:
                         badge = "[dim][PAGE][/dim]"
-                        lbl = f"{badge} Subpage — [bold #fefae0]{esc_title}[/bold #fefae0]"
+                        lbl = f"{badge} Subpage: [bold #fefae0]{esc_title}[/bold #fefae0]"
 
                     discovered.append(
                         DiscoveredIngredient(
@@ -132,13 +132,13 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
 
                     esc_pname = escape(p.name)
                     if doc_type == "academic":
-                        lbl = f"[bold #f1fa8c][RESEARCH][/bold #f1fa8c] Academic Thesis / Dissertation — [bold #fefae0]{esc_pname}[/bold #fefae0]"
+                        lbl = f"[bold #f1fa8c][RESEARCH][/bold #f1fa8c] Academic Thesis / Dissertation: [bold #fefae0]{esc_pname}[/bold #fefae0]"
                     elif doc_type == "resume":
-                        lbl = f"[bold #ffb86c][RESUME][/bold #ffb86c] Resume / CV Document — [bold #fefae0]{esc_pname}[/bold #fefae0]"
+                        lbl = f"[bold #ffb86c][RESUME][/bold #ffb86c] Resume / CV Document: [bold #fefae0]{esc_pname}[/bold #fefae0]"
                     elif doc_type == "project_readme":
-                        lbl = f"[bold #bd93f9][PROJECT][/bold #bd93f9] Project Documentation — [bold #fefae0]{esc_pname}[/bold #fefae0]"
+                        lbl = f"[bold #bd93f9][PROJECT][/bold #bd93f9] Project Documentation: [bold #fefae0]{esc_pname}[/bold #fefae0]"
                     else:
-                        lbl = f"[bold #8be9fd][DOC][/bold #8be9fd] Document ({p.suffix.upper().lstrip('.') or 'FILE'}) — [bold #fefae0]{esc_pname}[/bold #fefae0]"
+                        lbl = f"[bold #8be9fd][DOC][/bold #8be9fd] Document ({p.suffix.upper().lstrip('.') or 'FILE'}): [bold #fefae0]{esc_pname}[/bold #fefae0]"
 
                     discovered.append(
                         DiscoveredIngredient(
@@ -152,7 +152,7 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                     esc_dname = escape(p.name)
                     discovered.append(
                         DiscoveredIngredient(
-                            label=f"[bold #8be9fd][FOLDER][/bold #8be9fd] Local Directory — [bold #fefae0]{esc_dname}/[/bold #fefae0]",
+                            label=f"[bold #8be9fd][FOLDER][/bold #8be9fd] Local Directory: [bold #fefae0]{esc_dname}/[/bold #fefae0]",
                             value=val,
                             category="directory",
                             is_default=True
@@ -168,7 +168,7 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
             preview = escape(clean_item[:32].replace("\n", " "))
             discovered.append(
                 DiscoveredIngredient(
-                    label=f"[bold #50fa7b][NOTES][/bold #50fa7b] Manual Notes / Bio ({char_count} chars) — [bold #fefae0]\"{preview}...\"[/bold #fefae0]",
+                    label=f"[bold #50fa7b][NOTES][/bold #50fa7b] Manual Notes / Bio ({char_count} chars): [bold #fefae0]\"{preview}...\"[/bold #fefae0]",
                     value=val,
                     category="notes",
                     is_default=True

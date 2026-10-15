@@ -120,7 +120,7 @@ def canonical_project_name(name: str) -> str:
     if "portfolio" in n_lower or "faizpalwala" in n_lower:
         return "Developer Portfolio & Technical Blog"
     clean = re.sub(r"^[0-9\W]+", "", name).strip()
-    clean = re.sub(r"\s*[-–—:]\s*.*$", "", clean).strip()
+    clean = re.sub(r"\s*[-:\u2013\u2014]\s*.*$", "", clean).strip()
     return clean or name
 
 

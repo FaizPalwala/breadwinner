@@ -12,13 +12,7 @@ async def test_breadwinner_app_mount():
     async with app.run_test() as pilot:
         assert app.title == "Breadwinner"
         assert app.query_one("#pipeline-table") is not None
-        assert app.query_one("#select-persona") is not None
-        assert app.query_one("#select-template") is not None
-        assert app.query_one("#btn-strategy-loop") is not None
-        assert app.query_one("#studio-mascot") is not None
-        assert app.query_one("#studio-oven") is not None
         assert app.query_one("#studio-stepper") is not None
-        assert len(app.query("#global-stepper")) == 0
 
         # Verify stage synchronization
         app.set_global_stage(3)

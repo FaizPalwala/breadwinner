@@ -1028,7 +1028,7 @@ class BakingModal(ModalScreen):
         score_card.display = True
 
         score_title = self.query_one("#score-card-title", Label)
-        score_title.update(f"[bold #f1fa8c][★] PANTRY READY[/bold #f1fa8c] | [bold #50fa7b]{profile.full_name} — {profile.title}[/bold #50fa7b]")
+        score_title.update(f"[bold #f1fa8c][★] PANTRY READY[/bold #f1fa8c] | [bold #50fa7b]{profile.full_name} - {profile.title}[/bold #50fa7b]")
 
         score_details = self.query_one("#score-card-details", Label)
         score_details.update(
@@ -1061,7 +1061,7 @@ class BakingModal(ModalScreen):
         score_card.display = True
 
         score_title = self.query_one("#score-card-title", Label)
-        score_title.update(f"[bold #f1fa8c][★] HIGH SCORE: {score}% ATS MATCH[/bold #f1fa8c] | [bold #50fa7b]{company} — {title}[/bold #50fa7b]")
+        score_title.update(f"[bold #f1fa8c][★] HIGH SCORE: {score}% ATS MATCH[/bold #f1fa8c] | [bold #50fa7b]{company} - {title}[/bold #50fa7b]")
 
         resume_pdf = app_dir / "resume.pdf"
         letter_pdf = app_dir / "cover_letter.pdf"
@@ -1134,7 +1134,7 @@ class BakingModal(ModalScreen):
         headline, detail = clean_error_message(error_msg)
 
         status_lbl = self.query_one("#baking-status-text", Label)
-        status_lbl.update("[bold #ff5555][✕] Baking Halted — Hearth Malfunction [✕][/bold #ff5555]")
+        status_lbl.update("[bold #ff5555][✕] Baking Halted: Hearth Malfunction [✕][/bold #ff5555]")
 
         # Hide progress gauge & stepper on failure so diagnosis card has ample vertical space and no scrollbars
         try:

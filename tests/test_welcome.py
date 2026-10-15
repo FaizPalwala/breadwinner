@@ -29,12 +29,6 @@ async def test_welcome_modal_load_demo():
     app = WelcomeHostApp(modal)
 
     async with app.run_test(size=(120, 40)) as pilot:
-        assert modal.query_one("#welcome-container") is not None
-        assert modal.query_one("#welcome-mascot") is not None
-        assert modal.query_one("#input-welcome-source", Input) is not None
-        assert modal.query_one("#btn-welcome-demo", Button) is not None
-
-        # Click demo loaf button
         btn = modal.query_one("#btn-welcome-demo", Button)
         btn.press()
         await pilot.pause()

@@ -209,7 +209,7 @@ class CareerCurator:
         omitted_exp = total_exp - selected_exp
 
         summary = (
-            f"Curated {selected_exp} of {total_exp} roles for '{job.company} — {job.title}'. "
+            f"Curated {selected_exp} of {total_exp} roles for '{job.company} - {job.title}'. "
             f"Prioritized top-match experiences ({', '.join(list(exp_score_map.keys())[:2])}) "
             f"and {len(curated_projects)} relevant projects to protect 1-page print budget."
         )

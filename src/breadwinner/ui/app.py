@@ -254,7 +254,7 @@ class JobStrategyModal(ModalScreen):
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="strategy-dialog"):
             with Horizontal(classes="modal-header-bar"):
-                yield Label(f"[bold cyan]Target Strategy Loop:[/bold cyan] [bold white]{self.job.company} — {self.job.title}[/bold white]", classes="modal-header-title")
+                yield Label(f"[bold cyan]Target Strategy Loop:[/bold cyan] [bold white]{self.job.company} - {self.job.title}[/bold white]", classes="modal-header-title")
                 yield Button("✕", id="btn-strategy-close", classes="modal-close-btn")
             yield Label(
                 "[dim]Answer these targeted questions to synthesize customized role directives and/or save a new persona.[/dim]"
@@ -2559,12 +2559,12 @@ class BreadwinnerApp(App):
 
         if not jobs:
             table.add_row(
-                "—",
+                "-",
                 "[dim italic]No target jobs tracked yet[/dim italic]",
                 "[dim italic]Switch to Studio (t) or press (a) to track your first job[/dim italic]",
                 "[dim]EMPTY[/dim]",
-                "—",
-                "—",
+                "-",
+                "-",
                 "",
                 key="empty_placeholder"
             )
@@ -2632,7 +2632,7 @@ class BreadwinnerApp(App):
         flag_str = f" | [bold #FF79C6]⚑ {j.flag}[/bold #FF79C6]" if j.flag else ""
 
         details_body.update(
-            f"[bold #FFFFFF]{j.company}[/bold #FFFFFF] — [bold #FFB86C]{j.title}[/bold #FFB86C]\n"
+            f"[bold #FFFFFF]{j.company}[/bold #FFFFFF] - [bold #FFB86C]{j.title}[/bold #FFB86C]\n"
             f"Stage: [bold #50FA7B]{j.status.upper()}[/bold #50FA7B] • ({match_str}){flag_str}\n"
             f"Location: [#F8F8F2]{j.location or 'N/A'}[/#F8F8F2]\n"
             f"{url_info}\n"
@@ -3141,7 +3141,7 @@ class BreadwinnerApp(App):
 
             try:
                 self.query_one("#lab-active-job-label", Label).update(
-                    f"[bold white]{self.selected_job.company} — {self.selected_job.title}[/bold white]"
+                    f"[bold white]{self.selected_job.company} - {self.selected_job.title}[/bold white]"
                 )
             except Exception:
                 pass
@@ -3249,7 +3249,7 @@ class BreadwinnerApp(App):
                 demanded = job.requirements or job.keywords or []
                 widget.update_constellation(cand_skills, demanded[:8])
             elif url_or_text.startswith("http://") or url_or_text.startswith("https://"):
-                widget.update("[dim #94A3B8]· Remote URL detected — Constellation calculates upon baking ·[/dim #94A3B8]")
+                widget.update("[dim #94A3B8]· Remote URL detected: Constellation calculates upon baking ·[/dim #94A3B8]")
             else:
                 job = JobScraper.ingest_from_text(url_or_text, "Target", "Role")
                 demanded = job.requirements or job.keywords or []
@@ -4423,7 +4423,7 @@ class BreadwinnerApp(App):
         status_box.styles.display = "block"
         status_box.update(
             f"[bold green]✓ Fresh out of the oven![/bold green] "
-            f"Target: [bold]{job.company} — {job.title}[/bold] | "
+            f"Target: [bold]{job.company} - {job.title}[/bold] | "
             f"ATS Match Score: [bold green]{score}%[/bold green]{pdf_notice}\n"
             f"Package saved to: [cyan]{app_dir}[/cyan]"
         )
@@ -4472,7 +4472,7 @@ class BreadwinnerApp(App):
                 except Exception:
                     pass
                 if job:
-                    self.query_one("#lab-active-job-label", Label).update(f"[bold white]{job.company} — {job.title}[/bold white]")
+                    self.query_one("#lab-active-job-label", Label).update(f"[bold white]{job.company} - {job.title}[/bold white]")
                 prov_tag = " • [bold #8be9fd]Grounded[/]" if prov and prov.get("is_valid", False) else ""
                 self.query_one("#lab-ats-badge", Label).update(f"[bold #50FA7B]{score}% Match[/bold #50FA7B]{prov_tag}")
                 self.action_view_lab()

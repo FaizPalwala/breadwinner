@@ -316,7 +316,7 @@ def apply(
     score = application.match_analysis.match_score
     score_color = "green" if score >= 80 else ("yellow" if score >= 60 else "red")
 
-    table = Table(title=f"Target: {job.company} — {job.title}", border_style="cyan")
+    table = Table(title=f"Target: {job.company} - {job.title}", border_style="cyan")
     table.add_column("Property", style="bold")
     table.add_column("Details")
     table.add_row("Portal Type", job.portal_type.capitalize())
@@ -704,7 +704,7 @@ def models_cmd():
             for m in p.models:
                 marker = "👉 [bold green]" if m.is_active else "   [white]"
                 suffix = " (Active)[/bold green]" if m.is_active else "[/white]"
-                desc = f" — [dim]{m.description}[/dim]" if m.description else ""
+                desc = f" : [dim]{m.description}[/dim]" if m.description else ""
                 model_lines.append(f"{marker}{m.id}{suffix}{desc}")
             table.add_row("Models", "\n".join(model_lines))
         else:
