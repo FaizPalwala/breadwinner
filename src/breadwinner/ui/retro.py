@@ -21,6 +21,7 @@ from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
 from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer, bake_application_package
 from breadwinner.core.platform import open_path
+from breadwinner.core.logger import get_logger, record_crash, CRASH_LOG_HINT
 from breadwinner.db.repository import JobRecord
 from breadwinner.db.sync import CsvSync
 from breadwinner.providers.factory import get_llm_provider
@@ -896,6 +897,7 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(self._show_victory_screen, score, job.company, job.title, app_dir, pdf_baked)
 
         except Exception as e:
+            record_crash(e, context="tailor_worker")
             self.app.call_from_thread(self._show_error_screen, str(e))
 
     @work(thread=True)
@@ -935,6 +937,7 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(self._show_victory_pdf_screen, target_dir, size_kb)
 
         except Exception as e:
+            record_crash(e, context="pdf_bake_worker")
             self.app.call_from_thread(self._show_error_screen, str(e))
     @work(thread=True)
     def run_ingest_worker(self) -> None:
@@ -1012,6 +1015,7 @@ class BakingModal(ModalScreen):
             self.app.call_from_thread(self._show_victory_ingest_screen, new_profile)
 
         except Exception as e:
+            record_crash(e, context="ingest_worker")
             self.app.call_from_thread(self._show_error_screen, str(e))
 
     def _show_victory_ingest_screen(self, profile: Any) -> None:
@@ -1158,7 +1162,7 @@ class BakingModal(ModalScreen):
         score_title.update(f"[bold #ff5555][!] {headline}[/bold #ff5555]")
 
         score_details = self.query_one("#score-card-details", Label)
-        score_details.update(detail)
+        score_details.update(f"{detail}\n\n[dim]{CRASH_LOG_HINT}[/dim]")
 
         cancel_btn = self.query_one("#btn-modal-cancel", Button)
         cancel_btn.label = "Dismiss (Esc)"
