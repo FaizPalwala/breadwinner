@@ -720,8 +720,11 @@ class UniversalIngestor:
         elif suffix == ".pdf":
             return UniversalIngestor.extract_text_from_pdf(path)
 
-        elif suffix in [".docx", ".rtf"] and platform.system() == "Darwin":
-            # Use native macOS textutil for zero-dependency docx extraction
+        elif suffix == ".docx":
+            return UniversalIngestor.extract_text_from_docx(path)
+
+        elif suffix == ".rtf" and platform.system() == "Darwin":
+            # Use native macOS textutil for rtf extraction on macOS
             try:
                 res = subprocess.run(
                     ["textutil", "-convert", "txt", "-stdout", str(path)],
@@ -739,6 +742,53 @@ class UniversalIngestor:
                 return path.read_text(encoding="utf-8", errors="ignore")
             except Exception as e:
                 raise IngestionError(f"Unsupported file format '{suffix}': {e}")
+
+    @classmethod
+    def extract_text_from_docx(cls, docx_path: Path) -> str:
+        """Extract text from .docx file using pure-Python stdlib zipfile and xml.etree.ElementTree."""
+        import zipfile
+        import xml.etree.ElementTree as ET
+
+        path = Path(docx_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Document file not found: {path}")
+
+        try:
+            with zipfile.ZipFile(path, "r") as zf:
+                if "word/document.xml" not in zf.namelist():
+                    raise IngestionError(f"Invalid .docx file: 'word/document.xml' not found in archive {path.name}")
+                xml_content = zf.read("word/document.xml")
+        except zipfile.BadZipFile as e:
+            raise IngestionError(f"Invalid or corrupted .docx archive '{path.name}': {e}")
+        except Exception as e:
+            raise IngestionError(f"Could not read .docx file '{path.name}': {e}")
+
+        try:
+            tree = ET.fromstring(xml_content)
+            paragraphs = []
+            for p in tree.iter():
+                if p.tag.endswith("}p") or p.tag == "p":
+                    texts = []
+                    for node in p.iter():
+                        tag = node.tag.split("}")[-1] if "}" in node.tag else node.tag
+                        if tag == "t" and node.text:
+                            texts.append(node.text)
+                        elif tag == "br":
+                            texts.append("\n")
+                    if texts:
+                        para_text = "".join(texts).strip()
+                        if para_text:
+                            paragraphs.append(para_text)
+            if not paragraphs:
+                texts = []
+                for node in tree.iter():
+                    tag = node.tag.split("}")[-1] if "}" in node.tag else node.tag
+                    if tag == "t" and node.text:
+                        texts.append(node.text)
+                return "\n".join(texts).strip()
+            return "\n\n".join(paragraphs).strip()
+        except ET.ParseError as e:
+            raise IngestionError(f"Could not parse XML in .docx file '{path.name}': {e}")
 
     @classmethod
     def extract_text_from_pdf(cls, pdf_path: Path) -> str:
