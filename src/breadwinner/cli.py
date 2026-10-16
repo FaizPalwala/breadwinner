@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 import sys
 from datetime import datetime
@@ -1365,6 +1366,141 @@ def job_answers_cmd(source: str):
 
     dossier_md = render_application_dossier(result, profile=profile)
     console.print(dossier_md)
+
+
+@main.command()
+def doctor():
+    """Run comprehensive system diagnostics, platform checks, and health audit."""
+    from breadwinner.core.logger import LOGS_DIR, LAST_CRASH_FILE
+
+    console.print(Panel(
+        "[bold #FFB86C]◈ BREADWINNER SYSTEM DOCTOR[/bold #FFB86C]\n"
+        "[dim]Local-First Career Engineering Studio Diagnostic Report[/dim]",
+        box=box.ROUNDED,
+        border_style="#FFB86C"
+    ))
+
+    # 1. Platform & OS
+    table_os = Table(title="1. Platform & Python Environment", box=box.SIMPLE, show_header=True)
+    table_os.add_column("Property", style="bold cyan")
+    table_os.add_column("Value", style="white")
+
+    table_os.add_row("Operating System", f"{platform.system()} {platform.release()} ({platform.machine()})")
+    table_os.add_row("Platform Slug", sys.platform)
+    table_os.add_row("Python Executable", sys.executable)
+    table_os.add_row("Python Version", platform.python_version())
+    console.print(table_os)
+
+    # 2. Terminal Geometry & Color Profile
+    table_term = Table(title="2. Terminal Capabilities & Display", box=box.SIMPLE, show_header=True)
+    table_term.add_column("Property", style="bold cyan")
+    table_term.add_column("Value", style="white")
+
+    size = shutil.get_terminal_size()
+    is_tty = sys.stdout.isatty()
+    table_term.add_row("Terminal Geometry", f"{size.columns} columns × {size.lines} rows")
+    table_term.add_row("Interactive TTY", "[#50fa7b]Yes[/]" if is_tty else "[#ff5555]No[/]")
+    table_term.add_row("Color System", str(console.color_system or "none").upper())
+    table_term.add_row("TERM Variable", os.environ.get("TERM", "unset"))
+    table_term.add_row("COLORTERM Variable", os.environ.get("COLORTERM", "unset"))
+    console.print(table_term)
+
+    # 3. Directory Ledger & Permissions
+    table_dir = Table(title="3. Directory Ledgers & Permissions", box=box.SIMPLE, show_header=True)
+    table_dir.add_column("Directory", style="bold cyan")
+    table_dir.add_column("Path", style="dim white")
+    table_dir.add_column("Exists", style="white")
+    table_dir.add_column("Writable", style="white")
+    table_dir.add_column("Status", style="bold")
+
+    dirs_to_check = [
+        ("pantry", settings.pantry_dir),
+        ("applications", settings.applications_dir),
+        ("logs", LOGS_DIR),
+    ]
+
+    for label, dpath in dirs_to_check:
+        d = Path(dpath)
+        exists = d.exists()
+        is_writable = False
+        if exists:
+            is_writable = os.access(d, os.W_OK)
+        else:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                exists = True
+                is_writable = os.access(d, os.W_OK)
+            except Exception:
+                pass
+
+        exists_str = "[#50fa7b]Yes[/]" if exists else "[#ff5555]No[/]"
+        writable_str = "[#50fa7b]Yes[/]" if is_writable else "[#ff5555]No[/]"
+        status_str = "[#50fa7b]● READY[/]" if (exists and is_writable) else "[#ff5555]● CHECK PERMISSIONS[/]"
+
+        table_dir.add_row(label, str(d), exists_str, writable_str, status_str)
+    console.print(table_dir)
+
+    # 4. Active LLM Provider & Key Verification
+    table_ai = Table(title="4. Active LLM Provider & Credentials", box=box.SIMPLE, show_header=True)
+    table_ai.add_column("Property", style="bold cyan")
+    table_ai.add_column("Value", style="white")
+
+    prov = (getattr(settings, "breadwinner_llm_provider", None) or "gemini").lower()
+    table_ai.add_row("Active Provider", prov.upper())
+
+    model_id = getattr(settings, f"{prov}_model", None) or "Default"
+    table_ai.add_row("Configured Model", str(model_id))
+
+    key_env_map = {
+        "gemini": "GEMINI_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "mistral": "MISTRAL_API_KEY",
+    }
+
+    env_var = key_env_map.get(prov)
+    if env_var:
+        key_val = os.environ.get(env_var)
+        if key_val:
+            if len(key_val) > 8:
+                masked = f"{key_val[:4]}...{key_val[-4:]}"
+            else:
+                masked = "***"
+            table_ai.add_row(f"{env_var}", f"[#50fa7b]{masked} (Configured)[/]")
+        else:
+            table_ai.add_row(f"{env_var}", "[#ff5555]MISSING / UNCONFIGURED[/]")
+    elif prov in ("ollama", "lmstudio"):
+        table_ai.add_row("Local Server", "[#50fa7b]Local daemon (No API key required)[/]")
+    elif prov == "mock":
+        table_ai.add_row("Mock Engine", "[#50fa7b]Hermetic test mode (No API key required)[/]")
+    else:
+        table_ai.add_row("Custom Provider", "[dim]Custom endpoint configuration[/dim]")
+
+    console.print(table_ai)
+
+    # 5. Crash Log Inspection
+    console.print("\n[bold]5. Crash Diagnostics & Logs[/bold]")
+    if LAST_CRASH_FILE.exists():
+        try:
+            content = LAST_CRASH_FILE.read_text(encoding="utf-8")
+            lines = content.strip().splitlines()
+            tail_lines = lines[-15:] if len(lines) > 15 else lines
+            tail_text = "\n".join(tail_lines)
+            console.print(Panel(
+                f"[bold #ff5555]Recent Crash Traceback ({LAST_CRASH_FILE}):[/bold #ff5555]\n\n"
+                f"[dim white]{tail_text}[/dim white]",
+                box=box.ROUNDED,
+                border_style="#ff5555"
+            ))
+        except Exception as e:
+            console.print(f"[yellow]Could not read last_crash.log: {e}[/yellow]")
+    else:
+        console.print(f"[#50fa7b]✓ Zero crash reports detected ({LAST_CRASH_FILE} is clean).[/]")
+
+    console.print("[dim]Diagnostic check finished successfully.[/dim]\n")
 
 
 if __name__ == "__main__":
