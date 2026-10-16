@@ -25,6 +25,7 @@ from breadwinner.config import settings
 from breadwinner.db.repository import JobRepository, JobRecord
 from breadwinner.db.sync import CsvSync
 from breadwinner.core.persona import PersonaManager
+from breadwinner.core.platform import open_path
 from breadwinner.ui.visuals import PipelineFunnelWidget
 from breadwinner.ui.retro import BakingModal
 
@@ -648,8 +649,8 @@ class BreadboxScreenMixin:
 
         if target_dir and target_dir.exists():
             self.last_tailored_dir = target_dir
-            subprocess.run(["open", str(target_dir)])
-            self.notify(f"Opened folder: {target_dir.name}", title="Finder")
+            open_path(target_dir)
+            self.notify(f"Opened folder: {target_dir.name}", title="Folder Opened")
         else:
             self.notify("No application folder generated for this job yet.", severity="warning")
 

@@ -152,16 +152,8 @@ def render_html_to_pdf(
 
 def open_file_in_viewer(file_path: Path) -> None:
     """Open a file in the user's default system viewer."""
-    system = platform.system()
-    try:
-        if system == "Darwin":
-            subprocess.run(["open", str(file_path)], check=False)
-        elif system == "Windows":
-            os.startfile(str(file_path))  # type: ignore
-        else:
-            subprocess.run(["xdg-open", str(file_path)], check=False)
-    except Exception:
-        pass
+    from breadwinner.core.platform import open_path
+    open_path(file_path)
 
 
 def bake_application_package(

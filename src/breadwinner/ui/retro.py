@@ -20,6 +20,7 @@ from breadwinner.core.scraper import JobScraper
 from breadwinner.core.tailor import TailoringEngine
 from breadwinner.core.renderer import TemplateRenderer
 from breadwinner.core.pdf import render_html_to_pdf, open_file_in_viewer, bake_application_package
+from breadwinner.core.platform import open_path
 from breadwinner.db.repository import JobRecord
 from breadwinner.db.sync import CsvSync
 from breadwinner.providers.factory import get_llm_provider
@@ -1208,8 +1209,7 @@ class BakingModal(ModalScreen):
 
     def action_open_folder(self) -> None:
         if self.baking_result and self.baking_result.get("app_dir"):
-            import subprocess
-            subprocess.run(["open", str(self.baking_result["app_dir"])])
+            open_path(self.baking_result["app_dir"])
 
     def action_dismiss_modal(self) -> None:
         self.dismiss(self.baking_result if self.is_done else None)
