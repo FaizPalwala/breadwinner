@@ -27,8 +27,69 @@ class IngestionError(Exception):
     pass
 
 
+def clean_user_input_path(raw: str) -> str:
+    """Clean dragged or pasted terminal paths, strip file:// and URL-encoded characters."""
+    s = str(raw).strip().strip("'\"“”‘’")
+    if s.startswith("file://"):
+        s = s[7:]
+        if s.startswith("localhost"):
+            s = s[9:]
+    s = unquote(s).replace(r"\ ", " ")
+    return s.strip().strip("'\"“”‘’")
+
+
+LINKEDIN_INTERCEPT_MESSAGE = (
+    "⚠️ LinkedIn blocks unauthenticated scraping (HTTP 999). "
+    "To ingest your LinkedIn history risk-free without account flags: "
+    "open your profile -> 'More' -> 'Save to PDF', then run: "
+    "`breadwinner ingest ~/Downloads/Profile.pdf` or provide your LinkedIn Data Export CSV."
+)
+
+
+def is_linkedin_url(url: str) -> bool:
+    """Detect if target URL points to a LinkedIn profile (linkedin.com/in/*)."""
+    clean = clean_user_input_path(str(url)).strip().lower()
+    return "linkedin.com/in/" in clean
+
+
+GITHUB_RESERVED_NAMES = {
+    "features", "pricing", "explore", "topics", "collections", "trending",
+    "events", "sponsors", "about", "site", "readme", "contact", "settings",
+    "marketplace", "orgs", "login", "search", "notifications", "issues",
+    "pulls", "stars", "discussions", "security", "enterprise", "join"
+}
+
+
+def is_github_profile_url(url: str) -> Optional[str]:
+    """Detect if URL is a GitHub user profile and return username, or None."""
+    clean = clean_user_input_path(str(url)).strip()
+    if clean.startswith("@"):
+        uname = clean[1:].strip().strip("/")
+        if uname and uname.lower() not in GITHUB_RESERVED_NAMES and re.match(r"^[a-zA-Z0-9-]+$", uname):
+            return uname
+        return None
+
+    if not clean.startswith("http://") and not clean.startswith("https://"):
+        if clean.lower().startswith("github.com/"):
+            clean = "https://" + clean
+        else:
+            return None
+
+    parsed = urlparse(clean)
+    netloc = parsed.netloc.lower()
+    if netloc not in ("github.com", "www.github.com"):
+        return None
+
+    segments = [s for s in parsed.path.strip("/").split("/") if s]
+    if len(segments) == 1:
+        uname = segments[0]
+        if uname.lower() not in GITHUB_RESERVED_NAMES and re.match(r"^[a-zA-Z0-9-]+$", uname):
+            return uname
+    return None
+
+
 def classify_document(text: str, source_label: str = "") -> str:
-    """Classifies input into: 'academic', 'portfolio', 'project_readme', 'resume', or 'general'."""
+    """Classifies input into: 'academic', 'portfolio', 'project_readme', 'resume', 'github_profile', or 'general'."""
     lower_src = source_label.lower()
     lower_text = text.lower()[:5000]
 
@@ -51,7 +112,11 @@ def classify_document(text: str, source_label: str = "") -> str:
     if "resume" in lower_src or "cv" in lower_src or any(k in lower_text for k in ["work experience", "professional experience", "employment history", "curriculum vitae"]):
         return "resume"
 
-    # 4. Portfolio or personal website (URL or personal domain like faizpalwala.tech)
+    # 4. Native GitHub Profile (user profile root)
+    if is_github_profile_url(source_label):
+        return "github_profile"
+
+    # 5. Portfolio or personal website (URL or personal domain like faizpalwala.tech)
     known_doc_exts = {".pdf", ".docx", ".doc", ".txt", ".json", ".md", ".yaml", ".yml", ".rtf"}
     src_suffix = Path(lower_src).suffix
     is_domain = (not src_suffix or src_suffix not in known_doc_exts) and bool(re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?$", lower_src))
@@ -466,6 +531,9 @@ class UniversalIngestor:
         Returns a list of tuples: (route_url, category, title)
         where category is one of: 'resume_pdf', 'about', 'projects', 'research', 'articles', 'page'.
         """
+        if is_linkedin_url(base_url):
+            raise IngestionError(LINKEDIN_INTERCEPT_MESSAGE)
+
         discovered: List[Tuple[str, str, str]] = []
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -625,6 +693,12 @@ class UniversalIngestor:
         Returns:
             (composite_fact_text, dossier_articles_dict)
         """
+        if is_linkedin_url(base_url):
+            raise IngestionError(LINKEDIN_INTERCEPT_MESSAGE)
+
+        if gh_username := is_github_profile_url(base_url):
+            return cls.extract_github_profile(gh_username, timeout=timeout)
+
         routes = cls.discover_portfolio_routes(base_url, timeout=timeout)
         root_text = cls.extract_text_from_url(base_url, timeout=timeout)
         
@@ -676,9 +750,184 @@ class UniversalIngestor:
 
         return "\n\n".join(composite_texts), dossier_docs
 
+    @classmethod
+    def extract_github_profile(cls, username: str, timeout: int = 15) -> Tuple[str, Dict[str, str]]:
+        """Extract candidate context and project dossiers natively from a GitHub user profile.
+
+        1. Fetches public user profile information via GitHub API.
+        2. Fetches public repositories, filtering out forks and empty/trivial repos.
+        3. Sorts repositories by stars and recency.
+        4. Fetches top 5-8 project READMEs directly from raw.githubusercontent.com.
+        5. Returns composite structured text and populated dossier_docs dictionary.
+        """
+        headers = {
+            "User-Agent": "Breadwinner-Career-Engine",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+        # 1. Fetch user profile
+        user_url = f"https://api.github.com/users/{username}"
+        user_data: Dict[str, Any] = {}
+        try:
+            resp = requests.get(user_url, headers=headers, timeout=timeout)
+            if resp.status_code == 404:
+                raise IngestionError(f"GitHub user '@{username}' not found.")
+            elif resp.status_code in (403, 429):
+                raise IngestionError(
+                    f"GitHub API rate limit exceeded while querying '@{username}'. "
+                    "Please try again later or clone/download your repositories locally."
+                )
+            elif resp.status_code == 200:
+                user_data = resp.json()
+        except IngestionError:
+            raise
+        except Exception as e:
+            raise IngestionError(f"Failed to fetch GitHub profile for '@{username}': {e}")
+
+        # 2. Fetch public repositories
+        repos_url = f"https://api.github.com/users/{username}/repos?type=public&sort=updated&per_page=100"
+        raw_repos: List[Dict[str, Any]] = []
+        try:
+            r_resp = requests.get(repos_url, headers=headers, timeout=timeout)
+            if r_resp.status_code in (403, 429):
+                raise IngestionError(
+                    f"GitHub API rate limit exceeded while fetching repositories for '@{username}'. "
+                    "Please try again later or clone/download your repositories locally."
+                )
+            elif r_resp.status_code == 200:
+                data = r_resp.json()
+                if isinstance(data, list):
+                    raw_repos = data
+        except IngestionError:
+            raise
+        except Exception as e:
+            if not user_data:
+                raise IngestionError(f"Failed to fetch GitHub repositories for '@{username}': {e}")
+
+        # Filter out forks and trivial/empty repos
+        filtered_repos: List[Dict[str, Any]] = []
+        for r in raw_repos:
+            if not isinstance(r, dict):
+                continue
+            if r.get("fork", False):
+                continue
+            size = r.get("size", 0) or 0
+            desc = (r.get("description") or "").strip()
+            if size > 0 or desc or (r.get("stargazers_count", 0) or 0) > 0:
+                filtered_repos.append(r)
+
+        # Sort by stars (descending) and recency (pushed_at/updated_at descending)
+        def repo_key(r: Dict[str, Any]) -> Tuple[int, str]:
+            stars = int(r.get("stargazers_count", 0) or 0)
+            pushed = str(r.get("pushed_at") or r.get("updated_at") or "")
+            return (stars, pushed)
+
+        filtered_repos.sort(key=repo_key, reverse=True)
+
+        dossier_docs: Dict[str, str] = {}
+        composite_blocks: List[str] = []
+
+        # Profile header block
+        name = user_data.get("name") or username
+        bio = user_data.get("bio") or ""
+        company = user_data.get("company") or ""
+        location = user_data.get("location") or ""
+        blog = user_data.get("blog") or ""
+        public_repos = user_data.get("public_repos") or len(filtered_repos)
+
+        profile_header = [
+            f"=== GITHUB USER PROFILE: @{username} ===",
+            f"Full Name: {name}",
+            f"GitHub: https://github.com/{username}"
+        ]
+        if bio:
+            profile_header.append(f"Bio: {bio}")
+        if company:
+            profile_header.append(f"Company/Affiliation: {company}")
+        if location:
+            profile_header.append(f"Location: {location}")
+        if blog:
+            profile_header.append(f"Website/Blog: {blog}")
+        profile_header.append(f"Public Repositories: {public_repos}")
+        composite_blocks.append("\n".join(profile_header))
+
+        # Check for profile README ({username}/{username})
+        profile_readme_url = f"https://raw.githubusercontent.com/{username}/{username}/HEAD/README.md"
+        try:
+            p_resp = requests.get(profile_readme_url, timeout=5)
+            if p_resp.status_code == 200 and len(p_resp.text.strip()) > 20:
+                p_text = p_resp.text.strip()[:10000]
+                composite_blocks.append(f"=== GITHUB PROFILE README (@{username}) ===\n{p_text}")
+                dossier_docs["profile_readme.md"] = p_text
+        except Exception:
+            pass
+
+        # Repositories Overview block
+        if filtered_repos:
+            overview_lines = ["=== PUBLIC REPOSITORIES OVERVIEW ==="]
+            for r in filtered_repos[:15]:
+                r_name = r.get("name", "")
+                r_stars = r.get("stargazers_count", 0) or 0
+                r_lang = r.get("language") or "Code"
+                r_desc = (r.get("description") or "").strip()
+                desc_str = f" - {r_desc}" if r_desc else ""
+                overview_lines.append(f"- {r_name} ({r_lang}, {r_stars} stars){desc_str}")
+            composite_blocks.append("\n".join(overview_lines))
+
+        # Fetch top 5-8 project READMEs
+        top_repos = filtered_repos[:8]
+        raw_headers = {
+            "User-Agent": "Breadwinner-Career-Engine"
+        }
+        for r in top_repos:
+            repo_name = r.get("name", "")
+            if not repo_name:
+                continue
+            default_branch = r.get("default_branch") or "main"
+            repo_stars = r.get("stargazers_count", 0) or 0
+            repo_lang = r.get("language") or "Code"
+            repo_desc = (r.get("description") or "").strip()
+            repo_topics = r.get("topics") or []
+            repo_url = r.get("html_url") or f"https://github.com/{username}/{repo_name}"
+
+            readme_text = ""
+            for branch_probe in ("HEAD", default_branch, "master"):
+                for filename in ("README.md", "readme.md"):
+                    probe_url = f"https://raw.githubusercontent.com/{username}/{repo_name}/{branch_probe}/{filename}"
+                    try:
+                        raw_resp = requests.get(probe_url, headers=raw_headers, timeout=5)
+                        if raw_resp.status_code == 200 and raw_resp.text.strip():
+                            readme_text = raw_resp.text.strip()
+                            break
+                    except Exception:
+                        pass
+                if readme_text:
+                    break
+
+            if not readme_text:
+                readme_text = f"# {repo_name}\n\n{repo_desc}\n\nPrimary Language: {repo_lang}\nStars: {repo_stars}"
+
+            capped_readme = readme_text[:12000]
+            dossier_docs[f"projects/{repo_name}.md"] = capped_readme
+
+            repo_block = [
+                f"=== REPOSITORY: {repo_name} (Stars: {repo_stars}, Language: {repo_lang}) ===",
+                f"URL: {repo_url}",
+                f"Description: {repo_desc}"
+            ]
+            if repo_topics:
+                repo_block.append(f"Topics: {', '.join(repo_topics)}")
+            repo_block.append(f"\n{capped_readme}")
+            composite_blocks.append("\n".join(repo_block))
+
+        return "\n\n".join(composite_blocks), dossier_docs
+
     @staticmethod
     def extract_text_from_url(url: str, timeout: int = 15) -> str:
         """Fetch and extract readable text from any live portfolio or personal website."""
+        if is_linkedin_url(url):
+            raise IngestionError(LINKEDIN_INTERCEPT_MESSAGE)
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         }
@@ -887,7 +1136,16 @@ class UniversalIngestor:
         if doc_type == "academic":
             return cls._extract_academic_dossier(raw_text, provider, source_label)
 
-        # 3. For massive documents (>40,000 chars / ~10k tokens), use sliding-window map-reduce
+        # 3. Specialized extraction for GitHub Profiles
+        if doc_type == "github_profile":
+            if "=== " in raw_text:
+                return cls._synthesize_multi_source_profile(
+                    bundled_text=raw_text,
+                    provider=provider,
+                    sources_summary=f"Synthesized from {source_label}"
+                )
+
+        # 4. For massive documents (>40,000 chars / ~10k tokens), use sliding-window map-reduce
         chunks = chunk_text(raw_text, chunk_size=35000, overlap=1000)
         if len(chunks) > 1:
             return cls._extract_chunked_profile(chunks, provider, source_label)
@@ -1564,8 +1822,16 @@ Respond ONLY in valid JSON matching this exact schema:
             return cls.ingest_multi_source(source, provider, existing_profile=existing_profile)
 
         display_label, kind = normalize_source(str(source))
+        if is_linkedin_url(str(source)) or is_linkedin_url(display_label):
+            raise IngestionError(LINKEDIN_INTERCEPT_MESSAGE)
+
         if kind == "url":
-            raw_text, dossier_docs = cls.extract_deep_portfolio(display_label)
+            gh_username = is_github_profile_url(display_label)
+            if gh_username:
+                raw_text, dossier_docs = cls.extract_github_profile(gh_username)
+            else:
+                raw_text, dossier_docs = cls.extract_deep_portfolio(display_label)
+
             if "=== " in raw_text:
                 new_profile = cls._synthesize_multi_source_profile(
                     bundled_text=raw_text,
@@ -1682,17 +1948,6 @@ def parse_dropped_sources(raw: str) -> list[str]:
 def decompose_raw_input(raw: str) -> list[str]:
     """Decompose comma/newline/space separated inputs into individual source items."""
     return parse_dropped_sources(raw)
-
-
-def clean_user_input_path(raw: str) -> str:
-    """Clean dragged or pasted terminal paths, strip file:// and URL-encoded characters."""
-    s = str(raw).strip().strip("'\"“”‘’")
-    if s.startswith("file://"):
-        s = s[7:]
-        if s.startswith("localhost"):
-            s = s[9:]
-    s = unquote(s).replace(r"\ ", " ")
-    return s.strip().strip("'\"“”‘’")
 
 
 def normalize_source(source: str) -> tuple[str, str]:

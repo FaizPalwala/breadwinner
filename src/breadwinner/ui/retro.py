@@ -610,6 +610,16 @@ def clean_error_message(raw_msg: str) -> Tuple[str, str]:
         if len(clean_snippet) > 180:
             clean_snippet = clean_snippet[:177] + "..."
 
+    # 0. LinkedIn unauthenticated scraping blocked (HTTP 999)
+    if "999" in msg_str or "linkedin" in msg_str.lower():
+        headline = "LinkedIn Scraping Blocked (HTTP 999)"
+        detail = (
+            f"[bold #ffb86c]{clean_snippet}[/bold #ffb86c]\n\n"
+            f"[bold #50fa7b]Quick Fix:[/] Open profile -> 'More' -> 'Save to PDF'. "
+            f"Then run: [cyan]breadwinner ingest ~/Downloads/Profile.pdf[/cyan]"
+        )
+        return headline, detail
+
     # 1. Quota / Rate limit (429)
     if "429" in msg_str or "RESOURCE_EXHAUSTED" in msg_str or "quota" in msg_str.lower():
         headline = "API Quota Exceeded (HTTP 429)"
