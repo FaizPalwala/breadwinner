@@ -14,6 +14,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt, Confirm
 from rich import box
 
+from breadwinner import __version__
 from breadwinner.config import settings, get_breadwinner_home, get_env_path
 from breadwinner.db.repository import JobRecord, JobRepository
 from breadwinner.core.portfolio import get_profile_source
@@ -75,6 +76,7 @@ def try_expand_terminal(target_cols: int = 120, target_rows: int = 38) -> None:
 
 
 @click.group(invoke_without_command=True)
+@click.version_option(__version__, "-v", "--version", prog_name="breadwinner", message="%(prog)s %(version)s")
 @click.pass_context
 def main(ctx: click.Context):
     """Breadwinner: Local-First Career Engineering Studio 🍞"""
@@ -975,7 +977,16 @@ def reset_cmd(reset_all: bool, reset_pantry: bool, reset_db: bool, reset_apps: b
             shutil.rmtree(stray_home, ignore_errors=True)
         stray_cwd = Path("./pantry").resolve()
         if stray_cwd.exists() and stray_cwd != settings.pantry_dir.resolve():
-            shutil.rmtree(stray_cwd, ignore_errors=True)
+            for f in [stray_cwd / "profile.json", stray_cwd / "profile.yaml", stray_cwd / "context.md", stray_cwd / "source.json"]:
+                if f.exists():
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+            if (stray_cwd / ".history").exists():
+                shutil.rmtree(stray_cwd / ".history", ignore_errors=True)
+            if (stray_cwd / "dossier").exists():
+                shutil.rmtree(stray_cwd / "dossier", ignore_errors=True)
         console.print("[bold green]✓ Career Pantry cleared.[/bold green]")
 
     # 2. Database & CSV

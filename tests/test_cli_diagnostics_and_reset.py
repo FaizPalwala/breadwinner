@@ -32,9 +32,13 @@ def test_cli_where_diagnostic(tmp_path: Path):
     assert "Tracking Database" in result.output
 
 
-def test_cli_pantry_clear(tmp_path: Path):
+def test_cli_pantry_clear(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Verify that 'breadwinner pantry clear -y' wipes profile and context."""
-    pantry = PantryManager(settings.pantry_dir)
+    test_pantry = tmp_path / "pantry"
+    test_pantry.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(settings, "pantry_dir", test_pantry)
+
+    pantry = PantryManager(test_pantry)
     profile = CandidateProfile(
         full_name="Ada Lovelace",
         title="Mathematician",
@@ -53,26 +57,37 @@ def test_cli_pantry_clear(tmp_path: Path):
     assert not pantry.is_initialized()
 
 
-def test_cli_reset_all(tmp_path: Path):
+def test_cli_reset_all(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Verify that 'breadwinner reset --all -y' wipes pantry, database, applications, and personas."""
+    test_pantry = tmp_path / "pantry"
+    test_apps = tmp_path / "applications"
+    test_db = tmp_path / "data" / "tracker.db"
+    test_pantry.mkdir(parents=True, exist_ok=True)
+    test_apps.mkdir(parents=True, exist_ok=True)
+    test_db.parent.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(settings, "pantry_dir", test_pantry)
+    monkeypatch.setattr(settings, "applications_dir", test_apps)
+    monkeypatch.setattr(settings, "database_path", test_db)
+
     # 1. Populate pantry
-    pantry = PantryManager(settings.pantry_dir)
+    pantry = PantryManager(test_pantry)
     profile = CandidateProfile(full_name="Alan Turing", title="Cryptanalyst")
     pantry.save_pantry(profile)
     assert pantry.is_initialized()
 
     # 2. Populate db
-    repo = JobRepository(settings.database_path)
+    repo = JobRepository(test_db)
     repo.upsert_job(JobRecord(
         id="job-1",
         company="Bletchley Park",
         title="Crypto Analyst",
         date_added="1942-01-01"
     ))
-    assert settings.database_path.exists()
+    assert test_db.exists()
 
     # 3. Populate applications dir
-    app_folder = settings.applications_dir / "2026-10-01_Bletchley"
+    app_folder = test_apps / "2026-10-01_Bletchley"
     app_folder.mkdir(parents=True, exist_ok=True)
     (app_folder / "resume.html").write_text("dummy", encoding="utf-8")
     assert app_folder.exists()
@@ -85,7 +100,7 @@ def test_cli_reset_all(tmp_path: Path):
 
     # Verify everything was wiped
     assert not pantry.is_initialized()
-    assert not settings.database_path.exists()
+    assert not test_db.exists()
     assert not app_folder.exists()
 
 
@@ -122,3 +137,16 @@ def test_cli_bake_dual_pdf(tmp_path: Path):
             assert "Cover Letter PDF" in result.output
             assert (app_folder / "resume.pdf").exists()
             assert (app_folder / "cover_letter.pdf").exists()
+
+
+def test_cli_version_flag():
+    """Verify that 'breadwinner --version' and 'breadwinner -v' output the pinned version."""
+    from breadwinner import __version__
+    runner = CliRunner()
+    result_long = runner.invoke(main, ["--version"])
+    assert result_long.exit_code == 0
+    assert f"breadwinner {__version__}" in result_long.output
+
+    result_short = runner.invoke(main, ["-v"])
+    assert result_short.exit_code == 0
+    assert f"breadwinner {__version__}" in result_short.output
