@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ profile.full_name }} - Executive Resume</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 12mm 15mm 12mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.35;
+      color: #1a1a1a;
+      background: #ffffff;
+    }
+    .container {
+      width: 100%;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    /* Executive Header */
+    .header {
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 8pt;
+      margin-bottom: 8pt;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 3pt;
+    }
+    .header h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .header-title {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #3b82f6;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4pt;
+    }
+    .contact-bar {
+      font-size: 9pt;
+      color: #475569;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10pt;
+    }
+    .contact-bar a {
+      color: #0f172a;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    /* Section Headings */
+    .section-title {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid #cbd5e1;
+      padding-bottom: 2pt;
+      margin-top: 8pt;
+      margin-bottom: 5pt;
+    }
+    /* Executive Summary */
+    .summary-text {
+      font-size: 9.5pt;
+      color: #334155;
+      line-height: 1.4;
+      margin-bottom: 4pt;
+      text-align: justify;
+    }
+    /* Skills Grid */
+    .skills-block {
+      margin-bottom: 5pt;
+    }
+    .skills-row {
+      font-size: 9.5pt;
+      margin-bottom: 2pt;
+    }
+    .skills-row strong {
+      color: #0f172a;
+      font-weight: 700;
+    }
+    /* Experience Entries */
+    .entry {
+      margin-bottom: 7pt;
+    }
+    .entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .role-title {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .company-name {
+      font-size: 10pt;
+      font-weight: 600;
+      color: #2563eb;
+    }
+    .date-badge, .loc-badge {
+      font-size: 9pt;
+      color: #64748b;
+      font-weight: 500;
+    }
+    /* Bullets */
+    ul {
+      margin-left: 14pt;
+      margin-top: 2pt;
+      margin-bottom: 3pt;
+    }
+    li {
+      margin-bottom: 2pt;
+      font-size: 9.5pt;
+      color: #1e293b;
+      text-align: justify;
+    }
+    li strong {
+      color: #0f172a;
+      font-weight: 700;
+    }
+    @media print {
+      body { width: 100%; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-top">
+        <h1>{{ profile.full_name }}</h1>
+        <div class="loc-badge">{{ profile.location }}</div>
+      </div>
+      <div class="header-title">{{ profile.title }}</div>
+      <div class="contact-bar">
+        {% if profile.email %}<a href="mailto:{{ profile.email }}">{{ profile.email }}</a>{% endif %}
+        {% if profile.phone %}<span>{{ profile.phone }}</span>{% endif %}
+        {% if profile.linkedin_url %}<a href="{{ profile.linkedin_url }}">LinkedIn</a>{% endif %}
+        {% if profile.github_url %}<a href="{{ profile.github_url }}">GitHub</a>{% endif %}
+        {% if profile.portfolio_url %}<a href="{{ profile.portfolio_url }}">Portfolio</a>{% endif %}
+      </div>
+    </header>
+
+    <!-- Professional Summary -->
+    {% if app.tailored_summary or profile.summary %}
+    <section>
+      <div class="section-title">Executive Summary</div>
+      <p class="summary-text">{{ app.tailored_summary or profile.summary }}</p>
+    </section>
+    {% endif %}
+
+    <!-- Core Competencies & Skills -->
+    {% if profile.skills %}
+    <section class="skills-block">
+      <div class="section-title">Core Competencies & Technical Skills</div>
+      {% for sk in profile.skills %}
+      <div class="skills-row">
+        <strong>{{ sk.category }}:</strong> {{ sk.skills | join(', ') }}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Professional Experience -->
+    {% if app.tailored_experiences %}
+    <section>
+      <div class="section-title">Leadership & Professional Experience</div>
+      {% for exp in app.tailored_experiences %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="role-title">{{ exp.role }}</span>
+          <span class="date-badge">{{ exp.start_date }} - {{ exp.end_date }}</span>
+        </div>
+        <div class="entry-header" style="margin-bottom: 2pt;">
+          <span class="company-name">{{ exp.company }}</span>
+          {% if exp.location %}<span class="loc-badge">{{ exp.location }}</span>{% endif %}
+        </div>
+        {% if exp.bullets %}
+        <ul>
+          {% for bullet in exp.bullets %}
+          <li>{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Key Projects & Open Source -->
+    {% if app.tailored_projects %}
+    <section>
+      <div class="section-title">Key Projects & Open Source Architecture</div>
+      {% for proj in app.tailored_projects %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="role-title">{{ proj.name }} {% if proj.tech_stack %}| <em style="font-size: 9pt; font-weight: 500; color: #475569;">{{ proj.tech_stack | join(', ') }}</em>{% endif %}</span>
+          {% if proj.github_url or proj.url %}<span class="date-badge"><a href="{{ proj.github_url or proj.url }}" style="color: #2563eb; text-decoration: none;">Repository</a></span>{% endif %}
+        </div>
+        {% if proj.highlights %}
+        <ul>
+          {% for hl in proj.highlights %}
+          <li>{{ hl }}</li>
+          {% endfor %}
+        </ul>
+        {% elif proj.description %}
+        <p class="summary-text" style="margin-left: 14pt;">{{ proj.description }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Education -->
+    {% if profile.education %}
+    <section>
+      <div class="section-title">Education & Credentials</div>
+      {% for edu in profile.education %}
+      <div class="entry">
+        <div class="entry-header">
+          <span class="role-title">{{ edu.institution }}</span>
+          <span class="date-badge">{% if edu.start_date and edu.end_date %}{{ edu.start_date }} - {{ edu.end_date }}{% elif edu.end_date %}{{ edu.end_date }}{% endif %}</span>
+        </div>
+        <div class="entry-header">
+          <span style="font-weight: 500; color: #334155;">{{ edu.degree }}{% if edu.field_of_study %} in {{ edu.field_of_study }}{% endif %}</span>
+          {% if edu.grade %}<span class="loc-badge">Honours: {{ edu.grade }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+  </div>
+</body>
+</html>

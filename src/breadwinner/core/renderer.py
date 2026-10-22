@@ -22,18 +22,35 @@ class TemplateRenderer:
             lstrip_blocks=True
         )
 
+    @classmethod
+    def list_available_templates(cls) -> List[str]:
+        """List registered resume template names."""
+        return [
+            "jakes",
+            "modern",
+            "executive",
+            "systems_research",
+            "compact_1page",
+            "consultant",
+            "ats",
+        ]
+
     def render_resume(
         self,
         profile: CandidateProfile,
         app: TailoredApplication,
         template_name: str = "jakes"
     ) -> str:
-        """Render resume using the specified template (jakes, modern, ats)."""
+        """Render resume using the specified template (jakes, modern, executive, systems_research, compact_1page, consultant, ats)."""
         template_map = {
             "jakes": "resume/jakes.html.jinja2",
             "modern": "resume/modern.html.jinja2",
             "ats": "resume/ats.md.jinja2",
-            "markdown": "resume/ats.md.jinja2"
+            "markdown": "resume/ats.md.jinja2",
+            "executive": "resume/executive.html.jinja2",
+            "systems_research": "resume/systems_research.html.jinja2",
+            "compact_1page": "resume/compact_1page.html.jinja2",
+            "consultant": "resume/consultant.html.jinja2",
         }
         tpl_path = template_map.get(template_name.lower(), "resume/jakes.html.jinja2")
         template = self.env.get_template(tpl_path)
