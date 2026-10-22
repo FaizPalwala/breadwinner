@@ -12,6 +12,7 @@ from textual.screen import ModalScreen
 
 from breadwinner.core.models import CandidateProfile, TailoredApplication, WorkExperience
 from breadwinner.core.renderer import TemplateRenderer
+from breadwinner.core.density import extract_bullet_action_verb
 from breadwinner.ui.audio_widgets import AudioDictationModal
 
 
@@ -93,8 +94,8 @@ def analyze_bullets_xyz(text: str, profile: Optional[CandidateProfile] = None) -
         elif weak_bullet_index is None:
             weak_bullet_index = idx
 
-        first_word = re.findall(r"^[A-Za-z]+(?:-[A-Za-z]+)?", b)
-        if first_word and first_word[0].lower() in STRONG_ACTION_VERBS:
+        verb = extract_bullet_action_verb(b)
+        if verb:
             action_verbs_found += 1
 
     quantified_score = int((quantified_count / len(bullets)) * 100) if bullets else 0

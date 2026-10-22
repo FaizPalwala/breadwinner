@@ -20,12 +20,17 @@ from dataclasses import dataclass, field
 # Google XYZ formula high-agency action verbs
 ACTION_VERBS = {
     "architected", "engineered", "spearheaded", "designed", "scaled",
-    "optimized", "built", "implemented", "reduced", "increased",
-    "orchestrated", "migrated", "mentored", "automated", "authored",
+    "optimized", "optimised", "built", "implemented", "reduced", "increased",
+    "decreased", "orchestrated", "migrated", "mentored", "automated", "authored",
     "founded", "delivered", "deployed", "transformed", "pioneered",
-    "refactored", "standardized", "negotiated", "secured", "eliminated",
+    "refactored", "standardized", "standardised", "negotiated", "secured", "eliminated",
     "accelerated", "boosted", "consolidated", "directed", "formulated",
-    "integrated", "launched", "streamlined", "revamped", "unlocked"
+    "integrated", "launched", "streamlined", "revamped", "unlocked",
+    "developed", "achieved", "executed", "configured", "benchmarked",
+    "evaluated", "trained", "quantized", "ablated", "finetuned", "fine-tuned",
+    "curated", "stabilized", "stabilised", "reconciled", "resolved",
+    "partitioned", "provisioned", "shipped", "modernised", "modernized",
+    "redesigned", "rearchitected"
 }
 
 # Recognizable technical entities, tools, and architectures
@@ -37,7 +42,9 @@ TECHNICAL_ENTITIES = {
     "microservices", "event-driven", "distributed systems", "ci/cd", "graphql", "rest", "grpc",
     "fastapi", "django", "flask", "react", "next.js", "node.js", "vue", "angular", "tailwind",
     "pytorch", "tensorflow", "llm", "rag", "langchain", "transformers", "vector db",
-    "raft", "paxos", "consensus", "high-availability", "low-latency", "concurrency", "qps"
+    "raft", "paxos", "consensus", "high-availability", "low-latency", "concurrency", "qps",
+    "vllm", "mlx", "metal", "triton", "apple mlx", "langgraph", "diffusers", "instantid",
+    "huggingface", "onnx", "polars", "webrtc", "openmp", "cuda", "simd", "pydantic"
 }
 
 # Negative fluff patterns: Tutorials, personal blog filler, dissertation thesis boilerplate
@@ -60,6 +67,82 @@ METRIC_REGEX = re.compile(
     r"\b\d+[%kKmMbBxX]?\b|\$\d+[\d,]*|\b\d+\.\d+\b|\b\d+\s*(?:ms|seconds|s|minutes|users|qps|rps|tps|gb|tb|pb|req/s|engineers|clients|members|stars|forks|downloads|weekly|monthly|annually)\b",
     re.IGNORECASE
 )
+
+# True impact metric patterns filtering out incidental calendar years and version strings
+TRUE_IMPACT_PATTERNS = [
+    re.compile(r"\b\d+(?:\.\d+)?%\+?", re.IGNORECASE),  # Percentages (45%, 90%+)
+    re.compile(r"\b\d+x\b|\b\d+X\b"),  # Multipliers (10x)
+    re.compile(r"[\$£€¥]\s*\d+[\d,.]*[kKmMbB]?", re.IGNORECASE),  # Currency ($100k, £500k)
+    re.compile(r"\b\d+[\d,.]*\s*[kKmMbB]\b"),  # Large quantities (10M, 500k)
+    re.compile(r"\b\d{1,3}(?:,\d{3})+\b"),  # Formatted numbers (75,000, 1,000,000)
+    re.compile(r"\b\d+\s*gpu[- ]hours?\b", re.IGNORECASE),  # GPU hours
+    re.compile(r"\b(?:auc|f1|accuracy|loss|precision|recall|perplexity)\b", re.IGNORECASE),  # Model metrics
+    re.compile(r"\b\d+[bBmM]\s*(?:parameters|tokens|weights)\b", re.IGNORECASE),  # LLM scale
+    re.compile(r"\b(?:sub-)?\d+\+?\s*(?:events|users|requests|qps|rps|tps|ms|seconds|minutes|hours|days|engineers|services|nodes|clusters)\b", re.IGNORECASE),
+    re.compile(r"\b\d+\+?\s*(?:[a-zA-Z-]+\s+)?(?:records|anomalies|incidents|features|releases|cycles|microservices|claims|endpoints|tickets|prs|pipelines|portraits|members)\b", re.IGNORECASE),
+    re.compile(r"\b(?:zero|single-digit)\s*(?:downtime|latency)\b", re.IGNORECASE),
+    re.compile(r"\bp9[0-9]\b", re.IGNORECASE),  # p99, p95
+    re.compile(r"\b9\d(?:\.\d+)?%\s*(?:uptime|availability)?\b", re.IGNORECASE)  # 99.999% uptime
+]
+
+
+def is_true_impact_metric(token: str) -> bool:
+    """Check if token is a genuine accomplishment metric, filtering out calendar years and versions."""
+    token = token.strip()
+    # Reject 4-digit calendar years
+    if re.fullmatch(r"(?:19|20)\d{2}", token):
+        return False
+    # Reject standalone software versions like 3.11, 2.0
+    if re.fullmatch(r"\d+\.\d+(?:\.\d+)?", token):
+        return False
+    return any(p.search(token) for p in TRUE_IMPACT_PATTERNS)
+
+
+def extract_bullet_action_verb(bullet: str) -> Optional[str]:
+    """Extract action verb from bullet, handling bold category lead-ins and markdown formatting."""
+    clean = re.sub(r"^(?:[-*•]|\d+\.)\s+", "", bullet.strip()).strip()
+    # Remove leading bold or italic category tags, e.g. **Enterprise Stabilization:** Action verb...
+    clean = re.sub(r"^(?:\*\*.*?\*\*|\*.*?\*|\[.*?\])\s*:?\s*", "", clean).strip()
+    match = re.findall(r"^[A-Za-z]+(?:-[A-Za-z]+)?", clean)
+    if match and match[0].lower() in ACTION_VERBS:
+        return match[0].lower()
+    return None
+
+
+def is_xyz_compliant_bullet(bullet: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    """Determine if a bullet satisfies Google XYZ formula [Accomplished X] as measured by [Y], by doing [Z]."""
+    verb = extract_bullet_action_verb(bullet)
+    # Search for true impact metrics in the bullet
+    found_metric = None
+    for pattern in TRUE_IMPACT_PATTERNS:
+        match = pattern.search(bullet)
+        if match:
+            matched_str = match.group(0)
+            if is_true_impact_metric(matched_str):
+                found_metric = matched_str
+                break
+
+    is_compliant = bool(verb and found_metric)
+    return is_compliant, verb, found_metric
+
+
+def extract_achievement_bullets(text: str) -> List[str]:
+    """Extract genuine achievement bullets from resume text, filtering out skill lists and degrees."""
+    raw_bullets = []
+    for line in text.splitlines():
+        line = line.strip()
+        if re.match(r"^[-*•]\s+", line) or re.match(r"^\d+\.\s+", line):
+            cleaned = re.sub(r"^(?:[-*•]|\d+\.)\s+", "", line).strip()
+            # Skip short fragments or skills list lines like "Languages: Python, Go"
+            if len(cleaned) < 20:
+                continue
+            if re.match(r"^(?:languages|technologies|tools|skills|frameworks|databases|certifications|education):", cleaned, re.IGNORECASE):
+                continue
+            # Skip degree lines
+            if re.search(r"\b(?:bachelor|master|bsc|msc|phd|b\.s\.|m\.s\.|ba|ma)\b", cleaned, re.IGNORECASE) and not re.search(r"\b(?:architected|engineered|developed|built)\b", cleaned, re.IGNORECASE):
+                continue
+            raw_bullets.append(cleaned)
+    return raw_bullets
 
 
 @dataclass

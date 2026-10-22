@@ -224,3 +224,96 @@ class CareerCurator:
             relevance_scores=exp_score_map,
             curation_summary=summary
         )
+
+    @classmethod
+    def calculate_domain_evidence_recall(
+        cls,
+        resume_text: str,
+        core_domains: List[str]
+    ) -> Tuple[float, List[str], List[str]]:
+        """Calculate Domain Evidence Recall score (0-100) based on coverage of JD technical pillars.
+
+        Measures what percentage of target technical pillars have at least one verified evidence bullet.
+        Extra bullets providing depth do not lower this score.
+        """
+        if not core_domains:
+            return 100.0, [], []
+
+        resume_lower = resume_text.lower()
+        matched_domains: List[str] = []
+        missing_domains: List[str] = []
+
+        # Domain synonym mappings for intelligent matching
+        domain_synonyms: Dict[str, List[str]] = {
+            "large language models": ["llm", "llms", "language models", "transformer", "transformers", "gpt"],
+            "llm": ["large language model", "transformer", "prompt engineering", "fine-tuning"],
+            "multi-agent orchestration": ["agent", "agents", "orchestration", "langgraph", "crewai", "autogen"],
+            "inference optimization": ["inference", "optimization", "quantization", "quantized", "vllm", "mlx", "tensorrt", "latency"],
+            "distributed systems": ["distributed", "streaming", "consensus", "raft", "paxos", "event streaming", "high-availability"],
+            "microservices": ["microservice", "microservices", "service-oriented", "grpc", "rest api"],
+            "cloud & infrastructure": ["aws", "gcp", "azure", "kubernetes", "k8s", "terraform", "docker", "cloud"],
+            "data engineering": ["etl", "pipeline", "spark", "data warehouse", "lakehouse", "sql"]
+        }
+
+        for domain in core_domains:
+            domain_clean = domain.strip()
+            domain_lower = domain_clean.lower()
+
+            # Check direct domain string presence
+            if domain_lower in resume_lower:
+                matched_domains.append(domain_clean)
+                continue
+
+            # Check domain synonyms
+            synonyms = domain_synonyms.get(domain_lower, [])
+            if any(syn in resume_lower for syn in synonyms):
+                matched_domains.append(domain_clean)
+                continue
+
+            # Check individual component tokens (split by slash, ampersand, comma, hyphen, space)
+            tokens = [t.strip() for t in re.split(r"[/&,\- ]+", domain_lower) if len(t.strip()) > 2 and t.strip() not in STOP_WORDS]
+            if tokens and any(t in resume_lower for t in tokens):
+                matched_domains.append(domain_clean)
+            else:
+                missing_domains.append(domain_clean)
+
+        recall_score = round((len(matched_domains) / len(core_domains)) * 100.0, 1)
+        return recall_score, matched_domains, missing_domains
+
+    @classmethod
+    def evaluate_seniority_metric_floors(
+        cls,
+        experiences: List[WorkExperience]
+    ) -> Dict[str, Any]:
+        """Verify that senior and staff commercial roles satisfy metric density floors."""
+        senior_roles = []
+        under_floor_roles = []
+
+        for exp in experiences:
+            role_lower = exp.role.lower()
+            is_senior = any(title in role_lower for title in ["senior", "lead", "staff", "principal", "head", "director", "architect"])
+            if is_senior:
+                # Count quantified achievement bullets in this role
+                all_bullets = exp.bullets or []
+                quantified_bullets = 0
+                for b in all_bullets:
+                    if re.search(r"\b\d+[%kKmMbBxX]?\b|\$\d+|\b\d+\.\d+\b", b):
+                        quantified_bullets += 1
+                senior_roles.append({
+                    "company": exp.company,
+                    "role": exp.role,
+                    "total_bullets": len(all_bullets),
+                    "quantified_bullets": quantified_bullets
+                })
+                # Senior roles should have at least 2 quantified impact bullets if they have 3+ bullets
+                if len(all_bullets) >= 3 and quantified_bullets < 2:
+                    under_floor_roles.append(f"{exp.role} @ {exp.company}")
+
+        meets_floor = len(under_floor_roles) == 0
+        return {
+            "meets_floor": meets_floor,
+            "senior_roles_evaluated": len(senior_roles),
+            "under_floor_roles": under_floor_roles,
+            "details": senior_roles
+        }
+

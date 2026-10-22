@@ -51,6 +51,8 @@ SLOP_REPLACEMENTS = {
 
 class ProvenanceReport(BaseModel):
     is_valid: bool = True
+    status: str = "PASS"  # "PASS" or "FAIL"
+    flagged_entities: List[str] = Field(default_factory=list)
     verified_metrics: List[str] = Field(default_factory=list)
     unverified_metrics: List[str] = Field(default_factory=list)
     banned_words_found: List[str] = Field(default_factory=list)
@@ -64,6 +66,8 @@ class ProvenanceCertificate(BaseModel):
     """Formal audit certificate guaranteeing anti-hallucination and metric grounding."""
     grounding_score: int = 100
     is_valid: bool = True
+    status: str = "PASS"  # "PASS" or "FAIL"
+    flagged_entities: List[str] = Field(default_factory=list)
     verified_metrics: List[str] = Field(default_factory=list)
     unverified_metrics: List[str] = Field(default_factory=list)
     banned_words_found: List[str] = Field(default_factory=list)
@@ -215,10 +219,32 @@ class ProvenanceValidator:
                 banned_found.append(word)
                 warnings.append(f"Detected banned buzzword: '{word}'.")
 
-        is_valid = len(unverified) == 0 and len(banned_found) == 0
+        # Binary check on institutions and employers
+        flagged_entities = []
+        verified_employers = {e.company.lower().strip() for e in (profile.experiences or []) if e.company}
+        for exp in app.tailored_experiences or []:
+            if exp.company:
+                comp_lower = exp.company.lower().strip()
+                if not any(comp_lower in ve or ve in comp_lower for ve in verified_employers):
+                    flagged_entities.append(f"Unverified employer: '{exp.company}' not found in pantry.")
+                    warnings.append(f"Unverified employer: '{exp.company}' not found in candidate pantry.")
+
+        verified_institutions = {edu.institution.lower().strip() for edu in (profile.education or []) if edu.institution}
+        inst_pattern = re.compile(r"\b(?:University\s+of\s+[A-Z][a-zA-Z]+|(?!From|At|In|The|A|Attended|To|And|Or|Graduated)[A-Z][a-zA-Z]+\s+(?:University|College|Institute(?:\s+of\s+Technology)?))\b")
+        found_institutions = set(inst_pattern.findall(combined_tailored))
+        for inst in sorted(found_institutions):
+            inst_lower = inst.lower().strip()
+            if not any(inst_lower in vi or vi in inst_lower for vi in verified_institutions):
+                flagged_entities.append(f"Unverified institution: '{inst}' not found in pantry.")
+                warnings.append(f"Unverified institution: '{inst}' not found in candidate pantry.")
+
+        is_valid = len(unverified) == 0 and len(banned_found) == 0 and len(flagged_entities) == 0
+        status = "PASS" if is_valid else "FAIL"
 
         return ProvenanceReport(
             is_valid=is_valid,
+            status=status,
+            flagged_entities=flagged_entities,
             verified_metrics=verified,
             unverified_metrics=unverified,
             banned_words_found=banned_found,
@@ -322,12 +348,14 @@ class ProvenanceValidator:
         summary_text = (
             f"Pantry: Verified (Strict) | Lexicon: Clean (0 flags)"
             if final_report.is_valid
-            else f"{grounding_score}% Grounded • {len(final_report.unverified_metrics)} Pending Warnings"
+            else f"{grounding_score}% Grounded | {len(final_report.unverified_metrics) + len(final_report.flagged_entities)} Pending Warnings"
         )
 
         cert = ProvenanceCertificate(
             grounding_score=grounding_score,
             is_valid=final_report.is_valid,
+            status=final_report.status,
+            flagged_entities=final_report.flagged_entities,
             verified_metrics=final_report.verified_metrics,
             unverified_metrics=final_report.unverified_metrics,
             banned_words_found=final_report.banned_words_found,
