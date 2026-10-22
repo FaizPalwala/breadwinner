@@ -2,11 +2,12 @@
 
 import json
 import re
+import sys
 import zlib
 import platform
 import subprocess
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urlparse, urljoin, unquote
 from bs4 import BeautifulSoup
@@ -28,8 +29,14 @@ class IngestionError(Exception):
 
 
 def clean_user_input_path(raw: str) -> str:
-    """Clean dragged or pasted terminal paths, strip file:// and URL-encoded characters."""
-    s = str(raw).strip().strip("'\"“”‘’")
+    """Clean dragged or pasted terminal paths, strip PowerShell call operators, file:// and URL-encoded characters."""
+    s = str(raw).strip()
+    # Strip leading PowerShell call operator &
+    if s.startswith("&"):
+        s = s[1:].strip()
+    s = s.strip("'\"“”‘’")
+    if s.startswith("&"):
+        s = s[1:].strip().strip("'\"“”‘’")
     if s.startswith("file://"):
         s = s[7:]
         if s.startswith("localhost"):
@@ -1905,28 +1912,54 @@ def parse_dropped_sources(raw: str) -> list[str]:
     - Multi-line lists of URLs or file paths
     - Comma/semicolon delimited lists
     - Single paths or URLs
+    - Windows paths with drive letters, backslashes, and PowerShell call operators (&)
     - Raw plain text notes
     """
     raw_str = str(raw).strip()
     if not raw_str:
         return []
 
+    # Strip leading PowerShell call operator &
+    if raw_str.startswith("&"):
+        raw_str = raw_str[1:].strip()
+
     # 1. Newlines indicate separate lines/sources
     if "\n" in raw_str:
         lines = [line.strip() for line in raw_str.splitlines() if line.strip()]
         return [clean_user_input_path(l) for l in lines]
 
+    # Detect if input contains Windows paths (drive letters or backslashes)
+    is_windows_input = (
+        sys.platform == "win32"
+        or bool(re.search(r"^[a-zA-Z]:[\\/]", raw_str))
+        or bool(re.search(r"[\s'\"][a-zA-Z]:[\\/]", raw_str))
+        or ("\\" in raw_str)
+    )
+
     # 2. Check for multiple space-separated quoted paths (standard terminal drag-and-drop)
     if ("'" in raw_str or '"' in raw_str) and len(raw_str.split()) > 1:
         try:
             import shlex
-            parts = shlex.split(raw_str)
-            if parts and all(
-                p.startswith(("http://", "https://", "file://", "@", "~", "/"))
-                or any(p.lower().endswith(ext) for ext in (".pdf", ".docx", ".doc", ".json", ".md", ".txt", ".rtf"))
-                or Path(os.path.expanduser(p)).exists()
-                for p in parts
-            ):
+            parts = shlex.split(raw_str, posix=not is_windows_input)
+            
+            def _looks_like_source_token(tok: str) -> bool:
+                clean = clean_user_input_path(tok)
+                if not clean:
+                    return False
+                if clean.startswith(("http://", "https://", "file://", "@", "~", "/", "\\\\")):
+                    return True
+                if re.match(r"^[a-zA-Z]:[\\/]", clean):
+                    return True
+                if any(clean.lower().endswith(ext) for ext in (".pdf", ".docx", ".doc", ".json", ".md", ".txt", ".rtf")):
+                    return True
+                try:
+                    if Path(os.path.expanduser(clean)).exists():
+                        return True
+                except Exception:
+                    pass
+                return False
+
+            if parts and all(_looks_like_source_token(p) for p in parts):
                 return [clean_user_input_path(p) for p in parts]
         except Exception:
             pass
@@ -1935,7 +1968,8 @@ def parse_dropped_sources(raw: str) -> list[str]:
     if "," in raw_str or ";" in raw_str:
         items = [p.strip() for p in re.split(r"[,;]+", raw_str) if p.strip()]
         if len(items) > 1 and all(
-            it.startswith(("http://", "https://", "@", "~", "/"))
+            it.startswith(("http://", "https://", "@", "~", "/", "\\\\"))
+            or re.match(r"^[a-zA-Z]:[\\/]", it)
             or "." in it
             for it in items
         ):
@@ -1957,7 +1991,7 @@ def normalize_source(source: str) -> tuple[str, str]:
     - Standard URLs (https://...)
     - Bare domains (faizpalwala.tech, www.example.com)
     - GitHub handles (@username or github.com/username)
-    - Local file paths (~/resume.pdf, file://...)
+    - Local file paths (~/resume.pdf, file://..., C:\\...)
     - Raw text notes
     """
     s = clean_user_input_path(str(source))
@@ -1974,9 +2008,22 @@ def normalize_source(source: str) -> tuple[str, str]:
         return f"https://github.com/{gh_user}", "url"
 
     # 3. Local file or directory check
-    expanded = Path(os.path.expanduser(s))
-    if expanded.exists() or expanded.suffix.lower() in (".pdf", ".docx", ".doc", ".md", ".json", ".txt", ".rtf"):
-        return expanded.name, "file"
+    is_win_path = bool(re.match(r"^[a-zA-Z]:[\\/]", s)) or ("\\" in s) or s.startswith("\\\\")
+    try:
+        expanded = Path(os.path.expanduser(s))
+        exists = expanded.exists()
+    except Exception:
+        exists = False
+
+    file_name = PureWindowsPath(s).name if is_win_path else Path(os.path.expanduser(s)).name
+    file_ext = (
+        PureWindowsPath(s).suffix.lower()
+        if is_win_path
+        else Path(os.path.expanduser(s)).suffix.lower()
+    )
+
+    if exists or file_ext in (".pdf", ".docx", ".doc", ".md", ".json", ".txt", ".rtf"):
+        return file_name or s, "file"
 
     # 4. Bare domain check (e.g. faizpalwala.tech, blog.me.org, site.co.uk/about)
     domain_match = re.match(r"^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(/.*)?$", s)

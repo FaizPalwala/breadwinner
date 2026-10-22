@@ -19,6 +19,8 @@ Job hunting is broken by clinical automated slop and hallucination factories tha
 
 ### 1. Installation
 
+<!-- tabs:start -->
+#### **macOS / Linux**
 ```bash
 git clone https://github.com/FaizPalwala/bread-winner.git
 cd bread-winner
@@ -26,14 +28,35 @@ cd bread-winner
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
+breadwinner
 ```
+
+#### **Windows (PowerShell)**
+```powershell
+git clone https://github.com/FaizPalwala/bread-winner.git
+cd bread-winner
+
+# Option A: 1-Click Bootstrap
+powershell -ExecutionPolicy Bypass -File install.ps1
+
+# Option B: Manual Setup
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+.\breadwinner.bat
+```
+<!-- tabs:end -->
 
 ### 2. Launch the Studio
 
 Just run:
 
 ```bash
+# macOS / Linux
 breadwinner
+
+# Windows
+.\breadwinner.bat
 ```
 
 If it's your first time, the **Bakery Welcome Screen** will greet you:
@@ -58,7 +81,7 @@ If it's your first time, the **Bakery Welcome Screen** will greet you:
 │                                  │ Staff SRE • alex@breadwinner.dev    │
 │ LIVE AUDIT GAUGES                │                                     │
 │ • Google XYZ:    [████████░░░░]  │ Experience                          │
-│ • Action Verbs:  [██████████░░]  │ Acme Corp — Senior SRE              │
+│ • Action Verbs:  [██████████░░]  │ Acme Corp - Senior SRE              │
 │ • Fact Ground:   [████████████]  │ • Scaled cluster to 500 nodes...    │
 │ • Bake Health:   [██████████░░]  │                                     │
 ├──────────────────────────────────┴─────────────────────────────────────┤
@@ -80,7 +103,7 @@ If it's your first time, the **Bakery Welcome Screen** will greet you:
 
 ### 3. Native Headless Chromium PDF Baking (`b` Hotkey)
 - Generates pixel-perfect, single-column A4 resumes (`resume.pdf`) conforming to the strict `r/EngineeringResumes` (Jake's Resume) gold standard.
-- Uses your local Chrome, Brave, Edge, or Chromium browser in headless mode—**zero C-library dependencies** (no WeasyPrint or Cairo compilation headaches).
+- Uses your local Chrome, Brave, Edge, or Chromium browser in headless mode: **zero C-library dependencies** (no WeasyPrint or Cairo compilation headaches).
 - Press `b` to bake; press `v` to view in your system PDF reader.
 
 ### 4. Career Curator (Anti-Context Bloat)

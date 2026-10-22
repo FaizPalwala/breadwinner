@@ -1,6 +1,7 @@
 """ADR-002 Stage 3: Interactive Ingredient Discovery & Selection Modal."""
 
 import os
+import re
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
@@ -158,6 +159,30 @@ def discover_all_ingredients(raw_sources: List[str]) -> List[DiscoveredIngredien
                             is_default=True
                         )
                     )
+            continue
+
+        # Check if item looks like a file path or directory (Windows drive, UNC, separators, file extension)
+        is_path_like = (
+            bool(re.match(r"^[a-zA-Z]:[\\/]", clean_item))
+            or clean_item.startswith(("\\\\", "/", "~"))
+            or ("/" in clean_item or "\\" in clean_item)
+            or any(clean_item.lower().endswith(ext) for ext in (
+                ".pdf", ".docx", ".doc", ".txt", ".md", ".rtf", ".json", ".yaml", ".yml", ".csv", ".html", ".htm"
+            ))
+        )
+        if is_path_like:
+            val = clean_item
+            if val not in seen_values:
+                seen_values.add(val)
+                esc_item = escape(clean_item)
+                discovered.append(
+                    DiscoveredIngredient(
+                        label=f"[bold #ff5555][MISSING FILE][/bold #ff5555] Could not locate file at: [bold #fefae0]{esc_item}[/bold #fefae0]",
+                        value=val,
+                        category="missing_file",
+                        is_default=False
+                    )
+                )
             continue
 
         # 3. Raw notes / bio text
