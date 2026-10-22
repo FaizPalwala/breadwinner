@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "breadwinner"
-version = "0.9.0b1"
+version = "0.9.5b1"
 description = "Local-first 8-bit career engineering studio and anti-hallucination resume tailoring engine."
 readme = "README.md"
 requires-python = ">=3.10"
