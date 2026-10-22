@@ -36,6 +36,7 @@ from breadwinner.automations.health import JobHealthChecker
 from breadwinner.automations.reminders import ReminderEngine
 from breadwinner.core.pdf import render_html_to_pdf, bake_application_package, PDFGenerationError
 from breadwinner.core.pantry import PantryManager
+from breadwinner.core.contract import JobContract, save_application_contract_bundle
 from breadwinner.core.ingestor import UniversalIngestor, IngestionError
 from breadwinner.core.interview import INTERVIEW_QUESTIONS, synthesize_context
 
@@ -276,12 +277,21 @@ def apply(
 
         (app_dir / "resume.html").write_text(resume_html, encoding="utf-8")
         (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
+        (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
         if application.cover_letter:
             (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
             cl_html = renderer.render_cover_letter_html(profile, application)
             (app_dir / "cover_letter.html").write_text(cl_html, encoding="utf-8")
-        if application.portal_answers:
-            (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
+
+        # Always persist JobContract (job.json), job_description.txt, and portal_answers.md
+        contract = JobContract.create_contract_from_job(job, template=active_template)
+        save_application_contract_bundle(
+            folder_path=app_dir,
+            contract=contract,
+            raw_job_text=job.raw_text or job.cleaned_markdown or "",
+            portal_qna=portal_qna,
+            profile=profile
+        )
 
         # 8. Render Print ATS PDF Package
         pdf_generated = False
@@ -324,7 +334,8 @@ def apply(
     table.add_column("Details")
     table.add_row("Portal Type", job.portal_type.capitalize())
     table.add_row("Location", job.location or "Not specified")
-    table.add_row("Persona Applied", f"{active_persona.name} ([dim]{active_persona.slug}[/dim])")
+    persona_display = f"{active_persona.name} ([dim]{active_persona.slug}[/dim])" if active_persona else "Direct Pantry Match"
+    table.add_row("Persona Applied", persona_display)
     table.add_row("ATS Match Score", f"[{score_color}]{score}%[/{score_color}]")
     table.add_row("Matched Strengths", ", ".join(application.match_analysis.matched_skills[:8]))
     if application.match_analysis.missing_skills:

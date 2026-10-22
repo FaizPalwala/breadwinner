@@ -842,14 +842,21 @@ class BakingModal(ModalScreen):
             (app_dir / "resume.html").write_text(resume_html, encoding="utf-8")
             (app_dir / "resume.md").write_text(resume_md, encoding="utf-8")
             (app_dir / "resume.json").write_text(json_resume, encoding="utf-8")
-            if getattr(job, "raw_text", None):
-                (app_dir / "job_description.txt").write_text(job.raw_text, encoding="utf-8")
             if app_result.cover_letter:
                 (app_dir / "cover_letter.md").write_text(cover_letter, encoding="utf-8")
                 cl_html = renderer.render_cover_letter_html(profile, app_result)
                 (app_dir / "cover_letter.html").write_text(cl_html, encoding="utf-8")
-            if app_result.portal_answers:
-                (app_dir / "portal_answers.md").write_text(portal_qna, encoding="utf-8")
+
+            # Always persist JobContract (job.json), job_description.txt, and portal_answers.md
+            from breadwinner.core.contract import JobContract, save_application_contract_bundle
+            contract = JobContract.create_contract_from_job(job, template=template_name)
+            save_application_contract_bundle(
+                folder_path=app_dir,
+                contract=contract,
+                raw_job_text=getattr(job, "raw_text", "") or getattr(job, "cleaned_markdown", ""),
+                portal_qna=portal_qna,
+                profile=profile
+            )
 
             # STAGE 4: GOLDEN LOAF (PDF BAKE)
             self.app.call_from_thread(stepper.set_stage, 4)
