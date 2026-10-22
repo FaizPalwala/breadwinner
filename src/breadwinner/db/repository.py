@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class JobRecord(BaseModel):
@@ -20,8 +20,28 @@ class JobRecord(BaseModel):
     date_added: str
     date_applied: Optional[str] = None
     folder_path: Optional[str] = None
-    notes: str = ""
+    notes: Optional[str] = ""
     flag: Optional[str] = None  # e.g. "followup_needed", "high_priority", "link_broken"
+    contract_path: Optional[str] = None
+    ats_score: Optional[int] = None
+    xyz_score: Optional[int] = None
+    domain_recall_score: Optional[int] = None
+    provenance_status: Optional[str] = "unverified"
+
+    @model_validator(mode="after")
+    def sync_scores_and_contract(self) -> "JobRecord":
+        if self.notes is None:
+            self.notes = ""
+        if self.ats_score is not None and self.match_score is None:
+            self.match_score = self.ats_score
+        elif self.match_score is not None and self.ats_score is None:
+            self.ats_score = self.match_score
+
+        if not self.contract_path and self.folder_path:
+            candidate = Path(self.folder_path) / "job.json"
+            if candidate.exists():
+                self.contract_path = str(candidate)
+        return self
 
 
 class JobRepository:
@@ -53,9 +73,30 @@ class JobRepository:
                     date_applied TEXT,
                     folder_path TEXT,
                     notes TEXT,
-                    flag TEXT
+                    flag TEXT,
+                    contract_path TEXT,
+                    ats_score INTEGER,
+                    xyz_score INTEGER,
+                    domain_recall_score INTEGER,
+                    provenance_status TEXT DEFAULT 'unverified'
                 )
             """)
+            # Check for existing schema to apply migration 002 if needed
+            existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+            migrations = [
+                ("contract_path", "TEXT"),
+                ("ats_score", "INTEGER"),
+                ("xyz_score", "INTEGER"),
+                ("domain_recall_score", "INTEGER"),
+                ("provenance_status", "TEXT DEFAULT 'unverified'"),
+            ]
+            for col_name, col_type in migrations:
+                if col_name not in existing_cols:
+                    conn.execute(f"ALTER TABLE jobs ADD COLUMN {col_name} {col_type}")
+
+            # Backfill ats_score from match_score
+            conn.execute("UPDATE jobs SET ats_score = match_score WHERE ats_score IS NULL AND match_score IS NOT NULL")
+            conn.execute("UPDATE jobs SET match_score = ats_score WHERE match_score IS NULL AND ats_score IS NOT NULL")
             conn.commit()
 
     def upsert_job(self, record: JobRecord) -> None:
@@ -64,8 +105,9 @@ class JobRepository:
             conn.execute("""
                 INSERT INTO jobs (
                     id, company, title, url, location, portal_type, status,
-                    match_score, persona, date_added, date_applied, folder_path, notes, flag
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    match_score, persona, date_added, date_applied, folder_path, notes, flag,
+                    contract_path, ats_score, xyz_score, domain_recall_score, provenance_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     company = excluded.company,
                     title = excluded.title,
@@ -78,12 +120,18 @@ class JobRepository:
                     date_applied = COALESCE(excluded.date_applied, jobs.date_applied),
                     folder_path = COALESCE(excluded.folder_path, jobs.folder_path),
                     notes = CASE WHEN excluded.notes != '' THEN excluded.notes ELSE jobs.notes END,
-                    flag = COALESCE(excluded.flag, jobs.flag)
+                    flag = COALESCE(excluded.flag, jobs.flag),
+                    contract_path = COALESCE(excluded.contract_path, jobs.contract_path),
+                    ats_score = COALESCE(excluded.ats_score, jobs.ats_score),
+                    xyz_score = COALESCE(excluded.xyz_score, jobs.xyz_score),
+                    domain_recall_score = COALESCE(excluded.domain_recall_score, jobs.domain_recall_score),
+                    provenance_status = COALESCE(excluded.provenance_status, jobs.provenance_status)
             """, (
                 record.id, record.company, record.title, record.url, record.location,
                 record.portal_type, record.status, record.match_score, record.persona,
                 record.date_added, record.date_applied, record.folder_path,
-                record.notes, record.flag
+                record.notes, record.flag, record.contract_path, record.ats_score,
+                record.xyz_score, record.domain_recall_score, record.provenance_status
             ))
             conn.commit()
 

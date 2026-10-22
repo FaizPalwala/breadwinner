@@ -84,3 +84,85 @@ def test_db_delete_job(tmp_path: Path):
     # Delete non-existent job
     deleted_again = repo.delete_job("stripe-infra")
     assert deleted_again is False
+
+
+def test_db_migration_002(tmp_path: Path):
+    import sqlite3
+    db_file = tmp_path / "legacy.db"
+
+    # Create a legacy table without the new columns
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("""
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY,
+                company TEXT NOT NULL,
+                title TEXT NOT NULL,
+                url TEXT,
+                location TEXT,
+                portal_type TEXT,
+                status TEXT NOT NULL,
+                match_score INTEGER,
+                persona TEXT,
+                date_added TEXT NOT NULL,
+                date_applied TEXT,
+                folder_path TEXT,
+                notes TEXT,
+                flag TEXT
+            )
+        """)
+        conn.execute("""
+            INSERT INTO jobs (id, company, title, status, match_score, date_added)
+            VALUES ('old-job', 'Legacy Co', 'Software Engineer', 'target', 88, '2026-09-01')
+        """)
+        conn.commit()
+
+    # Initializing JobRepository triggers automatic migration 002
+    repo = JobRepository(db_file)
+    migrated_job = repo.get_job("old-job")
+    assert migrated_job is not None
+    assert migrated_job.match_score == 88
+    assert migrated_job.ats_score == 88
+    assert migrated_job.provenance_status == "unverified"
+    assert migrated_job.contract_path is None
+
+    # Upsert with new columns
+    migrated_job.xyz_score = 92
+    migrated_job.domain_recall_score = 95
+    migrated_job.provenance_status = "verified"
+    repo.upsert_job(migrated_job)
+
+    updated = repo.get_job("old-job")
+    assert updated.xyz_score == 92
+    assert updated.domain_recall_score == 95
+    assert updated.provenance_status == "verified"
+
+
+def test_job_record_score_and_contract_sync(tmp_path: Path):
+    app_folder = tmp_path / "apps" / "acme"
+    app_folder.mkdir(parents=True)
+    contract_file = app_folder / "job.json"
+    contract_file.write_text('{"metadata": {"role": "MLE"}}', encoding="utf-8")
+
+    # When match_score is passed, ats_score should sync
+    rec1 = JobRecord(
+        id="acme-1",
+        company="Acme",
+        title="MLE",
+        match_score=90,
+        date_added="2026-10-01",
+        folder_path=str(app_folder)
+    )
+    assert rec1.ats_score == 90
+    assert rec1.contract_path == str(contract_file)
+
+    # When ats_score is passed, match_score should sync
+    rec2 = JobRecord(
+        id="acme-2",
+        company="Acme",
+        title="MLE",
+        ats_score=95,
+        date_added="2026-10-01"
+    )
+    assert rec2.match_score == 95
+    assert rec2.contract_path is None
+
