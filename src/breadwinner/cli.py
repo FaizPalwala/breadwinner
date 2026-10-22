@@ -1525,5 +1525,14 @@ def doctor():
     console.print("[dim]Diagnostic check finished successfully.[/dim]\n")
 
 
+@main.command(name="mcp")
+@click.option("--transport", "-t", type=click.Choice(["stdio"]), default="stdio", help="MCP transport protocol (default: stdio).")
+def mcp_cmd(transport: str):
+    """Launch the Breadwinner FastMCP server over STDIO for AI coding agents."""
+    from breadwinner.mcp.server import mcp
+    mcp.run(transport=transport)
+
+
 if __name__ == "__main__":
     main()
+
