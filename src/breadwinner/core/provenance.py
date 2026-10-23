@@ -113,6 +113,8 @@ class ProvenanceValidator:
     def extract_source_facts(cls, profile: CandidateProfile) -> Set[str]:
         """Extract all verified numeric tokens from the candidate's verified profile."""
         source_texts = [
+            profile.phone or "",
+            profile.location or "",
             profile.summary or "",
             profile.raw_context.get("personal_context", "") if isinstance(profile.raw_context, dict) else ""
         ]
@@ -122,6 +124,9 @@ class ProvenanceValidator:
             source_texts.append(proj.description or "")
             source_texts.extend(proj.highlights or [])
             source_texts.extend(proj.tech_stack or [])
+        for edu in profile.education or []:
+            if edu.start_date: source_texts.append(str(edu.start_date))
+            if edu.end_date: source_texts.append(str(edu.end_date))
 
         full_source = " ".join(source_texts)
         return cls.extract_metrics(full_source)

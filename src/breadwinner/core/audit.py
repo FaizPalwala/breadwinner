@@ -79,8 +79,12 @@ class AuditEngine:
 
         # Strip HTML tags for plain text analysis if HTML is detected
         if "<html" in text.lower() or "</div>" in text.lower() or "<body" in text.lower():
+            # Strip style and script tag contents completely
+            stripped_text = re.sub(r"<(?:style|script)[^>]*>[\s\S]*?</(?:style|script)>", "", text, flags=re.IGNORECASE)
+            # Prefix list items with bullet character so achievement bullet extractor recognises them
+            text_with_bullets = re.sub(r"<li[^>]*>", "\n- ", stripped_text, flags=re.IGNORECASE)
             # Keep line breaks for block elements
-            text_with_breaks = re.sub(r"<(?:p|div|li|h[1-6]|tr)[^>]*>", "\n", text, flags=re.IGNORECASE)
+            text_with_breaks = re.sub(r"<(?:p|div|h[1-6]|tr)[^>]*>", "\n", text_with_bullets, flags=re.IGNORECASE)
             clean_text = re.sub(r"<[^>]+>", " ", text_with_breaks)
             clean_text = re.sub(r"&nbsp;", " ", clean_text)
             clean_text = re.sub(r"&amp;", "&", clean_text)
@@ -133,10 +137,21 @@ class AuditEngine:
         if profile:
             # Check institutions
             verified_institutions = {edu.institution.lower().strip() for edu in (profile.education or []) if edu.institution}
-            found_institutions = set(re.findall(r"\b(?:University\s+of\s+[A-Za-z]+|[A-Za-z]+\s+University|[A-Za-z]+\s+Institute\s+of\s+Technology|[A-Za-z]+\s+College)\b", resume_text, re.IGNORECASE))
+            # Generically extract parenthetical names/acronyms (e.g. "Full Name (ACRONYM)")
+            expanded_verified = set(verified_institutions)
+            for vi in verified_institutions:
+                parts = re.findall(r"([^(]+)(?:\(([^)]+)\))?", vi)
+                for full, paren in parts:
+                    if full.strip():
+                        expanded_verified.add(full.strip())
+                    if paren.strip():
+                        expanded_verified.add(paren.strip())
+            
+            raw_found = re.findall(r"\b(?:University[^\S\r\n]+of[^\S\r\n]+[A-Za-z]+|[A-Za-z]+[^\S\r\n]+University|[A-Za-z]+[^\S\r\n]+Institute[^\S\r\n]+of[^\S\r\n]+Technology|[A-Za-z]+[^\S\r\n]+College)\b", resume_text, re.IGNORECASE)
+            found_institutions = {inst.strip() for inst in raw_found if inst.lower().strip() not in {"the university", "a university", "the college"}}
             for inst in sorted(found_institutions):
                 inst_lower = inst.lower().strip()
-                if not any(inst_lower in vi or vi in inst_lower for vi in verified_institutions):
+                if not any(inst_lower in vi or vi in inst_lower for vi in expanded_verified):
                     flagged_entities.append(f"Unverified institution: '{inst}' not found in candidate pantry.")
 
             # Check metrics
