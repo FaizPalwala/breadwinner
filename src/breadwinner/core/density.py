@@ -13,7 +13,7 @@ Partitions content into:
 """
 
 import re
-from typing import List, Dict, Tuple, Set, Any
+from typing import List, Dict, Tuple, Set, Any, Optional
 from dataclasses import dataclass, field
 
 

@@ -335,8 +335,9 @@ class PersonaSynthesizerModal(ModalScreen):
 
             self.app.call_from_thread(update_ui)
         except Exception as e:
+            err_msg = str(e)
             def show_err():
-                self.app.notify(f"Synthesis failed: {e}", severity="error")
+                self.app.notify(f"Synthesis failed: {err_msg}", severity="error")
                 btn = self.query_one("#btn-run-synth-persona", Button)
                 btn.disabled = False
                 btn.label = "Synthesize Persona [✦]"

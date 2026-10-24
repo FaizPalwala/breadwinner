@@ -646,7 +646,8 @@ class PantryScreenMixin:
 
             self.app.call_from_thread(apply_refinement)
         except Exception as e:
-            self.app.call_from_thread(lambda: self.notify(f"AI Refinement failed: {e}", severity="error"))
+            err_msg = str(e)
+            self.app.call_from_thread(lambda: self.notify(f"AI Refinement failed: {err_msg}", severity="error"))
 
     def action_pantry_edit(self) -> None:
         if not self.pantry.is_initialized():
@@ -800,8 +801,9 @@ class PantryScreenMixin:
 
             self.app.call_from_thread(update_ui)
         except Exception as e:
+            err_msg = str(e)
             def notify_err():
-                self.notify(f"Ingestion failed: {e}", severity="error")
+                self.notify(f"Ingestion failed: {err_msg}", severity="error")
                 try:
                     mascot = self.query_one("#studio-mascot", AnimatedMascot)
                     mascot.set_message("Ingestion error occurred.")

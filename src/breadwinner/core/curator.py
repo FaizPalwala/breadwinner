@@ -6,7 +6,7 @@ while strictly preserving verified metrics and adhering to 1-page resume budgets
 """
 
 import re
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Set, Tuple, Optional, Any
 from dataclasses import dataclass
 
 from breadwinner.core.models import CandidateProfile, WorkExperience, Project, JobPosting

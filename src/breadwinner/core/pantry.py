@@ -14,7 +14,7 @@ from breadwinner.core.models import (
     SkillCategory
 )
 from breadwinner.core.portfolio import JsonResumeAdapter
-from breadwinner.core.ingestor import UniversalIngestor
+from breadwinner.core.ingestor import UniversalIngestor, IngestionError
 from breadwinner.providers.base import BaseLLMProvider
 
 
