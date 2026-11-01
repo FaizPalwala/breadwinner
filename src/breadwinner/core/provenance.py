@@ -1,8 +1,9 @@
 """Anti-hallucination provenance, metric verification, and deterministic auto-healing engine."""
 
 import re
-from typing import Dict, Any, List, Set, Optional, Tuple
+from typing import Dict, Any, List, Set, Optional, Tuple, Union
 from pydantic import BaseModel, Field
+from bs4 import BeautifulSoup
 
 from breadwinner.core.models import CandidateProfile, TailoredApplication, WorkExperience, Project
 from breadwinner.core.persona import Persona
@@ -47,6 +48,226 @@ SLOP_REPLACEMENTS = {
     "game-changer": "key improvement",
     "transformative": "strategic"
 }
+
+
+class ProvenanceAuditError(Exception):
+    """Raised when rendered experience headers drift from canonical pantry facts."""
+
+    def __init__(
+        self,
+        company_or_message: str,
+        field: str = "",
+        expected: str = "",
+        rendered: str = "",
+        message: Optional[str] = None
+    ):
+        if field and expected and rendered:
+            self.company = company_or_message
+            self.field = field
+            self.expected = expected
+            self.rendered = rendered
+            self.delta = {
+                "company": self.company,
+                "field": self.field,
+                "expected": self.expected,
+                "rendered": self.rendered,
+                "resolution": "Restore the canonical pantry value exactly. Do not alter dates or locations."
+            }
+            msg = message or (
+                f"Experience header drift detected in {self.company}.\n"
+                f"  • Field: {self.field}\n"
+                f'  • Expected (pantry/profile.yaml): "{self.expected}"\n'
+                f'  • Rendered (generated resume):    "{self.rendered}"\n'
+                f"  • Resolution: Restore the canonical pantry value exactly. Do not alter dates or locations."
+            )
+        else:
+            self.company = ""
+            self.field = field
+            self.expected = expected
+            self.rendered = rendered
+            self.delta = {
+                "company": self.company,
+                "field": self.field,
+                "expected": self.expected,
+                "rendered": self.rendered,
+                "resolution": "Restore the canonical pantry value exactly. Do not alter dates or locations."
+            }
+            msg = company_or_message
+        super().__init__(msg)
+
+
+MONTH_NAME_TO_NUM = {
+    "jan": 1, "january": 1,
+    "feb": 2, "february": 2,
+    "mar": 3, "march": 3,
+    "apr": 4, "april": 4,
+    "may": 5,
+    "jun": 6, "june": 6,
+    "jul": 7, "july": 7,
+    "aug": 8, "august": 8,
+    "sep": 9, "september": 9, "sept": 9,
+    "oct": 10, "october": 10,
+    "nov": 11, "november": 11,
+    "dec": 12, "december": 12
+}
+
+
+def _parse_year_month(d: str) -> Optional[Tuple[int, Optional[int]]]:
+    """Parse date string into (year, optional_month_num)."""
+    s = d.strip().lower()
+    if not s:
+        return None
+    m = re.match(r"^(\d{4})[-/](\d{1,2})$", s)
+    if m:
+        return int(m.group(1)), int(m.group(2))
+    m = re.match(r"^([a-z]+)\s+(\d{4})$", s)
+    if m:
+        month_num = MONTH_NAME_TO_NUM.get(m.group(1))
+        if month_num:
+            return int(m.group(2)), month_num
+    m = re.match(r"^(\d{4})\s+([a-z]+)$", s)
+    if m:
+        month_num = MONTH_NAME_TO_NUM.get(m.group(2))
+        if month_num:
+            return int(m.group(1)), month_num
+    m = re.match(r"^(\d{4})$", s)
+    if m:
+        return int(m.group(1)), None
+    return None
+
+
+def _dates_equivalent(d1: str, d2: str) -> bool:
+    """Compare two date representations for equivalence."""
+    s1 = d1.strip().lower()
+    s2 = d2.strip().lower()
+    if s1 == s2:
+        return True
+    norm1 = re.sub(r"[\s\u2013\u2014-]+", "-", s1)
+    norm2 = re.sub(r"[\s\u2013\u2014-]+", "-", s2)
+    if norm1 == norm2:
+        return True
+    ym1 = _parse_year_month(s1)
+    ym2 = _parse_year_month(s2)
+    if ym1 and ym2 and ym1 == ym2:
+        return True
+    return False
+
+
+def _split_dates(raw_date: str) -> Tuple[str, str]:
+    """Split date range string into start_date and end_date."""
+    if not raw_date:
+        return "", ""
+    if "|" in raw_date:
+        raw_date = raw_date.split("|")[0].strip()
+    normalized = re.sub(r"[\s\u2013\u2014]+", " - ", raw_date)
+    normalized = re.sub(r"\s*--\s*", " - ", normalized)
+    parts = re.split(r"\s+-\s+|\s+to\s+", normalized, flags=re.IGNORECASE)
+    if len(parts) >= 2:
+        return parts[0].strip(), parts[1].strip()
+    elif len(parts) == 1:
+        return parts[0].strip(), ""
+    return "", ""
+
+
+def _parse_html_experience_headers(html_text: str) -> List[Dict[str, Any]]:
+    """Extract experience entries from rendered HTML."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    entries: List[Dict[str, Any]] = []
+
+    entry_blocks = soup.find_all(class_=re.compile(r"\bentry\b"))
+    for block in entry_blocks:
+        comp_el = block.find(class_=re.compile(r"(company-name|entry-company|entry-subtitle|client-firm)"))
+        role_el = block.find(class_=re.compile(r"(role-title|entry-title|entry-role)"))
+        date_el = block.find(class_=re.compile(r"(date-badge|entry-date)"))
+        loc_el = block.find(class_=re.compile(r"(loc-badge|entry-loc|entry-location)"))
+
+        comp = ""
+        role = ""
+        if comp_el:
+            comp = comp_el.get_text(strip=True).lstrip("@ ").strip()
+        if role_el:
+            role = role_el.get_text(strip=True)
+            if comp and ("@" in role or comp in role):
+                role = re.sub(rf"@\s*{re.escape(comp)}", "", role).strip()
+
+        if not comp:
+            continue
+
+        date_text = date_el.get_text(strip=True) if date_el else ""
+        loc = loc_el.get_text(strip=True) if loc_el else None
+
+        if not loc and "|" in date_text:
+            parts = date_text.split("|", 1)
+            date_text = parts[0].strip()
+            loc = parts[1].strip()
+
+        start_date, end_date = _split_dates(date_text)
+        entries.append({
+            "company": comp,
+            "title": role,
+            "location": loc,
+            "start_date": start_date,
+            "end_date": end_date,
+        })
+    return entries
+
+
+def _parse_markdown_experience_headers(md_text: str) -> List[Dict[str, Any]]:
+    """Extract experience entries from rendered Markdown."""
+    lines = md_text.splitlines()
+    entries: List[Dict[str, Any]] = []
+    in_exp = False
+
+    has_sections = any(line.strip().startswith("## ") for line in lines)
+    in_exp = not has_sections
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        upper = stripped.upper()
+        if re.match(r"^##\s+(?:WORK\s+EXPERIENCE|EXPERIENCE|EMPLOYMENT\s+HISTORY|PROFESSIONAL\s+EXPERIENCE)", upper):
+            in_exp = True
+            continue
+        elif stripped.startswith("## "):
+            in_exp = False
+            continue
+
+        if in_exp and stripped.startswith("### "):
+            heading = stripped[4:].strip()
+            role, comp = "", ""
+            if " - " in heading:
+                parts = heading.split(" - ", 1)
+                role, comp = parts[0].strip(), parts[1].strip()
+            elif " @ " in heading:
+                parts = heading.split(" @ ", 1)
+                role, comp = parts[0].strip(), parts[1].strip()
+            elif ", " in heading:
+                parts = heading.split(", ", 1)
+                role, comp = parts[0].strip(), parts[1].strip()
+            else:
+                role = heading
+
+            dates = ""
+            loc = None
+            if idx + 1 < len(lines):
+                next_line = lines[idx + 1].strip()
+                if next_line.startswith("*") and next_line.endswith("*"):
+                    meta = next_line.strip("*").strip()
+                    if "|" in meta:
+                        m_parts = meta.split("|", 1)
+                        dates = m_parts[0].strip()
+                        loc = m_parts[1].strip()
+                    else:
+                        dates = meta
+
+            start_date, end_date = _split_dates(dates)
+            entries.append({
+                "company": comp,
+                "title": role,
+                "location": loc,
+                "start_date": start_date,
+                "end_date": end_date,
+            })
+    return entries
 
 
 class ProvenanceReport(BaseModel):
@@ -103,9 +324,6 @@ class ProvenanceValidator:
         clean = set()
         for m in matches:
             cleaned = re.sub(r"\s+", "", m).lower()
-            # Ignore standard 4-digit years like 2018-2026
-            if re.match(r"^(19|20)\d{2}$", cleaned):
-                continue
             clean.add(cleaned)
         return clean
 
@@ -119,17 +337,168 @@ class ProvenanceValidator:
             profile.raw_context.get("personal_context", "") if isinstance(profile.raw_context, dict) else ""
         ]
         for exp in profile.experiences or []:
+            if exp.start_date:
+                source_texts.append(str(exp.start_date))
+            if exp.end_date:
+                source_texts.append(str(exp.end_date))
+            if exp.location:
+                source_texts.append(str(exp.location))
+            if exp.company:
+                source_texts.append(str(exp.company))
+            if exp.role:
+                source_texts.append(str(exp.role))
             source_texts.extend(exp.bullets or [])
         for proj in profile.projects or []:
             source_texts.append(proj.description or "")
             source_texts.extend(proj.highlights or [])
             source_texts.extend(proj.tech_stack or [])
         for edu in profile.education or []:
-            if edu.start_date: source_texts.append(str(edu.start_date))
-            if edu.end_date: source_texts.append(str(edu.end_date))
+            if edu.start_date:
+                source_texts.append(str(edu.start_date))
+            if edu.end_date:
+                source_texts.append(str(edu.end_date))
+            if edu.institution:
+                source_texts.append(str(edu.institution))
+            if edu.degree:
+                source_texts.append(str(edu.degree))
 
         full_source = " ".join(source_texts)
         return cls.extract_metrics(full_source)
+
+    @classmethod
+    def parse_experience_headers(
+        cls,
+        rendered: Union[TailoredApplication, List[WorkExperience], List[Dict[str, Any]], str]
+    ) -> List[Dict[str, Any]]:
+        """Parse rendered experience entries into a structured schema:
+        {company, title, location, start_date, end_date}
+        """
+        entries: List[Dict[str, Any]] = []
+        if isinstance(rendered, TailoredApplication):
+            for exp in rendered.tailored_experiences or []:
+                entries.append({
+                    "company": exp.company or "",
+                    "title": exp.role or "",
+                    "location": exp.location,
+                    "start_date": exp.start_date or "",
+                    "end_date": exp.end_date or "",
+                })
+        elif isinstance(rendered, list):
+            for item in rendered:
+                if isinstance(item, WorkExperience):
+                    entries.append({
+                        "company": item.company or "",
+                        "title": item.role or "",
+                        "location": item.location,
+                        "start_date": item.start_date or "",
+                        "end_date": item.end_date or "",
+                    })
+                elif isinstance(item, dict):
+                    entries.append({
+                        "company": item.get("company", ""),
+                        "title": item.get("title") or item.get("role", ""),
+                        "location": item.get("location"),
+                        "start_date": str(item.get("start_date", "")),
+                        "end_date": str(item.get("end_date", "")),
+                    })
+        elif isinstance(rendered, str):
+            if "<" in rendered and ">" in rendered:
+                entries = _parse_html_experience_headers(rendered)
+            else:
+                entries = _parse_markdown_experience_headers(rendered)
+        return entries
+
+    @classmethod
+    def validate_experience_headers(
+        cls,
+        rendered: Union[TailoredApplication, List[WorkExperience], List[Dict[str, Any]], str],
+        profile: CandidateProfile
+    ) -> List[Dict[str, Any]]:
+        """Assert an exact 1:1 match against the canonical entries in pantry/profile.yaml.
+
+        Raises ProvenanceAuditError on any detected tenure or location drift.
+        Returns the parsed structured experience entries.
+        """
+        entries = cls.parse_experience_headers(rendered)
+
+        for entry in entries:
+            r_comp = entry.get("company", "").strip()
+            if not r_comp:
+                continue
+
+            r_loc = (entry.get("location") or "").strip()
+            r_start = str(entry.get("start_date") or "").strip()
+            r_end = str(entry.get("end_date") or "").strip()
+
+            # If all header metadata fields are unpopulated (e.g. bullet-only test fixture), skip
+            if not r_loc and not r_start and not r_end:
+                continue
+
+            # Find matching canonical experience
+            matching = None
+            r_comp_lower = r_comp.lower()
+            for can in profile.experiences or []:
+                if not can.company:
+                    continue
+                can_comp_lower = can.company.strip().lower()
+                if can_comp_lower == r_comp_lower or can_comp_lower in r_comp_lower or r_comp_lower in can_comp_lower:
+                    matching = can
+                    break
+
+            if not matching:
+                continue
+
+            c_loc = (matching.location or "").strip()
+            c_start = str(matching.start_date or "").strip()
+            c_end = str(matching.end_date or "").strip()
+
+            drifted_fields: List[str] = []
+
+            # 1. Location drift
+            if r_loc:
+                if not c_loc or c_loc.lower() != r_loc.lower():
+                    drifted_fields.append("location")
+            elif c_loc and (r_start or r_end):
+                drifted_fields.append("location")
+
+            # 2. Tenure drift
+            if r_start:
+                if not c_start or not _dates_equivalent(c_start, r_start):
+                    drifted_fields.append("start_date")
+            elif c_start and (r_loc or r_end):
+                drifted_fields.append("start_date")
+
+            if r_end:
+                if not c_end or not _dates_equivalent(c_end, r_end):
+                    drifted_fields.append("end_date")
+            elif c_end and (r_loc or r_start):
+                drifted_fields.append("end_date")
+
+            if drifted_fields:
+                def format_hdr(loc: str, s: str, e: str) -> str:
+                    parts = []
+                    if loc:
+                        parts.append(loc)
+                    d_parts = []
+                    if s:
+                        d_parts.append(s)
+                    if e:
+                        d_parts.append(e)
+                    if d_parts:
+                        parts.append(" - ".join(d_parts))
+                    return " | ".join(parts) if parts else "N/A"
+
+                expected_str = format_hdr(c_loc, c_start, c_end)
+                rendered_str = format_hdr(r_loc, r_start, r_end)
+
+                raise ProvenanceAuditError(
+                    company_or_message=matching.company,
+                    field=", ".join(drifted_fields),
+                    expected=expected_str,
+                    rendered=rendered_str
+                )
+
+        return entries
 
     @classmethod
     def extract_verified_skills(cls, profile: CandidateProfile) -> Set[str]:
@@ -179,6 +548,9 @@ class ProvenanceValidator:
         persona: Optional[Persona] = None
     ) -> ProvenanceReport:
         """Run strict anti-hallucination provenance and banned words verification."""
+        # 1. Structural experience header validation (tenure & location)
+        cls.validate_experience_headers(app, profile)
+
         source_metrics = cls.extract_source_facts(profile)
 
         # Collect tailored text
@@ -276,6 +648,26 @@ class ProvenanceValidator:
         # 1. Audit and heal Work Experiences
         for exp_idx, exp in enumerate(app.tailored_experiences):
             orig_exp = next((e for e in profile.experiences if e.company.lower() in exp.company.lower()), None)
+            if orig_exp:
+                # Heal location drift
+                if exp.location and orig_exp.location and exp.location.strip().lower() != orig_exp.location.strip().lower():
+                    healing_log.append(
+                        f"Healed location in {exp.company}: Reverted '{exp.location}' to canonical '{orig_exp.location}'."
+                    )
+                    exp.location = orig_exp.location
+                # Heal start_date drift
+                if exp.start_date and orig_exp.start_date and not _dates_equivalent(orig_exp.start_date, exp.start_date):
+                    healing_log.append(
+                        f"Healed start date in {exp.company}: Reverted '{exp.start_date}' to canonical '{orig_exp.start_date}'."
+                    )
+                    exp.start_date = orig_exp.start_date
+                # Heal end_date drift
+                if exp.end_date and orig_exp.end_date and not _dates_equivalent(orig_exp.end_date, exp.end_date):
+                    healing_log.append(
+                        f"Healed end date in {exp.company}: Reverted '{exp.end_date}' to canonical '{orig_exp.end_date}'."
+                    )
+                    exp.end_date = orig_exp.end_date
+
             orig_bullets = orig_exp.bullets if orig_exp else []
             orig_metrics = cls.extract_metrics(" ".join(orig_bullets)) if orig_bullets else set()
 
