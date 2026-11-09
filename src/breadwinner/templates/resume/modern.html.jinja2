@@ -96,7 +96,8 @@
       margin-bottom: 4pt;
     }
     li {
-      margin-bottom: 2pt;
+      line-height: 1.35;
+      margin-bottom: 4pt;
       color: #374151;
     }
     .skill-badges {
@@ -144,12 +145,12 @@
       <div class="entry">
         <div class="entry-header">
           <span class="entry-role">{{ exp.role }} <span class="entry-company">@ {{ exp.company }}</span></span>
-          <span class="entry-date">{{ exp.start_date }} – {{ exp.end_date }}{% if exp.location %} | {{ exp.location }}{% endif %}</span>
+          <span class="entry-date">{{ exp.start_date }} - {{ exp.end_date }}{% if exp.location %} | {{ exp.location }}{% endif %}</span>
         </div>
         {% if exp.bullets %}
         <ul>
           {% for bullet in exp.bullets %}
-          <li>{{ bullet }}</li>
+          <li>{{ bullet | format_bullet }}</li>
           {% endfor %}
         </ul>
         {% endif %}
@@ -178,7 +179,7 @@
         {% if proj.highlights %}
         <ul>
           {% for hl in proj.highlights %}
-          <li>{{ hl }}</li>
+          <li>{{ hl | format_bullet }}</li>
           {% endfor %}
         </ul>
         {% endif %}
@@ -195,7 +196,7 @@
       <div class="entry">
         <div class="entry-header">
           <span class="entry-role">{{ edu.degree }}{% if edu.field_of_study %} in {{ edu.field_of_study }}{% endif %}</span>
-          <span class="entry-date">{% if edu.start_date and edu.end_date %}{{ edu.start_date }} – {{ edu.end_date }}{% elif edu.end_date %}{{ edu.end_date }}{% elif edu.start_date %}{{ edu.start_date }}{% endif %}</span>
+          <span class="entry-date">{% if edu.start_date and edu.end_date %}{{ edu.start_date }} - {{ edu.end_date }}{% elif edu.end_date %}{{ edu.end_date }}{% elif edu.start_date %}{{ edu.start_date }}{% endif %}</span>
         </div>
         <div style="color: #4b5563; font-size: 9.5pt;">{{ edu.institution }}{% if edu.grade %} ({{ edu.grade }}){% endif %}</div>
         {% if edu.coursework %}

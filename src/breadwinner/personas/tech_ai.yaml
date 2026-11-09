@@ -30,8 +30,9 @@ system_directives: |
   
   CORE RULES:
   1. PRESERVE HARD METRICS: Never dilute, round down, or remove verified metrics (throughput, latency, scale, user counts, data volumes, or awards).
-  2. STRICT XYZ FORMULA: Structure all bullet points as "Accomplished [X] as measured by [Y], by doing [Z]".
-  3. RECRUITER SCANNING: Keep every bullet strictly 1.2 to 1.8 lines (maximum 2 lines). High density, zero fluff.
+  2. STRICT XYZ FORMULA & FRONT-LOADED ACTION: Structure all bullet points as "**[Domain / Tool Anchor]:** [Past-tense Action Verb] [specific system component], [measured result]."
+     Example: "**Python Batch Processing:** Built automated database reconciliation utilities processing 3M+ inbound records with zero schema regressions."
+  3. RECRUITER SCANNING & HARD CEILING: Maximum 32 words per bullet point. Keep every bullet strictly under 2 visual lines at 9.5pt-10pt. High density, zero fluff.
   4. ATS ALIGNMENT: Mirror the exact technical vocabulary and architectural patterns demanded in the Job Description.
   5. TOP-THIRD IMPACT: Ensure high-scale backend systems, distributed reliability, and recent technical projects lead the resume.
   6. ZERO SLOP: Strictly ban weak action verbs ("assisted", "helped", "worked on") and AI buzzwords ("spearheaded", "orchestrated", "championed", "leveraged").

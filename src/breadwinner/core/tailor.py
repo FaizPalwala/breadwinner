@@ -132,13 +132,20 @@ Directly align verified candidate accomplishments against job requirements witho
 TARGET JOB: {job.title} at {job.company} (Domain: {deconstructed_job.domain})
 
 CORE TAILORING INVARIANTS:
-1. STRICT GOOGLE XYZ FORMULA: Structure all bullet points strictly as "Accomplished [X outcome] as measured by [Y metric], by doing [Z technical architecture/method]". Do NOT invert to Z-first (do not lead with the tool; lead with the achievement/outcome). Always begin with a strong, past-tense action verb (e.g. Architected, Scaled, Optimized, Stabilized, Engineered).
-2. ACTION VERBS ONLY: Every bullet must lead with an authoritative, technical past-tense action verb (e.g., "Architected", "Engineered", "Implemented", "Scaled", "Automated", "Stabilized", "Optimized"). NEVER use passive or weak verbs ("assisted", "helped", "worked on", "participated in", "responsible for").
-3. METRIC FREEZING & IMMUTABILITY: You may ONLY use the exact verified metrics listed under 'verified_metrics' for each experience. NEVER invent, fabricate, inflate, or round up metrics, scale, throughput, or percentages. If an experience lacks a verified metric, describe the concrete technical mechanism, concurrency model, or architecture instead of inventing a number.
-4. TECH STACK GROUNDING: Do NOT smuggle unverified technologies into a work experience that the candidate never used in that role.
-5. FORBIDDEN AI SLOP BLACKLIST: Strictly DO NOT use any of the following banned AI buzzwords or fluff phrases:
+1. FRONT-LOADED ACTION & SCAN-FIRST PATTERN: Format every bullet with bold technical anchors followed immediately by the action verb and the metric:
+   Pattern: `**[Domain / Tool Anchor]:** [Past-tense Action Verb] [specific system component], [measured result].`
+   Good: `**Python Batch Processing:** Built automated database reconciliation utilities processing 3M+ inbound records with zero schema regressions.`
+   Bad: `Architected and deployed an automated decision-support bypass workflow for operational claims triage under statutory mandates across 23M+ members...`
+   Strictly align with: Accomplished [X outcome] as measured by [Y metric], by doing [Z technical architecture/method]. Do NOT invert to Z-first (do not lead with passive tool recitations; front-load the technical anchor, action verb, and outcome).
+2. HARD WORD CEILING & VISUAL LINE WRAP: Maximum 32 words per bullet point. If a bullet exceeds 32 words, split it or cut the subordinate clause. At 9.5pt to 10pt font, no bullet may wrap past 2 lines of text. High density, zero fluff.
+3. ACTION VERBS ONLY: Every bullet must lead with an authoritative, technical past-tense action verb (e.g., "Architected", "Engineered", "Implemented", "Scaled", "Automated", "Stabilized", "Optimized", "Built"). NEVER use passive or weak verbs ("assisted", "helped", "worked on", "participated in", "responsible for").
+4. METRIC FREEZING & IMMUTABILITY: You may ONLY use the exact verified metrics listed under 'verified_metrics' for each experience. NEVER invent, fabricate, inflate, or round up metrics, scale, throughput, or percentages. If an experience lacks a verified metric, describe the concrete technical mechanism, concurrency model, or architecture instead of inventing a number.
+5. TECH STACK GROUNDING & ENTERPRISE PYTHON CALIBRATION:
+   - Do NOT smuggle unverified technologies into a work experience that the candidate never used in that role.
+   - For Python Backend Developer / Enterprise Software Engineer roles, calibrate for Mid to Senior level hands-on code delivery, clean APIs, testing, and production reliability.
+   - Enterprise / Deloitte Framing: Lead with Python across operational tooling, automated reconciliation, and backend services. Frame Java/Spring Boot as the high-throughput distributed foundation, not the sole identity. Explicitly elevate Python data pipelines, FastAPI/Flask services, and database automation to the primary technical narrative.
+6. FORBIDDEN AI SLOP BLACKLIST: Strictly DO NOT use any of the following banned AI buzzwords or fluff phrases:
    {banned_words_str}
-6. RECRUITER SCANNING BOUNDS: Keep every bullet strictly 1.2 to 1.8 lines (maximum 2 lines). High density, zero fluff.
 7. ATS ALIGNMENT: Accurately align candidate verified skills against the target job requirements.
 
 TASK:
@@ -380,6 +387,27 @@ JOB CONTEXT:
                     b = f"{b}."
 
                 clean_bullets.append(b)
+
+            # Enforce Hard Word Ceiling (Max 32 words) on clean bullets
+            for b_i, cb in enumerate(clean_bullets):
+                words = cb.split()
+                if len(words) > 32:
+                    clauses = re.split(r"([,;])\s+", cb)
+                    accum = []
+                    for i in range(0, len(clauses), 2):
+                        part = clauses[i]
+                        sep = clauses[i + 1] if i + 1 < len(clauses) else ""
+                        candidate = ("".join(accum) + " " + part).strip() if accum else part
+                        if len(candidate.split()) <= 32:
+                            accum.append(part + sep)
+                        else:
+                            break
+                    if accum:
+                        trimmed = "".join(accum).rstrip(",; ").strip()
+                        if any(re.search(p, trimmed.lower()) for p in METRIC_PATTERNS):
+                            if not trimmed.endswith((".", "!", "?")):
+                                trimmed += "."
+                            clean_bullets[b_i] = trimmed
 
             if not clean_bullets and orig_bullets:
                 clean_bullets = list(orig_bullets)

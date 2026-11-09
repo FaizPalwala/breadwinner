@@ -15,8 +15,8 @@
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      font-size: 9.2pt;
-      line-height: 1.28;
+      font-size: 9.5pt;
+      line-height: 1.35;
       color: #111111;
       background: #ffffff;
     }
@@ -91,9 +91,10 @@
       margin-bottom: 2pt;
     }
     li {
-      margin-bottom: 1pt;
-      font-size: 8.8pt;
-      text-align: justify;
+      line-height: 1.35;
+      margin-bottom: 4pt;
+      font-size: 9.5pt;
+      text-align: left;
     }
     li strong {
       font-weight: 700;
@@ -174,7 +175,7 @@
         {% if exp.bullets %}
         <ul>
           {% for bullet in exp.bullets %}
-          <li>{{ bullet }}</li>
+          <li>{{ bullet | format_bullet }}</li>
           {% endfor %}
         </ul>
         {% endif %}
@@ -196,7 +197,7 @@
         {% if proj.highlights %}
         <ul>
           {% for hl in proj.highlights %}
-          <li>{{ hl }}</li>
+          <li>{{ hl | format_bullet }}</li>
           {% endfor %}
         </ul>
         {% elif proj.description %}

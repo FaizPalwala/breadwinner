@@ -196,7 +196,7 @@
         {% if exp.bullets %}
         <ul>
           {% for bullet in exp.bullets %}
-          <li>{{ bullet }}</li>
+          <li>{{ bullet | format_bullet }}</li>
           {% endfor %}
         </ul>
         {% endif %}
@@ -218,7 +218,7 @@
         {% if proj.highlights %}
         <ul>
           {% for hl in proj.highlights %}
-          <li>{{ hl }}</li>
+          <li>{{ hl | format_bullet }}</li>
           {% endfor %}
         </ul>
         {% elif proj.description %}

@@ -105,12 +105,14 @@ class AuditEngine:
         # 1. Resolve JobContract
         if isinstance(contract_input, JobContract):
             contract = contract_input
+        elif isinstance(contract_input, dict):
+            contract = JobContract.model_validate(contract_input)
         else:
             cp = Path(str(contract_input))
             if cp.exists() and cp.is_file():
                 contract = JobContract.load(cp)
             else:
-                contract = JobContract.from_json(str(contract_input))
+                contract = JobContract.model_validate_json(str(contract_input))
 
         # 2. Resolve CandidateProfile if not supplied
         if profile is None:
@@ -305,6 +307,11 @@ class AuditEngine:
             recommendations.append(f"Remove unverified entities not present in candidate pantry: {', '.join(flagged_entities)}.")
         if banned_words_found:
             recommendations.append(f"Purge AI buzzwords from text: {', '.join(banned_words_found)}.")
+        long_bullets = [b for b in achievement_bullets if len(b.split()) > 32]
+        if long_bullets:
+            recommendations.append(f"Hard Word Ceiling: {len(long_bullets)} bullet(s) exceed 32 words. Trim subordinate clauses to keep bullets within 2 visual lines.")
+        if re.search(r"\b(?:\d{4}|present)\s*[–—]\s*(?:\d{4}|present)\b", resume_text, re.IGNORECASE):
+            recommendations.append("Replace non-standard date separators (– or —) with standard ASCII hyphens (-) for legacy ATS parser fidelity.")
 
         return AuditReport(
             provenance_gate=provenance_gate,

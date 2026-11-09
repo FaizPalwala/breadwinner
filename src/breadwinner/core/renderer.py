@@ -22,6 +22,15 @@ class TemplateRenderer:
             lstrip_blocks=True
         )
 
+        def markdown_to_html_inline(text: str) -> str:
+            # Convert **bold** to <strong>bold</strong>
+            s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+            # Convert *italic* to <em>italic</em>
+            s = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", s)
+            return s
+
+        self.env.filters["format_bullet"] = markdown_to_html_inline
+
     @classmethod
     def list_available_templates(cls) -> List[str]:
         """List registered resume template names."""
